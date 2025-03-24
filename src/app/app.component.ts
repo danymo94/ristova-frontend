@@ -12,7 +12,7 @@ import { ResponsiveService } from './core/services/responsive.service';
   templateUrl: './app.component.html',
 })
 export class AppComponent implements OnInit {
-  title = 'dineos-v2';
+  title = 'Ristova';
   private responsiveService = inject(ResponsiveService);
 
   ngOnInit(): void {

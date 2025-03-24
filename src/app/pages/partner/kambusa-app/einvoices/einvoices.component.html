@@ -1,0 +1,606 @@
+<div class="container mx-auto p-3 sm:p-4 md:p-5">
+  <!-- Stato vuoto quando non c'è progetto selezionato -->
+  @if (!selectedProject()) {
+  <div class="empty-state">
+    <i class="pi pi-info-circle"></i>
+    <h3>Nessun ristorante selezionato</h3>
+    <p>
+      Seleziona un ristorante dal menu in alto per visualizzare le fatture
+      elettroniche.
+    </p>
+  </div>
+  } @else {
+  <!-- Header con titolo e pulsanti azione -->
+  <div class="flex flex-wrap justify-between items-center mb-4">
+    <h1 class="text-2xl font-bold mb-2 md:mb-0">Fatture Elettroniche</h1>
+    <div class="flex flex-wrap gap-2">
+      <!-- Barra di ricerca -->
+      <div class="p-inputgroup">
+        <input
+          type="text"
+          pInputText
+          placeholder="Cerca fatture..."
+          [(ngModel)]="searchQuery"
+          (ngModelChange)="filterInvoices($event)"
+        />
+        <button
+          *ngIf="searchQuery"
+          pButton
+          icon="pi pi-times"
+          (click)="clearSearch()"
+        ></button>
+      </div>
+
+      <button
+        pButton
+        pRipple
+        [icon]="viewMode === 'grid' ? 'pi pi-list' : 'pi pi-th-large'"
+        class="p-button-outlined"
+        (click)="toggleViewMode()"
+        pTooltip="Cambia visualizzazione"
+        tooltipPosition="bottom"
+      ></button>
+
+      <button
+        pButton
+        pRipple
+        icon="pi pi-filter"
+        class="p-button-outlined"
+        [class.p-button-info]="hasActiveFilters()"
+        (click)="openFilterDialog()"
+        pTooltip="Filtra fatture"
+        tooltipPosition="bottom"
+      ></button>
+
+      <button
+        pButton
+        pRipple
+        icon="pi pi-refresh"
+        class="p-button-outlined"
+        [loading]="isLoading()"
+        (click)="refreshInvoices()"
+        pTooltip="Aggiorna fatture"
+        tooltipPosition="bottom"
+      ></button>
+
+      <button
+        pButton
+        pRipple
+        icon="pi pi-upload"
+        label="Carica Fatture"
+        class="p-button-primary"
+        (click)="openUploadDialog()"
+        pTooltip="Carica nuove fatture"
+        tooltipPosition="bottom"
+      ></button>
+    </div>
+  </div>
+
+  <!-- Stato di caricamento -->
+  <div *ngIf="isLoading()" class="flex justify-center my-5">
+    <i class="pi pi-spin pi-spinner text-4xl text-primary"></i>
+  </div>
+
+  <!-- Messaggio stato vuoto -->
+  <div
+    *ngIf="!isLoading() && (!filteredInvoices || filteredInvoices.length === 0)"
+    class="empty-state"
+  >
+    <i class="pi pi-file-invoice"></i>
+    <h3>Nessuna fattura trovata</h3>
+    <p>
+      Non ci sono fatture elettroniche registrate per questo progetto o
+      corrispondenti ai filtri applicati.
+    </p>
+    <div class="flex gap-2 justify-center mt-4">
+      <button
+        pButton
+        pRipple
+        icon="pi pi-upload"
+        label="Carica Fatture"
+        class="p-button-primary"
+        (click)="openUploadDialog()"
+      ></button>
+    </div>
+  </div>
+
+  <!-- Vista fatture in grid o tabella -->
+  <ng-container
+    *ngIf="!isLoading() && filteredInvoices && filteredInvoices.length > 0"
+  >
+    <!-- Vista a griglia -->
+    <div
+      *ngIf="viewMode === 'grid'"
+      class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
+    >
+      <p-card
+        *ngFor="let invoice of filteredInvoices"
+        styleClass="invoice-card"
+      >
+        <ng-template pTemplate="header">
+          <div class="p-3 bg-gray-50 flex justify-between items-center">
+            <div class="font-bold">Fattura #{{ invoice.invoiceNumber }}</div>
+            <p-badge
+              [value]="getFormattedDate(invoice.invoiceDate)"
+              severity="info"
+              styleClass="p-badge-info"
+            ></p-badge>
+          </div>
+        </ng-template>
+
+        <div>
+          <p class="mb-2">
+            <strong>Fornitore:</strong>
+            {{ getSupplierName(invoice.supplierId) }}
+          </p>
+          <p class="mb-2">
+            <strong>Importo:</strong>
+            {{ invoice.totalAmount | currency : "EUR" }}
+          </p>
+          <p class="mb-2">
+            <strong>Righe:</strong>
+            {{ invoice.invoiceLines?.length || 0 }}
+          </p>
+        </div>
+
+        <div
+          *ngIf="invoice.invoiceLines && invoice.invoiceLines.length > 0"
+          class="mt-3 border-t pt-2"
+        >
+          <p class="text-sm font-medium mb-1">Primi 3 articoli:</p>
+          <ul class="text-sm">
+            <li
+              *ngFor="let line of invoice.invoiceLines.slice(0, 3)"
+              class="mb-1"
+            >
+              {{ line.quantity }}x {{ line.description | slice : 0 : 30
+              }}{{ line.description.length > 30 ? "..." : "" }}
+            </li>
+            <li
+              *ngIf="invoice.invoiceLines.length > 3"
+              class="text-gray-500 italic"
+            >
+              + altri {{ invoice.invoiceLines.length - 3 }} articoli...
+            </li>
+          </ul>
+        </div>
+
+        <ng-template pTemplate="footer">
+          <div class="flex justify-between">
+            <button
+              pButton
+              icon="pi pi-eye"
+              label="Dettagli"
+              class="p-button-text p-button-sm"
+              (click)="viewInvoiceDetails(invoice)"
+            ></button>
+            <button
+              pButton
+              icon="pi pi-pencil"
+              label="Modifica"
+              class="p-button-text p-button-sm p-button-warning"
+              (click)="editInvoice(invoice)"
+            ></button>
+          </div>
+        </ng-template>
+      </p-card>
+    </div>
+
+    <!-- Vista tabella -->
+    <p-table
+      *ngIf="viewMode === 'list'"
+      [value]="filteredInvoices"
+      [paginator]="true"
+      [rows]="10"
+      [rowsPerPageOptions]="[10, 25, 50]"
+      styleClass="p-datatable-sm"
+      [showCurrentPageReport]="true"
+      currentPageReportTemplate="Visualizzazione {first} a {last} di {totalRecords} fatture"
+      [responsiveLayout]="'stack'"
+      responsiveLayout="stack"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th pSortableColumn="invoiceNumber">
+            Numero <p-sortIcon field="invoiceNumber"></p-sortIcon>
+          </th>
+          <th pSortableColumn="invoiceDate">
+            Data <p-sortIcon field="invoiceDate"></p-sortIcon>
+          </th>
+          <th>Fornitore</th>
+          <th pSortableColumn="totalAmount">
+            Importo <p-sortIcon field="totalAmount"></p-sortIcon>
+          </th>
+          <th>Righe</th>
+          <th style="width: 8rem">Azioni</th>
+        </tr>
+      </ng-template>
+
+      <ng-template pTemplate="body" let-invoice>
+        <tr>
+          <td>
+            <span class="p-column-title">Numero</span>
+            {{ invoice.invoiceNumber }}
+          </td>
+          <td>
+            <span class="p-column-title">Data</span>
+            {{ invoice.invoiceDate | date : "dd/MM/yyyy" }}
+          </td>
+          <td>
+            <span class="p-column-title">Fornitore</span>
+            {{ getSupplierName(invoice.supplierId) }}
+          </td>
+          <td>
+            <span class="p-column-title">Importo</span>
+            {{ invoice.totalAmount | currency : "EUR" }}
+          </td>
+          <td>
+            <span class="p-column-title">Righe</span>
+            {{ invoice.invoiceLines?.length || 0 }}
+          </td>
+          <td>
+            <div class="flex gap-1 justify-end">
+              <button
+                pButton
+                icon="pi pi-eye"
+                class="p-button-text p-button-rounded p-button-sm"
+                pTooltip="Visualizza dettagli"
+                tooltipPosition="top"
+                (click)="viewInvoiceDetails(invoice)"
+              ></button>
+              <button
+                pButton
+                icon="pi pi-pencil"
+                class="p-button-text p-button-rounded p-button-sm p-button-warning"
+                pTooltip="Modifica"
+                tooltipPosition="top"
+                (click)="editInvoice(invoice)"
+              ></button>
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="6" class="text-center p-4">Nessuna fattura trovata</td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </ng-container>
+  }
+</div>
+
+<!-- Dialog per caricare nuove fatture -->
+<p-dialog
+  header="Carica Fatture Elettroniche"
+  [(visible)]="uploadDialogVisible"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{ width: '650px' }"
+  styleClass="upload-dialog"
+>
+  <div class="p-fluid">
+    <p class="text-sm text-gray-600 mb-3">
+      Carica file XML di fatture elettroniche per elaborarli automaticamente.
+      Puoi anche caricare file PDF che verranno convertiti in XML.
+    </p>
+
+    <p-fileUpload
+      #fileUpload
+      mode="advanced"
+      [multiple]="true"
+      [showUploadButton]="false"
+      accept=".xml,.pdf"
+      chooseLabel="Seleziona File"
+      [maxFileSize]="10000000"
+      [customUpload]="true"
+      (onSelect)="onSelectedFiles($event)"
+      (onClear)="onClearFiles()"
+      (onRemove)="onRemoveFile($event)"
+    >
+      <ng-template pTemplate="content">
+        <div *ngIf="files.length > 0" class="mt-3">
+          <p>
+            Totale: {{ files.length }} file(s) - {{ formatSize(totalSize) }}
+          </p>
+        </div>
+
+        <p-progressBar
+          *ngIf="progressPercent > 0"
+          [value]="progressPercent"
+          [showValue]="true"
+          [style]="{ height: '20px' }"
+          class="mt-3"
+        ></p-progressBar>
+      </ng-template>
+    </p-fileUpload>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <button
+      pButton
+      pRipple
+      label="Annulla"
+      icon="pi pi-times"
+      class="p-button-text"
+      (click)="closeUploadDialog()"
+      [disabled]="isLoading() || progressPercent > 0"
+    ></button>
+    <button
+      pButton
+      pRipple
+      label="Elabora"
+      icon="pi pi-upload"
+      class="p-button-primary"
+      (click)="uploadInvoices()"
+      [disabled]="files.length === 0 || isLoading() || progressPercent > 0"
+      [loading]="isLoading() || progressPercent > 0"
+    ></button>
+  </ng-template>
+</p-dialog>
+
+<!-- Dialog per visualizzare dettagli fattura -->
+<p-dialog
+  header="Dettagli Fattura"
+  [(visible)]="detailsDialogVisible"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{ width: '80%', maxWidth: '900px' }"
+  styleClass="details-dialog"
+>
+  <div *ngIf="selectedInvoice" class="p-2">
+    <div class="flex justify-between mb-4">
+      <div>
+        <h2 class="text-xl font-semibold">
+          Fattura #{{ selectedInvoice.invoiceNumber }}
+        </h2>
+        <p class="text-gray-600">
+          Data: {{ selectedInvoice.invoiceDate | date : "dd/MM/yyyy" }}
+        </p>
+      </div>
+      <div class="text-right">
+        <p class="text-lg font-bold">
+          {{ selectedInvoice.totalAmount | currency : "EUR" }}
+        </p>
+        <p class="text-sm text-gray-500">Importo totale</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <div class="border rounded p-3">
+        <h3 class="text-md font-medium mb-2">Informazioni Fornitore</h3>
+        <p class="mb-1">
+          <strong>Nome:</strong>
+          {{ getSupplierName(selectedInvoice.supplierId) }}
+        </p>
+        <p class="mb-1">
+          <strong>Partita IVA:</strong>
+          {{ getSupplierInfo(selectedInvoice.supplierId, "taxCode") }}
+        </p>
+        <p class="mb-1">
+          <strong>Indirizzo:</strong>
+          {{ getSupplierInfo(selectedInvoice.supplierId, "address") }}
+        </p>
+        <p class="mb-1">
+          <strong>Città:</strong>
+          {{ getSupplierInfo(selectedInvoice.supplierId, "city") }},
+          {{ getSupplierInfo(selectedInvoice.supplierId, "province") }}
+        </p>
+      </div>
+
+      <div class="border rounded p-3">
+        <h3 class="text-md font-medium mb-2">Informazioni Fattura</h3>
+        <p class="mb-1">
+          <strong>Numero Fattura:</strong> {{ selectedInvoice.invoiceNumber }}
+        </p>
+        <p class="mb-1">
+          <strong>Data:</strong>
+          {{ selectedInvoice.invoiceDate | date : "dd/MM/yyyy" }}
+        </p>
+        <p class="mb-1">
+          <strong>Totale Prodotti:</strong>
+          {{ selectedInvoice.invoiceLines?.length || 0 }}
+        </p>
+        <p class="mb-1">
+          <strong>Data Registrazione:</strong>
+          {{ selectedInvoice.createdAt | date : "dd/MM/yyyy HH:mm" }}
+        </p>
+      </div>
+    </div>
+
+    <div class="border rounded p-3 mb-4">
+      <h3 class="text-md font-medium mb-2">Righe Fattura</h3>
+      <p-table
+        [value]="selectedInvoice.invoiceLines || []"
+        styleClass="p-datatable-sm"
+        [scrollable]="true"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th>Codice</th>
+            <th>Descrizione</th>
+            <th class="text-right">Qtà</th>
+            <th class="text-right">U.M.</th>
+            <th class="text-right">Prezzo Unitario</th>
+            <th class="text-right">IVA</th>
+            <th class="text-right">Totale</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-line>
+          <tr>
+            <td>{{ line.articleCode }}</td>
+            <td>{{ line.description }}</td>
+            <td class="text-right">{{ line.quantity }}</td>
+            <td class="text-right">{{ line.unitOfMeasure }}</td>
+            <td class="text-right">{{ line.unitPrice | currency : "EUR" }}</td>
+            <td class="text-right">{{ line.vatRate }}%</td>
+            <td class="text-right">{{ line.totalPrice | currency : "EUR" }}</td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="footer">
+          <tr>
+            <td colspan="6" class="text-right font-bold">Totale Fattura</td>
+            <td class="text-right font-bold">
+              {{ selectedInvoice.totalAmount | currency : "EUR" }}
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <button
+      pButton
+      pRipple
+      label="Chiudi"
+      icon="pi pi-times"
+      class="p-button-text"
+      (click)="closeDetailsDialog()"
+    ></button>
+    <button
+      pButton
+      pRipple
+      label="Modifica"
+      icon="pi pi-pencil"
+      class="p-button-warning"
+      (click)="editInvoice(selectedInvoice)"
+    ></button>
+  </ng-template>
+</p-dialog>
+
+<!-- Dialog per filtri -->
+<p-dialog
+  header="Filtra Fatture"
+  [(visible)]="filterDialogVisible"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{ width: '450px' }"
+  styleClass="filter-dialog"
+>
+  <div class="p-fluid">
+    <div class="field mb-4">
+      <label for="supplier" class="block text-sm font-medium text-gray-700 mb-1"
+        >Fornitore</label
+      >
+      <p-dropdown
+        id="supplier"
+        [options]="supplierOptions"
+        [(ngModel)]="filters.supplierId"
+        optionLabel="name"
+        optionValue="id"
+        placeholder="Seleziona un fornitore"
+        [showClear]="true"
+        styleClass="w-full"
+      ></p-dropdown>
+    </div>
+
+    <div class="field mb-4">
+      <label
+        for="dateRange"
+        class="block text-sm font-medium text-gray-700 mb-1"
+        >Intervallo di date</label
+      >
+      <p-calendar
+        id="dateRange"
+        [(ngModel)]="filters.dateRange"
+        selectionMode="range"
+        [readonlyInput]="true"
+        [showIcon]="true"
+        [showButtonBar]="true"
+        placeholder="Seleziona un intervallo di date"
+        styleClass="w-full"
+      ></p-calendar>
+    </div>
+
+    <div class="field mb-4">
+      <label for="totalMin" class="block text-sm font-medium text-gray-700 mb-1"
+        >Importo minimo</label
+      >
+      <p-inputNumber
+        id="totalMin"
+        [(ngModel)]="filters.minAmount"
+        mode="currency"
+        currency="EUR"
+        locale="it-IT"
+        placeholder="Importo minimo"
+        styleClass="w-full"
+      ></p-inputNumber>
+    </div>
+
+    <div class="field mb-4">
+      <label for="totalMax" class="block text-sm font-medium text-gray-700 mb-1"
+        >Importo massimo</label
+      >
+      <p-inputNumber
+        id="totalMax"
+        [(ngModel)]="filters.maxAmount"
+        mode="currency"
+        currency="EUR"
+        locale="it-IT"
+        placeholder="Importo massimo"
+        styleClass="w-full"
+      ></p-inputNumber>
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <button
+      pButton
+      pRipple
+      label="Annulla"
+      icon="pi pi-times"
+      class="p-button-text"
+      (click)="closeFilterDialog()"
+    ></button>
+    <button
+      pButton
+      pRipple
+      label="Reimposta"
+      icon="pi pi-refresh"
+      class="p-button-outlined"
+      (click)="resetFilters()"
+    ></button>
+    <button
+      pButton
+      pRipple
+      label="Applica"
+      icon="pi pi-check"
+      (click)="applyFilters()"
+    ></button>
+  </ng-template>
+</p-dialog>
+
+<style>
+  .empty-state {
+    padding: 3rem 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .empty-state i {
+    font-size: 3rem;
+    color: #ccc;
+    margin-bottom: 1rem;
+  }
+
+  .empty-state h3 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .invoice-card {
+    transition: all 0.3s ease;
+  }
+
+  .invoice-card:hover {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+      0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+</style>

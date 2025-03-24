@@ -140,6 +140,14 @@ export const routes: Routes = [
           ),
         pathMatch: 'full',
       },
+      {
+        path: 'einvoices',
+        loadComponent: () =>
+          import('./pages/partner/kambusa-app/einvoices/einvoices.component').then(
+            (m) => m.EinvoicesComponent
+          ),
+        pathMatch: 'full',
+      },
 
     ],
   },

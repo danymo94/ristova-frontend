@@ -253,6 +253,7 @@ export const ProjectStore = signalStore(
 
       // Select project
       selectProject: (project: Project) => {
+        console.log('selectProject', project);
         patchState(store, { selectedProject: project });
       },
 
