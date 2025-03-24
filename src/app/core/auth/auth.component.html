@@ -1,0 +1,181 @@
+<div
+  class="w-screen h-fit min-h-screen bg-surface-200 flex flex-col justify-center items-center p-6"
+>
+  <div
+    id="auth-container"
+    class="rounded-md h-fit bg-surface-50 text-primary-500 shadow-2xl flex flex-row justify-between items-center w-full md:w-1/3"
+  >
+    <div class="w-full p-8 flex flex-col justify-center items-center">
+      <h2 class="p-4 text-surface-500 text-xl uppercase font-bold">
+        {{ isRegister() ? "Admin Registration" : "Login" }}
+      </h2>
+
+      <form
+        [formGroup]="authForm"
+        (ngSubmit)="submitForm()"
+        class="flex flex-col gap-4 h-full w-full"
+      >
+        @if(isRegister()){
+        <div class="flex flex-row gap-4">
+          <p-iftalabel>
+            <label class="text-xs" for="fullName">Full Name</label>
+            <input
+              id="fullName"
+              type="text"
+              pKeyFilter="alpha"
+              pInputText
+              formControlName="fullName"
+              class="w-full"
+            />
+          </p-iftalabel>
+          <p-iftalabel>
+            <label class="text-xs" for="businessName">Business Name</label>
+            <input
+              id="businessName"
+              pInputText
+              pKeyFilter="alphanum"
+              formControlName="businessName"
+              type="text"
+              class="w-full"
+            />
+          </p-iftalabel>
+        </div>
+        <p-iftaLabel>
+          <label class="text-xs" for="secretKey">Secret Key</label>
+          <input
+            id="secretKey"
+            class="w-full"
+            formControlName="secretKey"
+            pInputText
+            text
+          
+          />
+        </p-iftaLabel>
+        <p-iftaLabel>
+          <label class="text-xs" for="phone">Phone Number</label>
+          <input
+            id="phone"
+            class="w-full"
+            formControlName="phone"
+            pInputText
+            pKeyFilter="num"
+            type="text"
+          />
+        </p-iftaLabel>
+        <p-iftaLabel>
+          <label class="text-xs" for="address">Business Address</label>
+          <input
+            id="address"
+            class="w-full"
+            formControlName="businessAddress"
+            pInputText
+            type="text"
+          />
+        </p-iftaLabel>
+        <p-inputgroup class="">
+          <p-iftaLabel>
+            <label class="text-xs" for="vatNumber">Vat Code</label>
+            <input
+              id="vatNumber"
+              class="w-full"
+              formControlName="vatNumber"
+              pInputText
+              pKeyFilter="alphanum"
+              type="text"
+              inputUppercase
+            />
+          </p-iftaLabel>
+          <p-inputgroup-addon>
+            <p-button icon="pi pi-search" severity="secondary" variant="text" />
+          </p-inputgroup-addon>
+        </p-inputgroup>
+        <p-iftaLabel>
+          <label class="text-xs" for="fiscalCode">Fiscal Code</label>
+          <input
+            id="fiscalCode"
+            class="w-full"
+            formControlName="fiscalCode"
+            pInputText
+            type="text"
+            inputUppercase
+          />
+        </p-iftaLabel>
+        <div class="flex flex-row gap-4">
+          <p-iftaLabel>
+            <label class="text-xs" for="sdiCode">SDI Code</label>
+            <input
+              id="sdiCode"
+              class="w-full"
+              formControlName="sdiCode"
+              pInputText
+              type="text"
+              inputUppercase
+            />
+          </p-iftaLabel>
+          <p-iftaLabel>
+            <label class="text-xs" for="pecAddress">PEC Address</label>
+            <input
+              id="pecAddress"
+              class="w-full"
+              formControlName="pecAddress"
+              pInputText
+              type="text"
+            />
+          </p-iftaLabel>
+        </div>
+        <p-iftaLabel>
+          <label class="text-xs" for="website">Website</label>
+          <input
+            id="website"
+            class="w-full"
+            formControlName="website"
+            pInputText
+            type="text"
+          />
+        </p-iftaLabel>
+        }
+        <p-iftaLabel>
+          <label class="text-xs" for="email">Email</label>
+          <input
+            id="email"
+            class="w-full"
+            formControlName="email"
+            pInputText
+            type="text"
+          />
+        </p-iftaLabel>
+        <p-iftaLabel>
+          <label class="text-xs" for="password">Password</label>
+          <input
+            id="password"
+            class="w-full"
+            formControlName="password"
+            pInputText
+            type="password"
+          />
+        </p-iftaLabel>
+
+        <p *ngIf="errorMessage()" class="error">{{ errorMessage() }}</p>
+
+        <p-button
+          [label]="isRegister() ? 'Register' : 'Login'"
+          icon="pi pi-check"
+          styleClass="w-full !p-4"
+          [loading]="isLoading()"
+          [disabled]="!authForm.valid"
+          type="submit"
+        />
+      </form>
+
+      <p class="p-4">
+        <a [routerLink]="isRegister() ? '/login' : '/register'">
+          {{
+            isRegister()
+              ? "Already have an account? Login"
+              : "Don't have an account? Register"
+          }}
+        </a>
+      </p>
+    </div>
+  </div>
+</div>

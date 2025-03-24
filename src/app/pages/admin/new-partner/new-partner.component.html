@@ -1,0 +1,899 @@
+<div class="p-4">
+  <!-- Intestazione -->
+  <div class="w-full flex flex-row justify-between items-center mb-4">
+    <h2 class="text-2xl font-bold mb-4">Gestione Partner</h2>
+
+    <div class="flex items-center gap-2">
+      <button
+        pButton
+        icon="pi pi-refresh"
+        class="p-button-rounded p-button-text"
+        [loading]="isLoading()"
+        (click)="loadPartners()"
+        pTooltip="Aggiorna elenco"
+      ></button>
+      <button
+        pButton
+        [icon]="viewMode() === 'grid' ? 'pi pi-list' : 'pi pi-th-large'"
+        class="p-button-rounded p-button-text"
+        (click)="toggleViewMode()"
+        [pTooltip]="viewMode() === 'grid' ? 'Vista lista' : 'Vista griglia'"
+      ></button>
+      <button
+        pButton
+        icon="pi pi-plus"
+        label="Nuovo Partner"
+        class="p-button-sm"
+        (click)="openCreateDialog()"
+      ></button>
+    </div>
+  </div>
+
+  <!-- Filtri -->
+  <div
+    class="w-full flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4"
+  >
+    <div class="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+      <input
+        pInputText
+        type="text"
+        placeholder="Cerca partner..."
+        class="w-full md:w-auto rounded border-0 px-3 py-2 text-sm shadow"
+        [(ngModel)]="searchQuery"
+        (ngModelChange)="filterPartners($event)"
+      />
+    </div>
+  </div>
+
+  <!-- Vista vuota quando non ci sono partner -->
+  <div
+    *ngIf="
+      !isLoading() && (!filteredPartners() || filteredPartners()!.length === 0)
+    "
+    class="empty-state w-full"
+  >
+    <i class="pi pi-users"></i>
+    <h3>Nessun partner disponibile</h3>
+    <p>
+      Non ci sono partner registrati. Puoi creare un nuovo partner utilizzando
+      il pulsante "Nuovo Partner".
+    </p>
+    <div class="flex gap-2 justify-center mt-4">
+      <button
+        pButton
+        pRipple
+        icon="pi pi-plus"
+        label="Crea nuovo partner"
+        class="p-button-primary"
+        (click)="openCreateDialog()"
+      ></button>
+    </div>
+  </div>
+
+  <!-- Vista griglia -->
+  @if (viewMode() === 'grid' && !isLoading() && filteredPartners() &&
+  filteredPartners()!.length > 0) {
+  <div class="partner-grid w-full">
+    @for (partner of filteredPartners(); track partner.id) {
+    <div class="partner-card">
+      <div class="flex items-center gap-4 mb-3">
+        <div
+          class="logo-preview"
+          [style.background-color]="getRandomColor(partner.businessName)"
+        >
+          <span>{{ getInitials(partner.businessName) }}</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <h4 class="text-lg font-semibold truncate">
+            {{ partner.businessName }}
+          </h4>
+          <p class="text-gray-600 text-sm">{{ partner.email }}</p>
+        </div>
+      </div>
+
+      <div class="partner-info mb-4">
+        <div class="flex justify-between mb-2">
+          <span class="text-sm text-gray-500">Contatto:</span>
+          <span class="text-sm font-medium">{{ partner.fullName }}</span>
+        </div>
+        <div class="flex justify-between mb-2">
+          <span class="text-sm text-gray-500">Telefono:</span>
+          <span class="text-sm font-medium">{{ partner.phone || "N/D" }}</span>
+        </div>
+        <div class="flex justify-between mb-2">
+          <span class="text-sm text-gray-500">P. IVA:</span>
+          <span class="text-sm font-medium">{{ partner.vatNumber }}</span>
+        </div>
+      </div>
+
+      <div class="partner-actions flex justify-end gap-2 mt-auto">
+        <button
+          pButton
+          icon="pi pi-pencil"
+          class="p-button-rounded p-button-text"
+          (click)="openEditDialog(partner)"
+          pTooltip="Modifica partner"
+        ></button>
+        <button
+          pButton
+          icon="pi pi-trash"
+          class="p-button-rounded p-button-text p-button-danger"
+          (click)="deletePartner($event, partner.id || '')"
+          pTooltip="Elimina partner"
+        ></button>
+      </div>
+    </div>
+    }
+  </div>
+  }
+
+  <!-- Vista tabella -->
+  @if (viewMode() === 'list' && !isLoading() && filteredPartners() &&
+  filteredPartners()!.length > 0) {
+  <div
+    class="relative w-full min-w-0 break-words rounded border-0 bg-white shadow-lg"
+  >
+    <p-table
+      [value]="filteredPartners() || []"
+      [paginator]="(filteredPartners()?.length || 0) > 10"
+      [rows]="10"
+      styleClass="p-datatable-sm"
+      [loading]="isLoading()"
+      responsiveLayout="scroll"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th style="width: 50px"></th>
+          <th pSortableColumn="businessName">
+            Nome Azienda <p-sortIcon field="businessName"></p-sortIcon>
+          </th>
+          <th pSortableColumn="email">
+            Email <p-sortIcon field="email"></p-sortIcon>
+          </th>
+          <th pSortableColumn="fullName">
+            Contatto <p-sortIcon field="fullName"></p-sortIcon>
+          </th>
+          <th pSortableColumn="phone">
+            Telefono <p-sortIcon field="phone"></p-sortIcon>
+          </th>
+          <th pSortableColumn="vatNumber">
+            P. IVA <p-sortIcon field="vatNumber"></p-sortIcon>
+          </th>
+          <th class="text-center" style="width: 100px">Azioni</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-partner>
+        <tr>
+          <td>
+            <div
+              class="logo-preview-small"
+              [style.background-color]="getRandomColor(partner.businessName)"
+            >
+              {{ getInitials(partner.businessName) }}
+            </div>
+          </td>
+          <td>{{ partner.businessName }}</td>
+          <td>{{ partner.email }}</td>
+          <td>{{ partner.fullName }}</td>
+          <td>{{ partner.phone || "N/D" }}</td>
+          <td>{{ partner.vatNumber }}</td>
+          <td>
+            <div class="flex gap-2 justify-center">
+              <button
+                pButton
+                icon="pi pi-pencil"
+                class="p-button-text p-button-rounded"
+                (click)="openEditDialog(partner)"
+                pTooltip="Modifica partner"
+              ></button>
+              <button
+                pButton
+                icon="pi pi-trash"
+                class="p-button-text p-button-rounded p-button-danger"
+                (click)="deletePartner($event, partner.id)"
+                pTooltip="Elimina partner"
+              ></button>
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+  }
+</div>
+
+<!-- Dialog per la creazione di un nuovo partner -->
+<p-dialog
+  [visible]="createDialogVisible()"
+  (visibleChange)="onCreateDialogVisibilityChange($event)"
+  [modal]="true"
+  header="Crea Nuovo Partner"
+  styleClass="partner-dialog"
+  [style]="{ width: '90vw', maxWidth: '800px' }"
+  [closeOnEscape]="true"
+>
+  <form [formGroup]="partnerForm" class="p-fluid p-3">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+      <div class="field">
+        <label class="block text-sm font-medium text-gray-700 mb-1">
+          Logo Partner
+        </label>
+        <div class="logo-container">
+          <div
+            class="logo-preview-large m-auto"
+            *ngIf="!logoImage"
+            [style.background-color]="
+              getRandomColor(partnerForm.get('businessName')?.value || '')
+            "
+          >
+            {{ getInitials(partnerForm.get("businessName")?.value || "") }}
+          </div>
+          <img
+            *ngIf="logoImage"
+            [src]="logoImage"
+            class="logo-preview-image m-auto"
+            alt="Logo partner"
+          />
+          <div class="logo-upload-controls mt-2 flex gap-2">
+            <button
+              *ngIf="logoImage"
+              pButton
+              icon="pi pi-trash"
+              class="p-button-danger p-button-outlined"
+              (click)="removeLogo()"
+              pTooltip="Rimuovi logo"
+            ></button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h4 class="mb-4 text-lg font-semibold text-gray-800">
+          Informazioni Principali
+        </h4>
+        <!-- Nome Azienda -->
+        <div class="field mb-3">
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="businessName"
+          >
+            Nome Azienda *
+          </label>
+          <input
+            pInputText
+            id="businessName"
+            formControlName="businessName"
+            class="w-full"
+            placeholder="Inserisci nome azienda"
+          />
+          <small *ngIf="formHasError('businessName')" class="text-red-500">
+            Il nome azienda è obbligatorio
+          </small>
+        </div>
+
+        <!-- Email -->
+        <div class="field mb-3">
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="email"
+          >
+            Email *
+          </label>
+          <input
+            pInputText
+            id="email"
+            formControlName="email"
+            class="w-full"
+            placeholder="Inserisci email"
+          />
+          <small *ngIf="formHasError('email')" class="text-red-500">
+            Inserisci un'email valida
+          </small>
+        </div>
+      </div>
+    </div>
+
+    <h4 class="mb-4 mt-6 text-lg font-semibold text-gray-800">
+      Informazioni Aziendali
+    </h4>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <!-- Nome Completo Contatto -->
+      <div class="field">
+        <label
+          class="block text-sm font-medium text-gray-700 mb-1"
+          for="fullName"
+        >
+          Nome Completo Contatto *
+        </label>
+        <input
+          pInputText
+          id="fullName"
+          formControlName="fullName"
+          class="w-full"
+          placeholder="Inserisci nome completo"
+        />
+        <small *ngIf="formHasError('fullName')" class="text-red-500">
+          Il nome completo è obbligatorio
+        </small>
+      </div>
+
+      <!-- Telefono -->
+      <div class="field">
+        <label class="block text-sm font-medium text-gray-700 mb-1" for="phone">
+          Telefono *
+        </label>
+        <input
+          pInputText
+          id="phone"
+          formControlName="phone"
+          class="w-full"
+          placeholder="Inserisci telefono"
+        />
+        <small *ngIf="formHasError('phone')" class="text-red-500">
+          Il telefono è obbligatorio
+        </small>
+      </div>
+
+      <!-- VAT Number -->
+      <div class="field">
+        <label
+          class="block text-sm font-medium text-gray-700 mb-1"
+          for="vatNumber"
+        >
+          Partita IVA *
+        </label>
+        <input
+          pInputText
+          id="vatNumber"
+          formControlName="vatNumber"
+          class="w-full"
+          placeholder="Inserisci partita IVA"
+          inputUppercase
+        />
+        <small *ngIf="formHasError('vatNumber')" class="text-red-500">
+          La partita IVA è obbligatoria
+        </small>
+      </div>
+
+      <!-- Fiscal Code -->
+      <div class="field">
+        <label
+          class="block text-sm font-medium text-gray-700 mb-1"
+          for="fiscalCode"
+        >
+          Codice Fiscale *
+        </label>
+        <input
+          pInputText
+          id="fiscalCode"
+          formControlName="fiscalCode"
+          class="w-full"
+          placeholder="Inserisci codice fiscale"
+          inputUppercase
+        />
+        <small *ngIf="formHasError('fiscalCode')" class="text-red-500">
+          Il codice fiscale è obbligatorio
+        </small>
+      </div>
+
+      <!-- Business Address -->
+      <div class="field">
+        <label
+          class="block text-sm font-medium text-gray-700 mb-1"
+          for="businessAddress"
+        >
+          Indirizzo Aziendale *
+        </label>
+        <input
+          pInputText
+          id="businessAddress"
+          formControlName="businessAddress"
+          class="w-full"
+          placeholder="Inserisci indirizzo"
+        />
+        <small *ngIf="formHasError('businessAddress')" class="text-red-500">
+          L'indirizzo è obbligatorio
+        </small>
+      </div>
+
+      <!-- Website -->
+      <div class="field">
+        <label
+          class="block text-sm font-medium text-gray-700 mb-1"
+          for="website"
+        >
+          Sito Web
+        </label>
+        <input
+          pInputText
+          id="website"
+          formControlName="website"
+          class="w-full"
+          placeholder="Inserisci sito web"
+        />
+      </div>
+
+      <!-- SDI Code -->
+      <div class="field">
+        <label
+          class="block text-sm font-medium text-gray-700 mb-1"
+          for="sdiCode"
+        >
+          Codice SDI *
+        </label>
+        <input
+          pInputText
+          id="sdiCode"
+          formControlName="sdiCode"
+          class="w-full"
+          placeholder="Inserisci codice SDI"
+          inputUppercase
+        />
+        <small *ngIf="formHasError('sdiCode')" class="text-red-500">
+          Il codice SDI è obbligatorio
+        </small>
+      </div>
+
+      <!-- PEC Address -->
+      <div class="field">
+        <label
+          class="block text-sm font-medium text-gray-700 mb-1"
+          for="pecAddress"
+        >
+          Indirizzo PEC *
+        </label>
+        <input
+          pInputText
+          id="pecAddress"
+          formControlName="pecAddress"
+          class="w-full"
+          placeholder="Inserisci PEC"
+        />
+        <small *ngIf="formHasError('pecAddress')" class="text-red-500">
+          La PEC è obbligatoria
+        </small>
+      </div>
+
+      <!-- Fee Type and Value -->
+      <div class="field flex flex-row gap-3">
+        <div class="flex-none w-1/3">
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            *
+          </label>
+          <p-selectButton
+            [options]="feeOptions"
+            formControlName="feeType"
+            optionLabel="label"
+            optionValue="value"
+          ></p-selectButton>
+        </div>
+        <div class="flex-col flex justify-start items-end">
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="feeValue"
+          >
+            Commissione *
+          </label>
+          <input
+            pInputText
+            id="feeValue"
+            formControlName="feeValue"
+            class="w-2/3"
+            placeholder="Inserisci valore"
+          />
+          <small *ngIf="formHasError('feeValue')" class="text-red-500">
+            Il valore è obbligatorio
+          </small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Password Section -->
+    <div class="bg-blue-50 p-4 rounded-lg mt-6">
+      <h4 class="mb-4 text-lg font-semibold text-gray-800">
+        Credenziali di Accesso
+      </h4>
+      <div class="field">
+        <label
+          class="block text-sm font-medium text-gray-700 mb-1"
+          for="password"
+        >
+          Password *
+        </label>
+        <div class="flex">
+          <input
+            #passwordInput
+            [type]="showPassword ? 'text' : 'password'"
+            pInputText
+            id="password"
+            formControlName="password"
+            class="w-full"
+            placeholder="Inserisci password"
+          />
+          <button
+            pButton
+            type="button"
+            [icon]="showPassword ? 'pi pi-eye-slash' : 'pi pi-eye'"
+            class="p-button-text p-button-rounded"
+            (click)="togglePasswordVisibility()"
+            pTooltip="Mostra/nascondi password"
+          ></button>
+        </div>
+        <small *ngIf="formHasError('password')" class="text-red-500">
+          La password deve contenere almeno 6 caratteri
+        </small>
+      </div>
+    </div>
+  </form>
+
+  <ng-template pTemplate="footer">
+    <div class="flex justify-end gap-3 pt-4">
+      <button
+        pButton
+        icon="pi pi-times"
+        label="Annulla"
+        class="p-button-text"
+        (click)="closeCreateDialog()"
+      ></button>
+      <button
+        pButton
+        icon="pi pi-save"
+        label="Salva"
+        [loading]="isLoading()"
+        [disabled]="partnerForm.invalid"
+        (click)="createPartner()"
+      ></button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<!-- Dialog per la modifica partner -->
+<p-dialog
+  [visible]="editDialogVisible()"
+  (visibleChange)="onEditDialogVisibilityChange($event)"
+  [modal]="true"
+  header="Modifica Partner"
+  styleClass="partner-dialog"
+  [style]="{ width: '90vw', maxWidth: '800px' }"
+  [closeOnEscape]="true"
+>
+  @if(editingPartner()) {
+  <form [formGroup]="partnerForm" class="p-fluid p-3">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+      <div class="field">
+        <label class="block text-sm font-medium text-gray-700 mb-1">
+          Logo Partner
+        </label>
+        <div class="logo-container">
+          <div
+            class="logo-preview-large m-auto"
+            *ngIf="!logoImage"
+            [style.background-color]="
+              getRandomColor(partnerForm.get('businessName')?.value || '')
+            "
+          >
+            {{ getInitials(partnerForm.get("businessName")?.value || "") }}
+          </div>
+          <img
+            *ngIf="logoImage"
+            [src]="logoImage"
+            class="logo-preview-image m-auto"
+            alt="Logo partner"
+          />
+          <div class="logo-upload-controls mt-2 flex gap-2">
+
+            <button
+              *ngIf="logoImage"
+              pButton
+              icon="pi pi-trash"
+              class="p-button-danger p-button-outlined"
+              (click)="removeLogo()"
+              pTooltip="Rimuovi logo"
+            ></button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h4 class="mb-4 text-lg font-semibold text-gray-800">
+          Informazioni Principali
+        </h4>
+        <!-- Nome Azienda -->
+        <div class="field mb-3">
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="edit-businessName"
+          >
+            Nome Azienda *
+          </label>
+          <input
+            pInputText
+            id="edit-businessName"
+            formControlName="businessName"
+            class="w-full"
+            placeholder="Inserisci nome azienda"
+          />
+          <small *ngIf="formHasError('businessName')" class="text-red-500">
+            Il nome azienda è obbligatorio
+          </small>
+        </div>
+
+        <!-- Email -->
+        <div class="field mb-3">
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="edit-email"
+          >
+            Email *
+          </label>
+          <input
+            pInputText
+            id="edit-email"
+            formControlName="email"
+            class="w-full"
+            placeholder="Inserisci email"
+          />
+          <small *ngIf="formHasError('email')" class="text-red-500">
+            Inserisci un'email valida
+          </small>
+        </div>
+      </div>
+    </div>
+
+    <h4 class="mb-4 mt-6 text-lg font-semibold text-gray-800">
+      Informazioni Aziendali
+    </h4>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <!-- Resto dei campi come nel form di creazione -->
+      <div class="field">
+        <label
+          class="block text-sm font-medium text-gray-700 mb-1"
+          for="edit-fullName"
+        >
+          Nome Completo Contatto *
+        </label>
+        <input
+          pInputText
+          id="edit-fullName"
+          formControlName="fullName"
+          class="w-full"
+          placeholder="Inserisci nome completo"
+        />
+        <small *ngIf="formHasError('fullName')" class="text-red-500">
+          Il nome completo è obbligatorio
+        </small>
+      </div>
+
+      <!-- Telefono -->
+      <div class="field">
+        <label
+          class="block text-sm font-medium text-gray-700 mb-1"
+          for="edit-phone"
+        >
+          Telefono *
+        </label>
+        <input
+          pInputText
+          id="edit-phone"
+          formControlName="phone"
+          class="w-full"
+          placeholder="Inserisci telefono"
+        />
+        <small *ngIf="formHasError('phone')" class="text-red-500">
+          Il telefono è obbligatorio
+        </small>
+      </div>
+
+      <!-- VAT Number -->
+      <div class="field">
+        <label
+          class="block text-sm font-medium text-gray-700 mb-1"
+          for="edit-vatNumber"
+        >
+          Partita IVA *
+        </label>
+        <input
+          pInputText
+          id="edit-vatNumber"
+          formControlName="vatNumber"
+          class="w-full"
+          placeholder="Inserisci partita IVA"
+          inputUppercase
+        />
+        <small *ngIf="formHasError('vatNumber')" class="text-red-500">
+          La partita IVA è obbligatoria
+        </small>
+      </div>
+
+      <!-- Fiscal Code -->
+      <div class="field">
+        <label
+          class="block text-sm font-medium text-gray-700 mb-1"
+          for="edit-fiscalCode"
+        >
+          Codice Fiscale *
+        </label>
+        <input
+          pInputText
+          id="edit-fiscalCode"
+          formControlName="fiscalCode"
+          class="w-full"
+          placeholder="Inserisci codice fiscale"
+          inputUppercase
+        />
+        <small *ngIf="formHasError('fiscalCode')" class="text-red-500">
+          Il codice fiscale è obbligatorio
+        </small>
+      </div>
+
+      <!-- Business Address -->
+      <div class="field">
+        <label
+          class="block text-sm font-medium text-gray-700 mb-1"
+          for="edit-businessAddress"
+        >
+          Indirizzo Aziendale *
+        </label>
+        <input
+          pInputText
+          id="edit-businessAddress"
+          formControlName="businessAddress"
+          class="w-full"
+          placeholder="Inserisci indirizzo"
+        />
+        <small *ngIf="formHasError('businessAddress')" class="text-red-500">
+          L'indirizzo è obbligatorio
+        </small>
+      </div>
+
+      <!-- Website -->
+      <div class="field">
+        <label
+          class="block text-sm font-medium text-gray-700 mb-1"
+          for="edit-website"
+        >
+          Sito Web
+        </label>
+        <input
+          pInputText
+          id="edit-website"
+          formControlName="website"
+          class="w-full"
+          placeholder="Inserisci sito web"
+        />
+      </div>
+
+      <!-- SDI Code -->
+      <div class="field">
+        <label
+          class="block text-sm font-medium text-gray-700 mb-1"
+          for="edit-sdiCode"
+        >
+          Codice SDI *
+        </label>
+        <input
+          pInputText
+          id="edit-sdiCode"
+          formControlName="sdiCode"
+          class="w-full"
+          placeholder="Inserisci codice SDI"
+          inputUppercase
+        />
+        <small *ngIf="formHasError('sdiCode')" class="text-red-500">
+          Il codice SDI è obbligatorio
+        </small>
+      </div>
+
+      <!-- PEC Address -->
+      <div class="field">
+        <label
+          class="block text-sm font-medium text-gray-700 mb-1"
+          for="edit-pecAddress"
+        >
+          Indirizzo PEC *
+        </label>
+        <input
+          pInputText
+          id="edit-pecAddress"
+          formControlName="pecAddress"
+          class="w-full"
+          placeholder="Inserisci PEC"
+        />
+        <small *ngIf="formHasError('pecAddress')" class="text-red-500">
+          La PEC è obbligatoria
+        </small>
+      </div>
+
+      <!-- Fee Type and Value -->
+      <div class="field flex flex-row gap-3">
+        <div class="flex-none w-1/3">
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            *
+          </label>
+          <p-selectButton
+            [options]="feeOptions"
+            formControlName="feeType"
+            optionLabel="label"
+            optionValue="value"
+          ></p-selectButton>
+        </div>
+        <div class="flex-col flex justify-start items-end">
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="edit-feeValue"
+          >
+            Commissione *
+          </label>
+          <input
+            pInputText
+            id="edit-feeValue"
+            formControlName="feeValue"
+            class="w-2/3"
+            placeholder="Inserisci valore"
+          />
+          <small *ngIf="formHasError('feeValue')" class="text-red-500">
+            Il valore è obbligatorio
+          </small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Password Section (con conferma in caso di modifica) -->
+    <div class="bg-blue-50 p-4 rounded-lg mt-6">
+      <h4 class="mb-4 text-lg font-semibold text-gray-800">
+        Credenziali di Accesso
+      </h4>
+      <div class="field">
+        <label
+          class="block text-sm font-medium text-gray-700 mb-1"
+          for="edit-password"
+        >
+          Password *
+        </label>
+        <div class="flex">
+          <input
+            #passwordInput
+            [type]="showPassword ? 'text' : 'password'"
+            pInputText
+            id="edit-password"
+            formControlName="password"
+            class="w-full"
+            placeholder="Inserisci nuova password"
+          />
+          <button
+            pButton
+            type="button"
+            [icon]="showPassword ? 'pi pi-eye-slash' : 'pi pi-eye'"
+            class="p-button-text p-button-rounded"
+            (click)="togglePasswordVisibility()"
+            pTooltip="Mostra/nascondi password"
+          ></button>
+        </div>
+        <small class="text-gray-600 mt-1 block" *ngIf="isEditing">
+          Inserisci la nuova password solo se desideri modificarla.
+        </small>
+      </div>
+    </div>
+  </form>
+  }
+
+  <ng-template pTemplate="footer">
+    <div class="flex justify-end gap-3 pt-4">
+      <button
+        pButton
+        icon="pi pi-times"
+        label="Annulla"
+        class="p-button-text"
+        (click)="closeEditDialog()"
+      ></button>
+      <button
+        pButton
+        icon="pi pi-save"
+        label="Salva Modifiche"
+        [loading]="isLoading()"
+        [disabled]="partnerForm.invalid"
+        (click)="updatePartner()"
+      ></button>
+    </div>
+  </ng-template>
+</p-dialog>

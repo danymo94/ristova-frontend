@@ -1,0 +1,558 @@
+<div class="p-4">
+  <h2 class="text-2xl font-bold mb-4">Gestione Dipartimenti</h2>
+
+  <!-- Stato vuoto quando non c'è progetto selezionato -->
+  @if (!selectedProject()) {
+  <div class="empty-state">
+    <i class="pi pi-info-circle"></i>
+    <h3>Nessun ristorante selezionato</h3>
+    <p>
+      Seleziona un ristorante dal menu in alto per visualizzare i dipartimenti
+      disponibili.
+    </p>
+  </div>
+  }
+
+  <!-- Stato quando il progetto non ha configurazione Cassa in Cloud -->
+  @if (selectedProject() && !selectedProject()!.CCConnection) {
+  <div class="empty-state">
+    <i class="pi pi-exclamation-triangle"></i>
+    <h3>Connessione Cassa in Cloud non configurata</h3>
+    <p>
+      Questo ristorante non ha una connessione attiva con Cassa in Cloud. La
+      gestione dei dipartimenti è disponibile solo per i ristoranti connessi a
+      Cassa in Cloud.
+    </p>
+  </div>
+  }
+
+  <!-- Stato con progetto selezionato e connessione Cassa in Cloud attiva -->
+  @if (selectedProject() && selectedProject()!.CCConnection) {
+  <div
+    class="w-full flex flex-col items-start p-5 justify-center bg-primary-50 rounded-lg mb-5"
+  >
+    <div class="w-full flex flex-row justify-between items-center mb-4">
+      <h3 class="text-lg font-semibold text-primary-700">
+        Dipartimenti Cassa in Cloud
+      </h3>
+      <div class="flex items-center gap-2">
+        <img src="assets/logoCC.png" alt="Cassa in Cloud Logo" class="h-10" />
+        <button
+          pButton
+          icon="pi pi-refresh"
+          class="p-button-rounded p-button-text"
+          [loading]="loading()"
+          (click)="refreshDepartments()"
+          title="Aggiorna dipartimenti"
+        ></button>
+      </div>
+    </div>
+
+    <div class="w-full flex flex-row justify-between items-center mb-4">
+      <input
+        pInputText
+        type="text"
+        placeholder="Cerca dipartimenti..."
+        class="w-full md:w-auto rounded border-0 px-3 py-2 text-sm text-primary-600 placeholder:text-primary-400 shadow focus:outline-none"
+        [(ngModel)]="searchQuery"
+        (ngModelChange)="filterDepartments($event)"
+      />
+
+      <!-- Bottone per creare un nuovo dipartimento -->
+      <button
+        pButton
+        icon="pi pi-plus"
+        label="Nuovo Dipartimento"
+        class="p-button-sm"
+        (click)="openCreateDialog()"
+      ></button>
+    </div>
+
+    <!-- Tabella dipartimenti -->
+    <div
+      class="relative w-full min-w-0 flex-col break-words rounded border-0 bg-white shadow-lg"
+    >
+      <p-table
+        #departmentsTable
+        tableStyleClass="!text-primary-400"
+        [value]="filteredDepartments() || []"
+        [loading]="loading()"
+        [paginator]="(filteredDepartments()?.length || 0) > 10"
+        [rows]="10"
+        styleClass="p-datatable-sm"
+        responsiveLayout="scroll"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th class="text-primary-700">Nome</th>
+            <th class="text-primary-700">Etichetta</th>
+            <th class="text-primary-700">Tassa</th>
+            <th class="text-primary-700">Tipo</th>
+            <th class="text-primary-700 text-center">Colore</th>
+            <th class="text-primary-700 text-center" style="width: 150px">
+              Azioni
+            </th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-department>
+          <tr>
+            <td class="text-primary-600">{{ department.description }}</td>
+            <td class="text-primary-600">{{ department.descriptionLabel }}</td>
+            <td class="text-primary-600">
+              {{ department.tax?.description || getTaxName(department.idTax) }}
+            </td>
+            <td class="text-primary-600">
+              <span [ngClass]="getSalesTypeClass(department.salesType)">
+                {{ department.salesType === "GOODS" ? "Beni" : "Servizi" }}
+              </span>
+            </td>
+            <td class="text-center">
+              <span
+                class="color-preview"
+                [style.background-color]="'#' + department.color"
+              ></span>
+            </td>
+            <td class="flex gap-3 justify-center">
+              <button
+                class="text-primary-500 p-1"
+                (click)="openEditDialog(department.id)"
+                pTooltip="Modifica"
+              >
+                <i class="pi pi-pencil"></i>
+              </button>
+              <button
+                class="text-red-500 p-1"
+                (click)="deleteDepartment($event, department.id)"
+                pTooltip="Elimina"
+              >
+                <i class="pi pi-trash"></i>
+              </button>
+            </td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="6" class="text-center p-4">
+              @if (loading()) {
+              <i class="pi pi-spin pi-spinner mr-2"></i>Caricamento
+              dipartimenti... } @else if (error()) {
+              <i class="pi pi-exclamation-circle text-red-500 mr-2"></i
+              >{{ error() }}
+              } @else {
+              <i class="pi pi-info-circle mr-2"></i>Nessun dipartimento trovato
+              }
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </div>
+  </div>
+  }
+
+  <!-- Dialog per l'editing dei dipartimenti -->
+  <p-dialog
+    [visible]="editDialogVisible()"
+    (visibleChange)="onDialogVisibilityChange($event)"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    header="Modifica Dipartimento"
+    styleClass="department-dialog"
+    [style]="{ width: '90vw', maxWidth: '650px' }"
+    contentStyleClass="p-0 md:p-3"
+    [closeOnEscape]="true"
+    [dismissableMask]="true"
+  >
+    @if(editingDepartment()) {
+    <form [formGroup]="editForm" class="p-fluid p-3">
+      <!-- Dettagli principali (Nome e ID Esterno) -->
+      <div class="mb-4">
+        <div class="flex flex-col md:flex-row gap-3 md:gap-4">
+          <div class="flex-1">
+            <label for="description" class="font-medium mb-2 block"
+              >Nome Dipartimento</label
+            >
+            <input
+              type="text"
+              pInputText
+              id="description"
+              formControlName="description"
+              class="w-full"
+            />
+            @if(editForm.get('description')?.invalid &&
+            editForm.get('description')?.touched) {
+            <small class="p-error">Il nome è obbligatorio</small>
+            }
+          </div>
+
+          <div class="flex-1">
+            <label for="externalId" class="font-medium mb-2 block"
+              >ID Esterno</label
+            >
+            <input
+              type="text"
+              pInputText
+              id="externalId"
+              formControlName="externalId"
+              class="w-full"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- Etichette e descrizioni -->
+      <div class="mb-4">
+        <div class="flex flex-col md:flex-row gap-3 md:gap-4">
+          <div class="flex-1">
+            <label for="descriptionLabel" class="font-medium mb-2 block"
+              >Etichetta Bottone</label
+            >
+            <input
+              type="text"
+              pInputText
+              id="descriptionLabel"
+              formControlName="descriptionLabel"
+              class="w-full"
+            />
+            @if(editForm.get('descriptionLabel')?.invalid &&
+            editForm.get('descriptionLabel')?.touched) {
+            <small class="p-error">L'etichetta è obbligatoria</small>
+            }
+          </div>
+
+          <div class="flex-1">
+            <label for="descriptionReceipt" class="font-medium mb-2 block"
+              >Descrizione Scontrino</label
+            >
+            <input
+              type="text"
+              pInputText
+              id="descriptionReceipt"
+              formControlName="descriptionReceipt"
+              class="w-full"
+            />
+            @if(editForm.get('descriptionReceipt')?.invalid &&
+            editForm.get('descriptionReceipt')?.touched) {
+            <small class="p-error"
+              >La descrizione per lo scontrino è obbligatoria</small
+            >
+            }
+          </div>
+        </div>
+      </div>
+
+      <!-- Tassa e limite importo -->
+      <div class="mb-4">
+        <div class="flex flex-col md:flex-row gap-3 md:gap-4">
+          <div class="flex-1">
+            <label for="idTax" class="font-medium mb-2 block"
+              >Tassa Applicata</label
+            >
+            <p-dropdown
+              id="idTax"
+              formControlName="idTax"
+              [options]="taxes() || []"
+              optionLabel="description"
+              optionValue="id"
+              placeholder="Seleziona una tassa"
+              [filter]="true"
+              filterBy="description"
+              styleClass="w-full"
+            ></p-dropdown>
+            @if(editForm.get('idTax')?.invalid &&
+            editForm.get('idTax')?.touched) {
+            <small class="p-error">La tassa è obbligatoria</small>
+            }
+          </div>
+
+          <div class="flex-1">
+            <label for="amountLimit" class="font-medium mb-2 block"
+              >Limite Importo</label
+            >
+            <p-inputNumber
+              id="amountLimit"
+              formControlName="amountLimit"
+              [showButtons]="false"
+              [min]="0"
+              placeholder="Limite importo (opzionale)"
+              mode="currency"
+              currency="EUR"
+              locale="it-IT"
+              styleClass="w-full"
+            ></p-inputNumber>
+            <small class="text-primary-600 block mt-1"
+              >Imposta un limite massimo per gli importi inseriti
+              manualmente</small
+            >
+          </div>
+        </div>
+      </div>
+
+      <!-- Tipo vendita e colore -->
+      <div class="mb-4">
+        <div class="flex flex-col md:flex-row gap-3 md:gap-4">
+          <div class="flex-1">
+            <label class="font-medium mb-2 block">Tipo di Vendita</label>
+            <p-selectButton
+              [options]="salesTypeOptions"
+              formControlName="salesType"
+              optionLabel="label"
+              optionValue="value"
+              styleClass="w-full"
+            ></p-selectButton>
+          </div>
+
+          <div class="flex-1">
+            <label for="color" class="font-medium mb-2 block">Colore</label>
+            <p-colorPicker
+              formControlName="color"
+              [inline]="false"
+              [format]="'hex'"
+              appendTo="body"
+              styleClass="w-full"
+            ></p-colorPicker>
+            <div class="flex flex-wrap gap-2 mt-2">
+              @for (color of colorOptions; track color) {
+              <div
+                class="color-option w-6 h-6 rounded cursor-pointer border border-gray-300"
+                [style.background-color]="'#' + color"
+                (click)="editForm.get('color')?.setValue(color)"
+                [class.border-primary-500]="
+                  editForm.get('color')?.value === color
+                "
+                [class.border-2]="editForm.get('color')?.value === color"
+              ></div>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    </form>
+    }
+
+    <ng-template pTemplate="footer">
+      <div class="flex flex-col sm:flex-row justify-content-end gap-2">
+        <button
+          pButton
+          icon="pi pi-times"
+          label="Annulla"
+          class="p-button-text w-full sm:w-auto order-2 sm:order-1"
+          (click)="closeEditDialog()"
+        ></button>
+        <button
+          pButton
+          icon="pi pi-check"
+          label="Salva"
+          class="w-full sm:w-auto order-1 sm:order-2"
+          [loading]="updatingDepartment()"
+          [disabled]="editForm.invalid"
+          (click)="saveDepartmentChanges()"
+        ></button>
+      </div>
+    </ng-template>
+  </p-dialog>
+  <!-- Dialog per la creazione di un nuovo dipartimento -->
+  <p-dialog
+    [visible]="createDialogVisible()"
+    (visibleChange)="onCreateDialogVisibilityChange($event)"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    header="Crea Nuovo Dipartimento"
+    styleClass="department-dialog"
+    [style]="{ width: '90vw', maxWidth: '650px' }"
+    contentStyleClass="p-0 md:p-3"
+    [closeOnEscape]="true"
+    [dismissableMask]="true"
+  >
+    <form [formGroup]="createForm" class="p-fluid p-3">
+      <!-- Dettagli principali -->
+      <div class="mb-4">
+        <div class="flex flex-col md:flex-row gap-3 md:gap-4">
+          <div class="flex-1">
+            <label for="create-description" class="font-medium mb-2 block"
+              >Nome Dipartimento</label
+            >
+            <input
+              type="text"
+              pInputText
+              id="create-description"
+              formControlName="description"
+              class="w-full"
+            />
+            @if(createForm.get('description')?.invalid &&
+            createForm.get('description')?.touched) {
+            <small class="p-error">Il nome è obbligatorio</small>
+            }
+          </div>
+
+          <div class="flex-1">
+            <label for="create-externalId" class="font-medium mb-2 block"
+              >ID Esterno</label
+            >
+            <input
+              type="text"
+              pInputText
+              id="create-externalId"
+              formControlName="externalId"
+              class="w-full"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- Etichette e descrizioni -->
+      <div class="mb-4">
+        <div class="flex flex-col md:flex-row gap-3 md:gap-4">
+          <div class="flex-1">
+            <label for="create-descriptionLabel" class="font-medium mb-2 block"
+              >Etichetta Bottone</label
+            >
+            <input
+              type="text"
+              pInputText
+              id="create-descriptionLabel"
+              formControlName="descriptionLabel"
+              class="w-full"
+            />
+            @if(createForm.get('descriptionLabel')?.invalid &&
+            createForm.get('descriptionLabel')?.touched) {
+            <small class="p-error">L'etichetta è obbligatoria</small>
+            }
+          </div>
+
+          <div class="flex-1">
+            <label
+              for="create-descriptionReceipt"
+              class="font-medium mb-2 block"
+              >Descrizione Scontrino</label
+            >
+            <input
+              type="text"
+              pInputText
+              id="create-descriptionReceipt"
+              formControlName="descriptionReceipt"
+              class="w-full"
+            />
+            @if(createForm.get('descriptionReceipt')?.invalid &&
+            createForm.get('descriptionReceipt')?.touched) {
+            <small class="p-error"
+              >La descrizione per lo scontrino è obbligatoria</small
+            >
+            }
+          </div>
+        </div>
+      </div>
+
+      <!-- Tassa e limite importo -->
+      <div class="mb-4">
+        <div class="flex flex-col md:flex-row gap-3 md:gap-4">
+          <div class="flex-1">
+            <label for="create-idTax" class="font-medium mb-2 block"
+              >Tassa Applicata</label
+            >
+            <p-dropdown
+              id="create-idTax"
+              formControlName="idTax"
+              [options]="taxes() || []"
+              optionLabel="description"
+              optionValue="id"
+              placeholder="Seleziona una tassa"
+              [filter]="true"
+              filterBy="description"
+              styleClass="w-full"
+            ></p-dropdown>
+            @if(createForm.get('idTax')?.invalid &&
+            createForm.get('idTax')?.touched) {
+            <small class="p-error">La tassa è obbligatoria</small>
+            }
+          </div>
+
+          <div class="flex-1">
+            <label for="create-amountLimit" class="font-medium mb-2 block"
+              >Limite Importo</label
+            >
+            <p-inputNumber
+              id="create-amountLimit"
+              formControlName="amountLimit"
+              [showButtons]="false"
+              [min]="0"
+              placeholder="Limite importo (opzionale)"
+              mode="currency"
+              currency="EUR"
+              locale="it-IT"
+              styleClass="w-full"
+            ></p-inputNumber>
+            <small class="text-primary-600 block mt-1"
+              >Imposta un limite massimo per gli importi inseriti
+              manualmente</small
+            >
+          </div>
+        </div>
+      </div>
+
+      <!-- Tipo vendita e colore -->
+      <div class="mb-4">
+        <div class="flex flex-col md:flex-row gap-3 md:gap-4">
+          <div class="flex-1">
+            <label class="font-medium mb-2 block">Tipo di Vendita</label>
+            <p-selectButton
+              [options]="salesTypeOptions"
+              formControlName="salesType"
+              optionLabel="label"
+              optionValue="value"
+              styleClass="w-full"
+            ></p-selectButton>
+          </div>
+
+          <div class="flex-1">
+            <label for="create-color" class="font-medium mb-2 block"
+              >Colore</label
+            >
+            <p-colorPicker
+              formControlName="color"
+              [inline]="false"
+              [format]="'hex'"
+              appendTo="body"
+              styleClass="w-full"
+            ></p-colorPicker>
+            <div class="flex flex-wrap gap-2 mt-2">
+              @for (color of colorOptions; track color) {
+              <div
+                class="color-option w-6 h-6 rounded cursor-pointer border border-gray-300"
+                [style.background-color]="'#' + color"
+                (click)="createForm.get('color')?.setValue(color)"
+                [class.border-primary-500]="
+                  createForm.get('color')?.value === color
+                "
+                [class.border-2]="createForm.get('color')?.value === color"
+              ></div>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    </form>
+
+    <ng-template pTemplate="footer">
+      <div class="flex flex-col sm:flex-row justify-content-end gap-2">
+        <button
+          pButton
+          icon="pi pi-times"
+          label="Annulla"
+          class="p-button-text w-full sm:w-auto order-2 sm:order-1"
+          (click)="closeCreateDialog()"
+        ></button>
+        <button
+          pButton
+          icon="pi pi-check"
+          label="Crea"
+          class="w-full sm:w-auto order-1 sm:order-2"
+          [loading]="creatingDepartment()"
+          [disabled]="createForm.invalid"
+          (click)="createDepartment()"
+        ></button>
+      </div>
+    </ng-template>
+  </p-dialog>
+</div>

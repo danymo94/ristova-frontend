@@ -1,0 +1,68 @@
+<div
+  id="sidebar-wrapper"
+  class="w-full lg:w-1/6 border-r-4 border-surface-200 z-50 lg:z-0 h-full text-primary-500 absolute rounded-sm bg-surface-200 transition-all duration-300 ease-in-out"
+  [ngClass]="isSidebarOpen() ? 'left-0' : '-left-full lg:right-full'"
+>
+  <div
+    id="sidebar-content"
+    class="p-4 bg-surface-50 flex flex-col justify-start items-start h-full overflow-y-auto"
+  >
+    @if (routes(); as routesList) { 
+      @for (route of routesList; track $index) {
+        <div class="mb-2 w-full">
+          <!-- Titolo della sezione con indicatore di espansione -->
+          <div 
+            class="flex items-center justify-between p-2 cursor-pointer group hover:bg-surface-100 rounded-md transition-colors duration-200"
+            (click)="toggleSection($index)"
+          >
+            <h6 class="text-xs font-bold uppercase text-primary-500 no-underline">
+              {{ route.title }}
+            </h6>
+            
+            <!-- Icona di espansione (mostrata solo per sezioni collassabili) -->
+            @if ($index > 0) {
+              <i 
+                class="pi pi-chevron-right text-primary-400 group-hover:text-primary-600 transition-transform duration-200"
+                [@rotateIcon]="isSectionCollapsed($index) ? 'collapsed' : 'expanded'"
+              ></i>
+            }
+          </div>
+          
+          <hr class="mx-4 mb-1 border-0 border-t border-surface">
+          
+          <!-- Lista dei link, con animazione per il collasso -->
+          <div 
+            [@expandCollapse]="isSectionCollapsed($index) ? 'collapsed' : 'expanded'"
+            class="overflow-hidden"
+          >
+            <ul class="flex list-none flex-col md:min-w-full md:flex-col">
+              @for (link of route.links; track $index) {
+                <li class="items-center">
+                  <a
+                    #ofLink="routerLinkActive"
+                    class="block px-6 py-3 text-xs font-bold uppercase"
+                    routerLinkActive
+                    [routerLink]="link.routerLink"
+                    [ngClass]="
+                      ofLink.isActive
+                        ? 'hover:text-primary-1000 text-primary-900'
+                        : 'text-primary-700 hover:text-primary-500'
+                    "
+                  >
+                    <i
+                      [class]="link.iconClass + ' mr-3 text-sm'"
+                      [ngClass]="ofLink.isActive ? 'opacity-75' : 'text-primary-300'"
+                    ></i>
+                    {{ link.name }}
+                  </a>
+                </li>
+              }
+            </ul>
+          </div>
+        </div>
+      }
+    }
+
+    <!-- Il selettore di progetti è stato spostato nella navbar -->
+  </div>
+</div>

@@ -1,0 +1,273 @@
+<div class="p-4">
+  <!-- Intestazione -->
+  <div class="w-full flex flex-row justify-between items-center mb-6">
+    <h2 class="text-2xl font-bold">Il mio Profilo</h2>
+  </div>
+
+  <!-- Loader o Errore -->
+  <div *ngIf="isLoading()" class="w-full flex justify-center my-8">
+    <i class="pi pi-spin pi-spinner text-4xl text-primary-500"></i>
+  </div>
+
+  <div
+    *ngIf="errorMessage() && !isLoading()"
+    class="p-4 bg-red-100 text-red-700 rounded mb-4"
+  >
+    {{ errorMessage() }}
+  </div>
+
+  <!-- Form Container -->
+  <div *ngIf="!isLoading() && user()" class="form-container">
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" class="space-y-8">
+      <!-- Sezione Informazioni Aziendali -->
+      <div class="profile-section">
+        <h3 class="section-title">Informazioni Aziendali</h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Nome Azienda -->
+          <div class="field">
+            <label for="businessName" class="field-label required-field">
+              Nome Azienda
+            </label>
+            <input
+              id="businessName"
+              type="text"
+              pInputText
+              formControlName="businessName"
+              class="w-full"
+              placeholder="Nome azienda"
+            />
+            <small *ngIf="formHasError('businessName')" class="field-error">
+              Il nome azienda è obbligatorio
+            </small>
+          </div>
+
+          <!-- Nome Completo -->
+          <div class="field">
+            <label for="fullName" class="field-label required-field">
+              Nome Completo
+            </label>
+            <input
+              id="fullName"
+              type="text"
+              pInputText
+              formControlName="fullName"
+              class="w-full"
+              placeholder="Nome e cognome"
+            />
+            <small *ngIf="formHasError('fullName')" class="field-error">
+              Il nome completo è obbligatorio
+            </small>
+          </div>
+
+          <!-- Email -->
+          <div class="field">
+            <label for="email" class="field-label required-field">
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              pInputText
+              formControlName="email"
+              class="w-full"
+              placeholder="Email"
+              [disabled]="true"
+              pTooltip="L'email non può essere modificata"
+            />
+            <small *ngIf="formHasError('email')" class="field-error">
+              Inserisci un'email valida
+            </small>
+          </div>
+
+          <!-- Telefono -->
+          <div class="field">
+            <label for="phone" class="field-label required-field">
+              Telefono
+            </label>
+            <input
+              id="phone"
+              type="tel"
+              pInputText
+              formControlName="phone"
+              class="w-full"
+              placeholder="Numero di telefono"
+            />
+            <small *ngIf="formHasError('phone')" class="field-error">
+              Il telefono è obbligatorio
+            </small>
+          </div>
+
+          <!-- Indirizzo Aziendale -->
+          <div class="field md:col-span-2">
+            <label for="businessAddress" class="field-label required-field">
+              Indirizzo Aziendale
+            </label>
+            <input
+              id="businessAddress"
+              type="text"
+              pInputText
+              formControlName="businessAddress"
+              class="w-full"
+              placeholder="Via, numero civico, città, provincia"
+            />
+            <small *ngIf="formHasError('businessAddress')" class="field-error">
+              L'indirizzo è obbligatorio
+            </small>
+          </div>
+
+          <!-- Website -->
+          <div class="field md:col-span-2">
+            <label for="website" class="field-label"> Sito Web </label>
+            <input
+              id="website"
+              type="url"
+              pInputText
+              formControlName="website"
+              class="w-full"
+              placeholder="https://www.esempio.com"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- Sezione Informazioni Fiscali -->
+      <div class="profile-section">
+        <h3 class="section-title">Informazioni Fiscali</h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Partita IVA -->
+          <div class="field">
+            <label for="vatNumber" class="field-label required-field">
+              Partita IVA
+            </label>
+            <input
+              id="vatNumber"
+              type="text"
+              pInputText
+              formControlName="vatNumber"
+              class="w-full"
+              placeholder="Partita IVA"
+              inputUppercase
+            />
+            <small *ngIf="formHasError('vatNumber')" class="field-error">
+              La partita IVA è obbligatoria
+            </small>
+          </div>
+
+          <!-- Codice Fiscale -->
+          <div class="field">
+            <label for="fiscalCode" class="field-label required-field">
+              Codice Fiscale
+            </label>
+            <input
+              id="fiscalCode"
+              type="text"
+              pInputText
+              formControlName="fiscalCode"
+              class="w-full"
+              placeholder="Codice Fiscale"
+              inputUppercase
+            />
+            <small *ngIf="formHasError('fiscalCode')" class="field-error">
+              Il codice fiscale è obbligatorio
+            </small>
+          </div>
+
+          <!-- Codice SDI -->
+          <div class="field">
+            <label for="sdiCode" class="field-label required-field">
+              Codice SDI
+            </label>
+            <input
+              id="sdiCode"
+              type="text"
+              pInputText
+              formControlName="sdiCode"
+              class="w-full"
+              placeholder="Codice SDI"
+              inputUppercase
+            />
+            <small *ngIf="formHasError('sdiCode')" class="field-error">
+              Il codice SDI è obbligatorio
+            </small>
+          </div>
+
+          <!-- PEC -->
+          <div class="field">
+            <label for="pecAddress" class="field-label required-field">
+              Indirizzo PEC
+            </label>
+            <input
+              id="pecAddress"
+              type="email"
+              pInputText
+              formControlName="pecAddress"
+              class="w-full"
+              placeholder="Indirizzo PEC"
+            />
+            <small *ngIf="formHasError('pecAddress')" class="field-error">
+              L'indirizzo PEC è obbligatorio
+            </small>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sezione Sicurezza -->
+      <div class="profile-section">
+        <h3 class="section-title">Impostazioni Sicurezza</h3>
+
+        <div class="grid grid-cols-1 gap-6">
+          <!-- Password -->
+          <div class="field">
+            <label for="password" class="field-label"> Cambia Password </label>
+            <div class="password-field">
+              <input
+                #passwordInput
+                id="password"
+                [type]="showPassword ? 'text' : 'password'"
+                pInputText
+                formControlName="password"
+                class="w-full"
+                placeholder="Nuova password (minimo 6 caratteri)"
+              />
+              <button
+                type="button"
+                class="password-toggle"
+                (click)="togglePasswordVisibility()"
+                pTooltip="Mostra/nascondi password"
+              >
+                <i [class]="showPassword ? 'pi pi-eye-slash' : 'pi pi-eye'"></i>
+              </button>
+            </div>
+            <small *ngIf="formHasError('password')" class="field-error">
+              La password deve contenere almeno 6 caratteri
+            </small>
+            <small class="text-gray-500 mt-1 block">
+              Lascia vuoto per mantenere la password attuale
+            </small>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottoni -->
+      <div class="flex justify-end gap-3 pt-4">
+        <button
+          pButton
+          type="button"
+          label="Annulla"
+          class="p-button-text"
+          (click)="loadUserData()"
+        ></button>
+        <button
+          pButton
+          type="submit"
+          label="Salva Modifiche"
+          [loading]="isLoading()"
+          [disabled]="form.invalid"
+          class="submit-button"
+        ></button>
+      </div>
+    </form>
+  </div>
+</div>

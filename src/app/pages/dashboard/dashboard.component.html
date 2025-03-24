@@ -1,0 +1,190 @@
+<div class="p-4 relative">
+  <h2 class="text-2xl font-bold mb-4">Dashboard</h2>
+
+  <div *ngIf="selectedProject(); else noProject">
+    <div class="mb-6">
+      <div class="flex flex-wrap items-center gap-4 mb-4">
+        <h3 class="text-lg font-semibold">
+          Statistiche per {{ selectedProject()?.name }}
+        </h3>
+
+        <div class="ml-auto flex gap-2">
+          <p-calendar
+            [(ngModel)]="dateRange"
+            selectionMode="range"
+            [readonlyInput]="true"
+            placeholder="Filtra per date"
+            dateFormat="dd/mm/yy"
+            [showButtonBar]="true"
+          >
+          </p-calendar>
+
+          <button
+            pButton
+            label="Applica"
+            icon="pi pi-filter"
+            (click)="updateDateRange()"
+            [disabled]="dateRange.length !== 2"
+          ></button>
+
+          <button
+            pButton
+            label="Reset"
+            icon="pi pi-times"
+            class="p-button-outlined"
+            (click)="resetDateRange()"
+          ></button>
+        </div>
+      </div>
+
+      <div class="relative">
+        <!-- Loading overlay -->
+        <div *ngIf="loading" class="loading-overlay">
+          <i class="pi pi-spin pi-spinner text-4xl"></i>
+        </div>
+
+        <ng-container *ngIf="stats; else loadingStats">
+          <!-- Stats Cards Row -->
+          <div class="stats-grid mb-8">
+            <app-stats-card
+              title="Ordini Totali"
+              [value]="stats.orderStats.totalOrders"
+              icon="pi-shopping-cart"
+              iconColor="text-blue-500"
+            ></app-stats-card>
+
+            <app-stats-card
+              title="Fatturato Totale"
+              [value]="stats.orderStats.totalRevenue"
+              format="1.2-2"
+              unit="€"
+              icon="pi-euro"
+              iconColor="text-green-500"
+            ></app-stats-card>
+
+            <app-stats-card
+              title="Valore Medio Ordine"
+              [value]="stats.orderStats.averageOrderValue"
+              format="1.2-2"
+              unit="€"
+              icon="pi-chart-bar"
+              iconColor="text-purple-500"
+            ></app-stats-card>
+
+            <app-stats-card
+              title="Prodotti Venduti"
+              [value]="stats.productStats.totalProductsSold"
+              icon="pi-shopping-bag"
+              iconColor="text-orange-500"
+            ></app-stats-card>
+
+            <app-stats-card
+              title="Tavoli Attivi"
+              [value]="stats.tableStats.tablesWithOrders"
+              [subValue]="stats.tableStats.totalTables"
+              subValueLabel="Totale tavoli"
+              icon="pi-table"
+              iconColor="text-cyan-500"
+            ></app-stats-card>
+
+            <app-stats-card
+              title="Ordini Completati"
+              [value]="stats.orderStats.completedOrders"
+              [subValue]="stats.orderStats.pendingOrders"
+              subValueLabel="In attesa"
+              icon="pi-check-circle"
+              iconColor="text-green-500"
+            ></app-stats-card>
+          </div>
+
+          <!-- Charts Grid -->
+          <div class="chart-grid mb-8">
+            <app-chart-card
+              title="Ricavi Giornalieri"
+              type="line"
+              [labels]="dailyRevenueLabels"
+              [data]="dailyRevenueData"
+              datasetLabel="Ricavi"
+              backgroundColor="rgba(66, 165, 245, 0.2)"
+              borderColor="#42A5F5"
+              yAxisLabel="Euro (€)"
+              xAxisLabel="Data"
+            ></app-chart-card>
+
+            <app-chart-card
+              title="Distribuzione Oraria degli Ordini"
+              type="bar"
+              [labels]="hourlyLabels"
+              [data]="hourlyData"
+              datasetLabel="Numero di Ordini"
+              backgroundColor="#FF9800"
+              yAxisLabel="Ordini"
+              xAxisLabel="Ora"
+            ></app-chart-card>
+
+            <app-chart-card
+              title="Distribuzione Settimanale degli Ordini"
+              type="bar"
+              [labels]="weekdayLabels"
+              [data]="weekdayData"
+              datasetLabel="Numero di Ordini"
+              backgroundColor="#4CAF50"
+              yAxisLabel="Ordini"
+              xAxisLabel="Giorno"
+            ></app-chart-card>
+
+            <app-chart-card
+              title="Tipi di Ordine"
+              type="pie"
+              [labels]="orderTypeLabels"
+              [data]="orderTypeData"
+              [backgroundColor]="orderTypeColors"
+              datasetLabel="Ordini"
+            ></app-chart-card>
+          </div>
+
+          <!-- Data Tables -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Top Products Table -->
+            <app-data-table
+              title="Prodotti Più Venduti"
+              [data]="stats.productStats.topSellingProducts"
+              [columns]="topProductsColumns"
+            ></app-data-table>
+
+            <!-- Top Tables Table -->
+            <app-data-table
+              title="Tavoli Più Attivi"
+              [data]="stats.tableStats.topTables"
+              [columns]="topTablesColumns"
+            ></app-data-table>
+          </div>
+        </ng-container>
+
+        <ng-template #loadingStats>
+          <div class="flex flex-col items-center justify-center p-6">
+            <i class="pi pi-spin pi-spinner text-4xl mb-4"></i>
+            <p>Caricamento delle statistiche in corso...</p>
+            <button
+              pButton
+              label="Riprova"
+              icon="pi pi-refresh"
+              class="mt-4"
+              (click)="reloadData()"
+            ></button>
+          </div>
+        </ng-template>
+      </div>
+    </div>
+  </div>
+
+  <ng-template #noProject>
+    <div class="empty-state">
+      <i class="pi pi-info-circle text-4xl mb-3"></i>
+      <p class="text-lg">Nessun progetto selezionato</p>
+      <p class="text-sm mt-2">
+        Seleziona un ristorante dal menu in alto per visualizzare le statistiche
+      </p>
+    </div>
+  </ng-template>
+</div>

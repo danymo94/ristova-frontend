@@ -1,0 +1,734 @@
+<div class="container mx-auto p-3 sm:p-4 md:p-5">
+  <!-- Stato vuoto quando non c'è progetto selezionato -->
+  @if (!selectedProject()) {
+  <div class="empty-state">
+    <i class="pi pi-info-circle"></i>
+    <h3>Nessun ristorante selezionato</h3>
+    <p>
+      Seleziona un ristorante dal menu in alto per visualizzare i tavoli
+      disponibili.
+    </p>
+  </div>
+  } @else{
+  <!-- Header con titolo e pulsanti azione -->
+  <div class="flex flex-wrap justify-between items-center mb-4">
+    <h1 class="text-2xl font-bold mb-2 md:mb-0">Gestione Tavoli</h1>
+    <div class="flex gap-2">
+      <div class="p-inputgroup max-w-sm">
+        <input
+          #urlInput
+          type="text"
+          pInputText
+          [value]="baseQrUrl()"
+          (change)="updateBaseQrUrl(urlInput.value)"
+          placeholder="URL base per QR code"
+        />
+      </div>
+      <button
+        pButton
+        pRipple
+        icon="pi pi-download"
+        label="Esporta QR"
+        class="p-button-outlined"
+        [loading]="exportingQrCodes()"
+        [disabled]="(tables() || []).length === 0"
+        (click)="exportQrCodesAsZip()"
+        pTooltip="Esporta tutti i QR code in formato ZIP"
+        tooltipPosition="bottom"
+      ></button>
+      <!-- Aggiungi questo pulsante vicino al pulsante "Esporta QR" nella sezione di header -->
+      <button
+        pButton
+        pRipple
+        icon="pi pi-file-pdf"
+        label="Stampa QR"
+        class="p-button-outlined p-button-help"
+        [loading]="exportingPdf()"
+        [disabled]="(tables() || []).length === 0"
+        (click)="exportQrCodesAsPdf()"
+        pTooltip="Esporta tutti i QR code in un PDF stampabile"
+        tooltipPosition="bottom"
+      ></button>
+      <button
+        pButton
+        pRipple
+        icon="pi pi-refresh"
+        class="p-button-outlined"
+        [disabled]="loading()"
+        (click)="refreshTables()"
+        pTooltip="Aggiorna tavoli"
+        tooltipPosition="bottom"
+      ></button>
+      <button
+        pButton
+        pRipple
+        [icon]="viewMode() === 'grid' ? 'pi pi-list' : 'pi pi-th-large'"
+        class="p-button-outlined"
+        (click)="toggleViewMode()"
+        pTooltip="Cambia visualizzazione"
+        tooltipPosition="bottom"
+      ></button>
+      <button
+        *ngIf="selectedProject()?.CCConnection"
+        pButton
+        pRipple
+        icon="pi pi-sync"
+        label="Sincronizza tavoli"
+        class="p-button-outlined"
+        (click)="openSyncDialog()"
+        pTooltip="Sincronizza tavoli da Cassa in Cloud"
+        tooltipPosition="bottom"
+      ></button>
+      <button
+        pButton
+        pRipple
+        icon="pi pi-plus"
+        label="Nuovo tavolo"
+        class="p-button-primary"
+        (click)="openCreateDialog()"
+        *ngIf="!selectedProject()?.CCConnection"
+        pTooltip="Crea nuovo tavolo"
+        tooltipPosition="bottom"
+      ></button>
+    </div>
+  </div>
+
+  <!-- Barra di ricerca -->
+  <div class="p-inputgroup mb-4 max-w-md">
+    <input
+      type="text"
+      pInputText
+      placeholder="Cerca tavoli..."
+      [(ngModel)]="searchQuery"
+      (ngModelChange)="filterTables($event)"
+    />
+  </div>
+
+  <!-- Stato di caricamento -->
+  <div *ngIf="loading()" class="flex justify-center my-5">
+    <i class="pi pi-spin pi-spinner text-4xl text-primary"></i>
+  </div>
+
+  <!-- Messaggio stato vuoto -->
+  <div
+    *ngIf="!loading() && (!tables() || tables()!.length === 0)"
+    class="empty-state"
+  >
+    <i class="pi pi-table"></i>
+    <h3>Nessun tavolo disponibile</h3>
+    <p *ngIf="!selectedProject()?.CCConnection">
+      Non ci sono tavoli configurati per questo progetto. Puoi creare un nuovo
+      tavolo utilizzando il pulsante qui sotto.
+    </p>
+    <p *ngIf="selectedProject()?.CCConnection">
+      Non ci sono tavoli configurati per questo progetto. Con la connessione a
+      Cassa in Cloud attiva, devi sincronizzare i tavoli esistenti da Cassa in
+      Cloud.
+    </p>
+    <div class="flex gap-2 justify-center mt-4">
+      <button
+        pButton
+        pRipple
+        icon="pi pi-plus"
+        label="Crea nuovo tavolo"
+        class="p-button-primary"
+        (click)="openCreateDialog()"
+        *ngIf="!selectedProject()?.CCConnection"
+      ></button>
+      <button
+        *ngIf="selectedProject()?.CCConnection"
+        pButton
+        pRipple
+        icon="pi pi-sync"
+        label="Sincronizza da Cassa in Cloud"
+        class="p-button-outlined"
+        (click)="openSyncDialog()"
+      ></button>
+    </div>
+  </div>
+  <!-- Vista tavoli in grid o tabella -->
+  <ng-container
+    *ngIf="!loading() && filteredTables() && filteredTables()!.length > 0"
+  >
+    <!-- Vista a griglia -->
+    <div *ngIf="viewMode() === 'grid'" class="table-grid">
+      <div
+        *ngFor="let table of filteredTables()"
+        class="table-card relative"
+        [ngClass]="{
+          'border-l-4 border-green-500': table.CCTableId,
+          'border-l-4 border-blue-500': !table.CCTableId && table.TConnection,
+          'border-l-4 border-gray-300': !table.CCTableId && !table.TConnection
+        }"
+      >
+        <!-- Nome e badge tipo -->
+        <div class="flex justify-between items-start mb-2">
+          <h3 class="text-lg font-semibold">{{ table.name }}</h3>
+          <p-tag
+            [value]="
+              table.CCTableId
+                ? 'CassaCloud'
+                : table.TConnection
+                ? 'TheFork'
+                : 'Locale'
+            "
+            [severity]="getTableSeverity(table)"
+            [rounded]="true"
+          ></p-tag>
+        </div>
+
+        <!-- QR Code section -->
+        <div class="mb-3 flex flex-col items-center">
+          <div
+            *ngIf="table.id && getQrCodeForTable(table.id)"
+            class="qr-code-container"
+          >
+            <img
+              [src]="getQrCodeForTable(table.id)"
+              [alt]="'QR Code per ' + table.name"
+              class="qr-code-image"
+            />
+          </div>
+          <div
+            *ngIf="table.id && !getQrCodeForTable(table.id)"
+            class="qr-code-loading"
+          >
+            <i class="pi pi-spin pi-spinner text-primary"></i>
+            <span class="text-sm">Generazione QR...</span>
+          </div>
+          <div
+            *ngIf="table.id"
+            class="qr-url mt-1 text-xs text-gray-500 w-full truncate text-center"
+          >
+            {{ getTableQrUrl(table.id) }}
+          </div>
+        </div>
+        <!-- Dettagli -->
+        <div class="text-sm text-gray-600">
+          <div *ngIf="table.CCTableId" class="mb-1">
+            <span class="font-medium">ID CassaCloud:</span>
+            {{ table.CCTableId }}
+          </div>
+          <div *ngIf="table.TConnection && table.TTableId" class="mb-1">
+            <span class="font-medium">ID TheFork:</span> {{ table.TTableId }}
+          </div>
+          <div class="mb-1">
+            <span class="font-medium">Creato:</span>
+            {{ table.createdAt | date : "dd/MM/yyyy" }}
+          </div>
+          <div *ngIf="table.updatedAt" class="mb-1">
+            <span class="font-medium">Aggiornato:</span>
+            {{ table.updatedAt | date : "dd/MM/yyyy" }}
+          </div>
+        </div>
+
+        <!-- Pulsanti azione -->
+        <div class="flex justify-end mt-3 gap-2">
+          <button
+            pButton
+            pRipple
+            icon="pi pi-download"
+            class="p-button-text p-button-rounded p-button-sm"
+            pTooltip="Scarica QR Code"
+            tooltipPosition="top"
+            [disabled]="!table.id || !getQrCodeForTable(table.id)"
+            (click)="downloadQrCode(table)"
+          ></button>
+          <button
+            pButton
+            pRipple
+            icon="pi pi-pencil"
+            class="p-button-text p-button-rounded p-button-sm"
+            [disabled]="table.CCTableId !== undefined"
+            pTooltip="Modifica tavolo"
+            tooltipPosition="top"
+            (click)="openEditDialog(table.id!)"
+          ></button>
+          <button
+            pButton
+            pRipple
+            icon="pi pi-trash"
+            class="p-button-text p-button-rounded p-button-danger p-button-sm"
+            [disabled]="table.CCTableId !== undefined"
+            pTooltip="Elimina tavolo"
+            tooltipPosition="top"
+            (click)="deleteTable($event, table.id!)"
+          ></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vista tabella -->
+    <p-table
+      *ngIf="viewMode() === 'list'"
+      [value]="filteredTables()!"
+      styleClass="p-datatable-sm"
+      [paginator]="filteredTables()!.length > 10"
+      [rows]="10"
+      [showCurrentPageReport]="true"
+      [rowsPerPageOptions]="[10, 25, 50]"
+      currentPageReportTemplate="Visualizzati {first} a {last} di {totalRecords} tavoli"
+      [responsiveLayout]="'stack'"
+      responsiveLayout="stack"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th style="width: 3rem"></th>
+          <th pSortableColumn="name">
+            Nome <p-sortIcon field="name"></p-sortIcon>
+          </th>
+          <th>Origine</th>
+          <th>ID Esterno</th>
+          <th>Data creazione</th>
+          <th style="width: 8rem">Azioni</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-table>
+        <tr>
+          <td>
+            <span
+              class="inline-block w-2 h-2 rounded-full"
+              [ngClass]="{
+                'bg-green-500': table.CCTableId,
+                'bg-blue-500': !table.CCTableId && table.TConnection,
+                'bg-gray-300': !table.CCTableId && !table.TConnection
+              }"
+            ></span>
+          </td>
+          <td>
+            {{ table.name }}
+          </td>
+          <td>
+            <p-tag
+              [value]="
+                table.CCTableId
+                  ? 'CassaCloud'
+                  : table.TConnection
+                  ? 'TheFork'
+                  : 'Locale'
+              "
+              [severity]="getTableSeverity(table)"
+              [rounded]="true"
+            ></p-tag>
+          </td>
+          <td>
+            {{ table.CCTableId || table.TTableId || "N/A" }}
+          </td>
+          <td>
+            {{ table.createdAt | date : "dd/MM/yyyy" }}
+          </td>
+          <td>
+            <div class="flex gap-1 justify-end">
+              <button
+                pButton
+                pRipple
+                icon="pi pi-pencil"
+                class="p-button-text p-button-rounded p-button-sm"
+                [disabled]="table.CCTableId !== undefined"
+                pTooltip="Modifica tavolo"
+                tooltipPosition="top"
+                (click)="openEditDialog(table.id!)"
+              ></button>
+              <button
+                pButton
+                pRipple
+                icon="pi pi-trash"
+                class="p-button-text p-button-rounded p-button-danger p-button-sm"
+                [disabled]="table.CCTableId !== undefined"
+                pTooltip="Elimina tavolo"
+                tooltipPosition="top"
+                (click)="deleteTable($event, table.id!)"
+              ></button>
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="6" class="text-center p-4">Nessun tavolo trovato</td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </ng-container>
+  }
+</div>
+<!-- Dialog per creare un nuovo tavolo -->
+<p-dialog
+  header="Crea nuovo tavolo"
+  [visible]="createDialogVisible()"
+  (visibleChange)="onCreateDialogVisibilityChange($event)"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{ width: '450px' }"
+  styleClass="table-dialog"
+>
+  <form [formGroup]="createForm" class="p-fluid">
+    <div class="field mb-4">
+      <label for="tableName" class="block font-medium mb-2"
+        >Nome tavolo *</label
+      >
+      <input
+        id="tableName"
+        type="text"
+        pInputText
+        formControlName="name"
+        placeholder="Inserisci il nome del tavolo"
+        class="w-full"
+      />
+      <small
+        *ngIf="
+          createForm.get('name')?.invalid && createForm.get('name')?.touched
+        "
+        class="p-error block mt-1"
+      >
+        Il nome del tavolo è obbligatorio
+      </small>
+    </div>
+
+    <div class="field-checkbox mb-4">
+      <p-checkbox
+        formControlName="TConnection"
+        [binary]="true"
+        inputId="tConnection"
+      ></p-checkbox>
+      <label for="tConnection" class="ml-2"> Connessione con TheFork </label>
+    </div>
+
+    <div *ngIf="createForm.get('TConnection')?.value" class="field mb-4">
+      <label for="TSalesPointId" class="block font-medium mb-2"
+        >ID Point of Sale TheFork</label
+      >
+      <input
+        id="TSalesPointId"
+        type="text"
+        pInputText
+        formControlName="TSalesPointId"
+        placeholder="Inserisci l'ID del punto vendita TheFork"
+        class="w-full"
+      />
+    </div>
+
+    <div *ngIf="createForm.get('TConnection')?.value" class="field mb-4">
+      <label for="TTableId" class="block font-medium mb-2"
+        >ID Tavolo TheFork</label
+      >
+      <input
+        id="TTableId"
+        type="text"
+        pInputText
+        formControlName="TTableId"
+        placeholder="Inserisci l'ID del tavolo TheFork"
+        class="w-full"
+      />
+    </div>
+  </form>
+
+  <ng-template pTemplate="footer">
+    <button
+      pButton
+      pRipple
+      label="Annulla"
+      icon="pi pi-times"
+      class="p-button-text"
+      (click)="closeCreateDialog()"
+      [disabled]="creatingTable()"
+    ></button>
+    <button
+      pButton
+      pRipple
+      label="Crea"
+      icon="pi pi-check"
+      class="p-button-primary"
+      (click)="createTable()"
+      [disabled]="createForm.invalid || creatingTable()"
+      [loading]="creatingTable()"
+    ></button>
+  </ng-template>
+</p-dialog>
+
+<!-- Dialog per modificare un tavolo esistente -->
+<p-dialog
+  header="Modifica tavolo"
+  [visible]="editDialogVisible()"
+  (visibleChange)="onDialogVisibilityChange($event)"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{ width: '450px' }"
+  styleClass="table-dialog"
+>
+  <form [formGroup]="editForm" class="p-fluid">
+    <div class="field mb-4">
+      <label for="editTableName" class="block font-medium mb-2"
+        >Nome tavolo *</label
+      >
+      <input
+        id="editTableName"
+        type="text"
+        pInputText
+        formControlName="name"
+        placeholder="Inserisci il nome del tavolo"
+        class="w-full"
+      />
+      <small
+        *ngIf="editForm.get('name')?.invalid && editForm.get('name')?.touched"
+        class="p-error block mt-1"
+      >
+        Il nome del tavolo è obbligatorio
+      </small>
+    </div>
+
+    <div class="field-checkbox mb-4">
+      <p-checkbox
+        formControlName="TConnection"
+        [binary]="true"
+        inputId="editTConnection"
+      ></p-checkbox>
+      <label for="editTConnection" class="ml-2">
+        Connessione con TheFork
+      </label>
+    </div>
+
+    <div *ngIf="editForm.get('TConnection')?.value" class="field mb-4">
+      <label for="editTSalesPointId" class="block font-medium mb-2"
+        >ID Point of Sale TheFork</label
+      >
+      <input
+        id="editTSalesPointId"
+        type="text"
+        pInputText
+        formControlName="TSalesPointId"
+        placeholder="Inserisci l'ID del punto vendita TheFork"
+        class="w-full"
+      />
+    </div>
+
+    <div *ngIf="editForm.get('TConnection')?.value" class="field mb-4">
+      <label for="editTTableId" class="block font-medium mb-2"
+        >ID Tavolo TheFork</label
+      >
+      <input
+        id="editTTableId"
+        type="text"
+        pInputText
+        formControlName="TTableId"
+        placeholder="Inserisci l'ID del tavolo TheFork"
+        class="w-full"
+      />
+    </div>
+  </form>
+
+  <ng-template pTemplate="footer">
+    <button
+      pButton
+      pRipple
+      label="Annulla"
+      icon="pi pi-times"
+      class="p-button-text"
+      (click)="closeEditDialog()"
+      [disabled]="updatingTable()"
+    ></button>
+    <button
+      pButton
+      pRipple
+      label="Salva"
+      icon="pi pi-check"
+      class="p-button-primary"
+      (click)="updateTable()"
+      [disabled]="editForm.invalid || updatingTable()"
+      [loading]="updatingTable()"
+    ></button>
+  </ng-template>
+</p-dialog>
+
+<!-- Dialog per sincronizzare tavoli da Cassa in Cloud -->
+<p-dialog
+  header="Sincronizza tavoli da Cassa in Cloud"
+  [visible]="syncDialogVisible()"
+  (visibleChange)="onSyncDialogVisibilityChange($event)"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{ width: '90%', maxWidth: '800px' }"
+  styleClass="sync-dialog"
+>
+  <div class="p-fluid">
+    <!-- Stato di caricamento per i tavoli CC -->
+    <div *ngIf="loadingCCTables()" class="flex justify-center my-5">
+      <i class="pi pi-spin pi-spinner text-4xl text-primary"></i>
+      <span class="ml-3">Caricamento tavoli da Cassa in Cloud...</span>
+    </div>
+
+    <!-- Stato di importazione in corso -->
+    <div *ngIf="importingTables()" class="my-5">
+      <div class="text-center mb-3">
+        <i class="pi pi-spin pi-sync text-4xl text-primary"></i>
+        <p class="mt-2">Importazione tavoli in corso...</p>
+      </div>
+
+      <p class="mb-2 text-center">
+        Progresso: {{ importProgress() }} di {{ totalTablesToImport() }} tavoli
+      </p>
+
+      <div class="progress-bar mb-4">
+        <div
+          class="progress-fill"
+          [style.width.%]="
+            totalTablesToImport()
+              ? (importProgress() / totalTablesToImport()) * 100
+              : 0
+          "
+        ></div>
+      </div>
+
+      <p class="text-sm text-center text-gray-600">
+        Ogni tavolo viene sincronizzato individualmente. L'operazione potrebbe
+        richiedere qualche minuto.
+      </p>
+    </div>
+
+    <!-- Barra di ricerca per tavoli CC -->
+    <div *ngIf="ccTables() && ccTables()!.length > 0" class="p-inputgroup mb-4">
+      <input
+        type="text"
+        pInputText
+        placeholder="Cerca tavoli in Cassa in Cloud..."
+        [(ngModel)]="searchCCQuery"
+        (ngModelChange)="filterCCTables($event)"
+      />
+      <button
+        *ngIf="searchCCQuery"
+        pButton
+        icon="pi pi-times"
+        class="p-button-secondary"
+        (click)="filterCCTables('')"
+      ></button>
+    </div>
+
+    <!-- Tabella tavoli CC -->
+    <p-table
+      *ngIf="filteredCCTables() && filteredCCTables()!.length > 0"
+      [value]="filteredCCTables()!"
+      [selection]="selectedCCTables()"
+      (selectionChange)="onSelectionChange($event)"
+      dataKey="id"
+      [paginator]="filteredCCTables()!.length > 10"
+      [rows]="10"
+      [showCurrentPageReport]="true"
+      [rowsPerPageOptions]="[10, 25, 50]"
+      styleClass="p-datatable-sm"
+      currentPageReportTemplate="Visualizzati {first} a {last} di {totalRecords} tavoli"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th style="width: 3rem">
+            <p-tableHeaderCheckbox></p-tableHeaderCheckbox>
+          </th>
+          <th pSortableColumn="name">
+            Nome <p-sortIcon field="name"></p-sortIcon>
+          </th>
+          <th>ID Cassa in Cloud</th>
+          <th>Sala</th>
+          <th>Stato</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-ccTable>
+        <tr [ngClass]="{ 'p-highlight': isTableImported(ccTable.id) }">
+          <td>
+            <p-tableCheckbox [value]="ccTable"></p-tableCheckbox>
+          </td>
+          <td>{{ ccTable.name }}</td>
+          <td>{{ ccTable.id }}</td>
+          <td>{{ ccTable.idRoom || "N/D" }}</td>
+          <td>
+            <p-tag
+              *ngIf="isTableImported(ccTable.id)"
+              severity="success"
+              value="Importato"
+            ></p-tag>
+            <p-tag
+              *ngIf="!isTableImported(ccTable.id)"
+              severity="secondary"
+              value="Non importato"
+            ></p-tag>
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="5" class="text-center p-4">
+            Nessun tavolo trovato in Cassa in Cloud
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="summary">
+        <div class="flex justify-between items-center">
+          <span>Selezionati {{ selectedCCTables().length }} tavoli</span>
+          <span
+            *ngIf="
+              ccTables() &&
+              filteredCCTables() &&
+              ccTables()!.length !== filteredCCTables()!.length
+            "
+          >
+            Mostrati {{ filteredCCTables()!.length }} di
+            {{ ccTables()!.length }} tavoli
+          </span>
+        </div>
+      </ng-template>
+    </p-table>
+
+    <!-- Messaggio se non ci sono tavoli da sincronizzare -->
+    <div
+      *ngIf="ccTables() && ccTables()!.length === 0 && !loadingCCTables()"
+      class="p-message p-message-info mb-4"
+    >
+      <i class="pi pi-info-circle p-message-icon"></i>
+      <span class="p-message-text"
+        >Non ci sono tavoli disponibili in Cassa in Cloud.</span
+      >
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <button
+      pButton
+      pRipple
+      label="Annulla"
+      icon="pi pi-times"
+      class="p-button-text"
+      (click)="closeSyncDialog()"
+      [disabled]="loading() || importingTables()"
+    ></button>
+    <button
+      pButton
+      pRipple
+      label="Sincronizza"
+      icon="pi pi-sync"
+      class="p-button-primary"
+      (click)="syncTables()"
+      [disabled]="
+        selectedCCTables().length === 0 || loading() || importingTables()
+      "
+      [loading]="loading() || importingTables()"
+    ></button>
+  </ng-template>
+</p-dialog>
+
+<!-- Aggiungi stili alla fine del componente -->
+<style>
+  .progress-bar {
+    width: 100%;
+    height: 10px;
+    background-color: #e9ecef;
+    border-radius: 5px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background-color: #3b82f6;
+    transition: width 0.3s ease;
+  }
+</style>

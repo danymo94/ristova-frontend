@@ -1,0 +1,132 @@
+<nav
+  class="w-full bg-primary-500 h-14 px-4 flex justify-between items-center text-neutral-50"
+>
+  <div class="flex items-center">
+    <button
+      *ngIf="isAuthenticated()"
+      (click)="toggleSidebar()"
+      class="mr-4 focus:outline-none"
+    >
+      <i class="pi pi-bars text-lg"></i>
+    </button>
+    <a routerLink="/" class="text-xl font-bold">DineOs</a>
+  </div>
+
+  <div class="flex items-center gap-3">
+    <!-- Project selector - Solo per i partner -->
+    @if(isAuthenticated() && role() === 'partner' && projects() &&
+    projects()!.length > 0) {
+    <div class="w-full max-w-[200px] mr-2">
+      <a
+        class="p-ripple flex justify-between cursor-pointer items-center gap-2 !rounded bg-primary-400 p-2 text-neutral-50 shadow transition-all duration-300 ease-in hover:bg-primary-300"
+        (click)="op.toggle($event)"
+      >
+        <div
+          class="rounded-full bg-neutral-50 h-8 w-8 flex items-center justify-center overflow-hidden"
+        >
+          @if(selectedProject() && selectedProject()!.logo) {
+          <img
+            [src]="selectedProject()!.logo"
+            class="h-full w-full object-cover"
+            alt="Logo"
+          />
+          } @else {
+          <i class="pi pi-building text-primary-500"></i>
+          }
+        </div>
+        <span class="truncate text-sm font-medium">{{
+          selectedProject()?.name || "Seleziona ristorante"
+        }}</span>
+        <i class="pi pi-chevron-down text-xs"></i>
+      </a>
+      <p-popover #op appendTo="body">
+        <div class="flex w-[280px] flex-col gap-2 p-2">
+          <div>
+            <span class="mb-2 block text-sm font-bold !text-primary-700"
+              >Cerca Ristoranti</span
+            >
+            <div>
+              <input
+                placeholder="Cerca..."
+                pInputText
+                class="!w-full !border-0 !rounded !bg-white !px-3 !py-2 !text-sm !text-primary-600 !placeholder-primary-300 !shadow !transition-all !duration-150 !ease-linear !focus:!outline-none !focus:!ring"
+                (input)="onSearchProject($event)"
+              />
+            </div>
+          </div>
+          <div class="max-h-[300px] overflow-y-auto">
+            <span class="mb-2 block text-sm font-medium text-primary-600"
+              >Ristoranti</span
+            >
+            @for (project of filteredProjects() || []; track project) {
+            <a
+              class="block cursor-pointer"
+              (click)="setCurrentProject(project); op.hide()"
+            >
+              <div
+                class="flex items-center gap-3 p-2 text-primary-700 !transition-colors !duration-150 hover:bg-surface-50 hover:text-primary-500 rounded"
+              >
+                <div class="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
+                  @if(project.logo) {
+                  <img
+                    alt="Logo"
+                    class="w-full h-full object-cover"
+                    [src]="project.logo"
+                  />
+                  } @else {
+                  <div
+                    class="w-full h-full bg-primary-500 flex items-center justify-center text-surface-50"
+                  >
+                    <i class="pi pi-building"></i>
+                  </div>
+                  }
+                </div>
+                <div class="overflow-hidden">
+                  <div class="flex w-full justify-between items-center">
+                    <span class="font-medium truncate">{{ project.name }}</span>
+                    @if (project.isActive) {
+                    <span class="text-xs ml-2 text-green-500 flex-shrink-0"
+                      >•</span
+                    >
+                    } @else {
+                    <span class="text-xs ml-2 text-red-500 flex-shrink-0"
+                      >•</span
+                    >
+                    }
+                  </div>
+                  <div class="text-xs text-primary-400 truncate">
+                    {{ project.address.city || "" }}
+                  </div>
+                </div>
+              </div>
+            </a>
+            } @if(!(filteredProjects() && filteredProjects()!.length > 0)) {
+            <div class="p-3 text-center text-primary-500 text-sm">
+              Nessun ristorante trovato
+            </div>
+            }
+          </div>
+        </div>
+      </p-popover>
+    </div>
+    }
+
+    <div *ngIf="isAuthenticated()" class="flex items-center whitespace-nowrap">
+      <span class="mr-4 text-sm hidden md:inline">{{ userName() }}</span>
+      <button
+        (click)="logout()"
+        class="bg-primary-700 px-4 py-2 rounded-md hover:bg-primary-800 focus:outline-none transition-colors text-sm whitespace-nowrap"
+      >
+        <i class="pi pi-sign-out md:mr-1"></i>
+        <span class="hidden md:inline">Logout</span>
+      </button>
+    </div>
+    <a
+      *ngIf="!isAuthenticated()"
+      routerLink="/login"
+      class="bg-primary-700 px-4 py-2 rounded-md hover:bg-primary-800 focus:outline-none transition-colors"
+    >
+      Login
+    </a>
+  </div>
+</nav>

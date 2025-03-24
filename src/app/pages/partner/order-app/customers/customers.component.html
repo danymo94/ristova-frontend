@@ -1,0 +1,481 @@
+<div class="p-4">
+  <!-- Stato vuoto quando non c'è progetto selezionato -->
+  @if (!selectedProject()) {
+  <div class="empty-state">
+    <i class="pi pi-info-circle"></i>
+    <h3>Nessun ristorante selezionato</h3>
+    <p>
+      Seleziona un ristorante dal menu in alto per visualizzare i clienti
+      disponibili.
+    </p>
+  </div>
+  }
+
+  <!-- Stato con progetto selezionato -->
+  @if (selectedProject()) {
+  <div class="flex flex-col gap-6">
+    <!-- Intestazione -->
+    <div class="w-full flex flex-row justify-between items-center mb-4">
+      <h2 class="text-2xl font-bold mb-4">Gestione Clienti</h2>
+
+      <div class="flex items-center gap-2">
+        <button
+          pButton
+          icon="pi pi-refresh"
+          class="p-button-rounded p-button-text"
+          [loading]="loading()"
+          (click)="loadCustomers()"
+          pTooltip="Aggiorna clienti"
+        ></button>
+        <button
+          pButton
+          icon="pi pi-plus"
+          label="Nuovo Cliente"
+          class="p-button-sm"
+          (click)="openCreateDialog()"
+        ></button>
+      </div>
+    </div>
+
+    <!-- Filtri -->
+    <div
+      class="w-full flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4"
+    >
+      <div class="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+        <input
+          pInputText
+          type="text"
+          placeholder="Cerca clienti..."
+          class="w-full md:w-auto rounded border-0 px-3 py-2 text-sm shadow"
+          [(ngModel)]="searchQuery"
+          (ngModelChange)="filterCustomers($event)"
+        />
+      </div>
+    </div>
+
+    <!-- Messaggio di stato vuoto -->
+    <div
+      *ngIf="
+        !loading() &&
+        (!filteredCustomers() || filteredCustomers()!.length === 0)
+      "
+      class="empty-state w-full"
+    >
+      <i class="pi pi-users"></i>
+      <h3>Nessun cliente disponibile</h3>
+      <p>
+        Non ci sono clienti registrati per questo progetto. Puoi creare un nuovo
+        cliente utilizzando il pulsante qui sotto.
+      </p>
+      <div class="flex gap-2 justify-center mt-4">
+        <button
+          pButton
+          pRipple
+          icon="pi pi-plus"
+          label="Crea nuovo cliente"
+          class="p-button-primary"
+          (click)="openCreateDialog()"
+        ></button>
+      </div>
+    </div>
+
+    <!-- Lista clienti -->
+    <div
+      *ngIf="
+        !loading() && filteredCustomers() && filteredCustomers()!.length > 0
+      "
+      class="relative w-full min-w-0 break-words rounded border-0 bg-white shadow-lg"
+    >
+      <p-table
+        [value]="filteredCustomers() || []"
+        [loading]="loading()"
+        [paginator]="(filteredCustomers()?.length || 0) > 10"
+        [rows]="10"
+        styleClass="p-datatable-sm"
+        responsiveLayout="scroll"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th pSortableColumn="name">
+              Nome <p-sortIcon field="name"></p-sortIcon>
+            </th>
+            <th pSortableColumn="mail">
+              Email <p-sortIcon field="mail"></p-sortIcon>
+            </th>
+            <th pSortableColumn="phone">
+              Telefono <p-sortIcon field="phone"></p-sortIcon>
+            </th>
+            <th pSortableColumn="credit" class="text-right">
+              Credito <p-sortIcon field="credit"></p-sortIcon>
+            </th>
+            <th class="text-center">Stato</th>
+            <th class="text-center">Azioni</th>
+          </tr>
+        </ng-template>
+
+        <ng-template pTemplate="body" let-customer>
+          <tr>
+            <td>{{ customer.name }}</td>
+            <td>{{ customer.mail }}</td>
+            <td>{{ customer.phone || "N/D" }}</td>
+            <td class="text-right">{{ formatCredit(customer.credit) }}</td>
+            <td class="text-center">
+              <p-tag
+                [severity]="customer.isActive ? 'success' : 'danger'"
+                [value]="customer.isActive ? 'Attivo' : 'Disattivato'"
+              ></p-tag>
+            </td>
+            <td class="flex gap-3 justify-center">
+              <button
+                pButton
+                icon="pi pi-pencil"
+                class="p-button-text p-button-rounded"
+                pTooltip="Modifica cliente"
+                (click)="openEditDialog(customer)"
+              ></button>
+              <button
+                pButton
+                icon="pi pi-wallet"
+                class="p-button-text p-button-rounded p-button-success"
+                pTooltip="Aggiorna credito"
+                (click)="openCreditDialog(customer)"
+              ></button>
+              <button
+                pButton
+                icon="pi pi-trash"
+                class="p-button-text p-button-rounded p-button-danger"
+                pTooltip="Disattiva cliente"
+                (click)="confirmDelete(customer)"
+              ></button>
+            </td>
+          </tr>
+        </ng-template>
+
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="6" class="text-center">
+              @if (loading()) {
+              <i class="pi pi-spin pi-spinner mr-2"></i>Caricamento clienti... }
+              @else {
+              <!-- Spazio vuoto perché abbiamo già il messaggio centralizzato -->
+              }
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </div>
+  </div>
+  }
+</div>
+
+<!-- Dialog per la creazione di un nuovo cliente -->
+<p-dialog
+  [visible]="createDialogVisible()"
+  (onHide)="onCreateDialogHide()"
+  [modal]="true"
+  header="Crea Nuovo Cliente"
+  styleClass="customer-dialog"
+  [style]="{ width: '90vw', maxWidth: '500px' }"
+  [closeOnEscape]="true"
+>
+  <form [formGroup]="createForm" class="p-fluid p-3">
+    <!-- Nome -->
+    <div class="field mb-4">
+      <label for="name" class="font-medium mb-2 block">Nome *</label>
+      <input
+        type="text"
+        pInputText
+        id="name"
+        formControlName="name"
+        class="w-full"
+        placeholder="Nome completo"
+      />
+    </div>
+
+    <!-- Email -->
+    <div class="field mb-4">
+      <label for="mail" class="font-medium mb-2 block">Email *</label>
+      <input
+        type="email"
+        pInputText
+        id="mail"
+        formControlName="mail"
+        class="w-full"
+        placeholder="email@esempio.com"
+      />
+    </div>
+
+    <!-- Telefono -->
+    <div class="field mb-4">
+      <label for="phone" class="font-medium mb-2 block">Telefono</label>
+      <input
+        type="tel"
+        pInputText
+        id="phone"
+        formControlName="phone"
+        class="w-full"
+        placeholder="+39 123 456 7890"
+      />
+    </div>
+
+    <div formGroupName="additionalData">
+      <!-- Data di nascita -->
+      <div class="field mb-4">
+        <label for="birthdate" class="font-medium mb-2 block"
+          >Data di nascita</label
+        >
+        <p-calendar
+          id="birthdate"
+          formControlName="birthdate"
+          [showIcon]="true"
+          [monthNavigator]="true"
+          [yearNavigator]="true"
+          [yearRange]="'1940:2005'"
+          dateFormat="dd/mm/yy"
+          placeholder="Seleziona data di nascita"
+          class="w-full"
+        ></p-calendar>
+      </div>
+
+      <!-- Note -->
+      <div class="field mb-4">
+        <label for="notes" class="font-medium mb-2 block">Note</label>
+        <textarea
+          pInputTextarea
+          id="notes"
+          formControlName="notes"
+          rows="3"
+          class="w-full"
+          placeholder="Inserisci eventuali note o preferenze"
+        ></textarea>
+      </div>
+
+      <!-- Consenso Marketing -->
+      <div class="field-checkbox flex align-items-center mb-3">
+        <p-checkbox
+          id="marketingConsent"
+          [binary]="true"
+          formControlName="marketingConsent"
+        ></p-checkbox>
+        <label for="marketingConsent" class="ml-2 font-medium"
+          >Consenso Marketing</label
+        >
+      </div>
+    </div>
+  </form>
+
+  <ng-template pTemplate="footer">
+    <div
+      class="h-full w-full flex flex-row justify-end items-center gap-3 pt-4"
+    >
+      <button
+        pButton
+        icon="pi pi-times"
+        label="Annulla"
+        class="p-button-text"
+        (click)="onCreateDialogHide()"
+      ></button>
+      <button
+        pButton
+        icon="pi pi-check"
+        label="Crea"
+        [disabled]="createForm.invalid"
+        (click)="createCustomer()"
+      ></button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<!-- Dialog per la modifica di un cliente -->
+<p-dialog
+  [visible]="editDialogVisible()"
+  (onHide)="onEditDialogHide()"
+  [modal]="true"
+  header="Modifica Cliente"
+  styleClass="customer-dialog"
+  [style]="{ width: '90vw', maxWidth: '500px' }"
+  [closeOnEscape]="true"
+>
+  @if(selectedCustomer()) {
+  <form [formGroup]="editForm" class="p-fluid p-3">
+    <!-- Nome -->
+    <div class="field mb-4">
+      <label for="edit-name" class="font-medium mb-2 block">Nome *</label>
+      <input
+        type="text"
+        pInputText
+        id="edit-name"
+        formControlName="name"
+        class="w-full"
+      />
+    </div>
+
+    <!-- Email (visualizzazione, senza modifica) -->
+    <div class="field mb-4">
+      <label class="font-medium mb-2 block">Email</label>
+      <input
+        type="email"
+        pInputText
+        [value]="selectedCustomer()?.mail"
+        class="w-full"
+        disabled
+      />
+      <small class="text-gray-500">L'email non può essere modificata</small>
+    </div>
+
+    <!-- Telefono -->
+    <div class="field mb-4">
+      <label for="edit-phone" class="font-medium mb-2 block">Telefono</label>
+      <input
+        type="tel"
+        pInputText
+        id="edit-phone"
+        formControlName="phone"
+        class="w-full"
+      />
+    </div>
+
+    <!-- Indirizzo -->
+    <div class="field mb-4">
+      <label for="edit-address" class="font-medium mb-2 block">Indirizzo</label>
+      <input
+        type="text"
+        pInputText
+        id="edit-address"
+        formControlName="address"
+        class="w-full"
+        placeholder="Via, numero civico, città"
+      />
+    </div>
+
+    <div formGroupName="additionalData">
+      <!-- Data di nascita -->
+      <div class="field mb-4">
+        <label for="edit-birthdate" class="font-medium mb-2 block"
+          >Data di nascita</label
+        >
+        <p-calendar
+          id="edit-birthdate"
+          formControlName="birthdate"
+          [showIcon]="true"
+          [monthNavigator]="true"
+          [yearNavigator]="true"
+          [yearRange]="'1940:2005'"
+          dateFormat="dd/mm/yy"
+          class="w-full"
+        ></p-calendar>
+      </div>
+
+      <!-- Note -->
+      <div class="field mb-4">
+        <label for="edit-notes" class="font-medium mb-2 block">Note</label>
+        <textarea
+          pInputTextarea
+          id="edit-notes"
+          formControlName="notes"
+          rows="3"
+          class="w-full"
+        ></textarea>
+      </div>
+
+      <!-- Consenso Marketing -->
+      <div class="field-checkbox flex align-items-center mb-3">
+        <p-checkbox
+          id="edit-marketingConsent"
+          [binary]="true"
+          formControlName="marketingConsent"
+        ></p-checkbox>
+        <label for="edit-marketingConsent" class="ml-2 font-medium"
+          >Consenso Marketing</label
+        >
+      </div>
+    </div>
+  </form>
+  }
+
+  <ng-template pTemplate="footer">
+    <div
+      class="h-full w-full flex flex-row justify-end items-center gap-3 pt-4"
+    >
+      <button
+        pButton
+        icon="pi pi-times"
+        label="Annulla"
+        class="p-button-text"
+        (click)="onEditDialogHide()"
+      ></button>
+      <button
+        pButton
+        icon="pi pi-check"
+        label="Salva"
+        [disabled]="editForm.invalid"
+        (click)="updateCustomer()"
+      ></button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<!-- Dialog per l'aggiornamento del credito -->
+<p-dialog
+  [visible]="creditDialogVisible()"
+  (onHide)="onCreditDialogHide()"
+  [modal]="true"
+  header="Aggiorna Credito"
+  styleClass="credit-dialog"
+  [style]="{ width: '90vw', maxWidth: '400px' }"
+  [closeOnEscape]="true"
+>
+  @if(selectedCustomer()) {
+  <div class="p-3">
+    <div class="text-center mb-4">
+      <h3 class="font-bold text-lg">{{ selectedCustomer()?.name }}</h3>
+      <p class="text-sm text-gray-600">{{ selectedCustomer()?.mail }}</p>
+      <p class="text-xl mt-3 font-bold text-primary-600">
+        Credito attuale: {{ formatCredit(selectedCustomer()?.credit || 0) }}
+      </p>
+    </div>
+
+    <form [formGroup]="creditForm" class="p-fluid">
+      <div class="field mb-4">
+        <label for="amount" class="font-medium mb-2 block"
+          >Importo da aggiungere (€)</label
+        >
+        <p-inputNumber
+          id="amount"
+          formControlName="amount"
+          mode="currency"
+          currency="EUR"
+          locale="it-IT"
+          [minFractionDigits]="2"
+          [maxFractionDigits]="2"
+          class="w-full"
+        ></p-inputNumber>
+        <small class="text-gray-500 mt-2 block">
+          L'importo verrà aggiunto al credito attuale del cliente
+        </small>
+      </div>
+    </form>
+  </div>
+  }
+
+  <ng-template pTemplate="footer">
+    <div
+      class="h-full w-full flex flex-row justify-end items-center gap-3 pt-4"
+    >
+      <button
+        pButton
+        icon="pi pi-times"
+        label="Annulla"
+        class="p-button-text"
+        (click)="onCreditDialogHide()"
+      ></button>
+      <button
+        pButton
+        icon="pi pi-plus"
+        label="Aggiungi credito"
+        [disabled]="creditForm.invalid"
+        (click)="updateCustomerCredit()"
+      ></button>
+    </div>
+  </ng-template>
+</p-dialog>

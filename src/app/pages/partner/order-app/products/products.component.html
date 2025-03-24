@@ -1,0 +1,919 @@
+<div class="p-4">
+
+  <!-- Stato vuoto quando non c'è progetto selezionato -->
+  @if (!selectedProject()) {
+  <div class="empty-state">
+    <i class="pi pi-info-circle"></i>
+    <h3>Nessun ristorante selezionato</h3>
+    <p>
+      Seleziona un ristorante dal menu in alto per visualizzare i prodotti
+      disponibili.
+    </p>
+  </div>
+  }
+
+  <!-- Stato con progetto selezionato -->
+  @if (selectedProject()) {
+  <div class="flex flex-col gap-6">
+    <!-- Sezione Prodotti -->
+
+      <div class="w-full flex flex-row justify-between items-center mb-4">
+        <h2 class="text-2xl font-bold mb-4">Gestione Prodotti</h2>
+
+        <div class="flex items-center gap-2">
+          <button
+            pButton
+            icon="pi pi-refresh"
+            class="p-button-rounded p-button-text"
+            [loading]="loading()"
+            (click)="refreshProducts()"
+            pTooltip="Aggiorna prodotti"
+          ></button>
+          <button
+            pButton
+            [icon]="viewMode() === 'grid' ? 'pi pi-list' : 'pi pi-th-large'"
+            class="p-button-rounded p-button-text"
+            (click)="toggleViewMode()"
+            [pTooltip]="viewMode() === 'grid' ? 'Vista lista' : 'Vista griglia'"
+          ></button>
+          <button
+            pButton
+            icon="pi pi-plus"
+            label="Nuovo Prodotto"
+            class="p-button-sm"
+            (click)="openCreateDialog()"
+          ></button>
+        </div>
+      </div>
+
+      <!-- Filtri -->
+      <div
+        class="w-full flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4"
+      >
+        <div class="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+          <input
+            pInputText
+            type="text"
+            placeholder="Cerca prodotti..."
+            class="w-full md:w-auto rounded border-0 px-3 py-2 text-sm shadow"
+            [(ngModel)]="searchQuery"
+            (ngModelChange)="filterProducts($event)"
+          />
+
+          <p-dropdown
+            [options]="categories() || []"
+            optionLabel="name"
+            optionValue="id"
+            placeholder="Filtra per categoria"
+            [showClear]="true"
+            [style]="{ minWidth: '200px' }"
+            [(ngModel)]="selectedCategoryId"
+            (onChange)="filterByCategory($event.value)"
+            styleClass="shadow"
+          ></p-dropdown>
+        </div>
+
+        <!-- Bottone sincronizzazione CC -->
+        @if (selectedProject()?.CCConnection) {
+        <button
+          pButton
+          icon="pi pi-sync"
+          label="Sincronizza da Cassa in Cloud"
+          class="p-button-sm p-button-outlined"
+          (click)="openSyncDialog()"
+          [disabled]="loadingCCProducts() || !ccProducts()?.length"
+        ></button>
+        }
+      </div>
+
+      <!-- Messaggio di stato vuoto uniformato -->
+      <div
+        *ngIf="
+          !loading() &&
+          (!filteredProducts() || filteredProducts()!.length === 0)
+        "
+        class="empty-state w-full"
+      >
+        <i class="pi pi-shopping-cart"></i>
+        <h3>Nessun prodotto disponibile</h3>
+        <p *ngIf="!selectedProject()?.CCConnection">
+          Non ci sono prodotti configurati per questo progetto. Puoi creare un
+          nuovo prodotto utilizzando il pulsante qui sotto.
+        </p>
+        <p *ngIf="selectedProject()?.CCConnection">
+          Non ci sono prodotti configurati per questo progetto. Con la
+          connessione a Cassa in Cloud attiva, puoi sincronizzare i prodotti
+          esistenti da Cassa in Cloud.
+        </p>
+        <div class="flex gap-2 justify-center mt-4">
+          <button
+            pButton
+            pRipple
+            icon="pi pi-plus"
+            label="Crea nuovo prodotto"
+            class="p-button-primary"
+            (click)="openCreateDialog()"
+          ></button>
+          <button
+            *ngIf="selectedProject()?.CCConnection"
+            pButton
+            pRipple
+            icon="pi pi-sync"
+            label="Sincronizza da Cassa in Cloud"
+            class="p-button-outlined"
+            (click)="openSyncDialog()"
+          ></button>
+        </div>
+      </div>
+
+      <!-- Vista griglia -->
+      @if (viewMode() === 'grid' && !loading() && filteredProducts() &&
+      filteredProducts()!.length > 0) {
+      <div class="product-grid w-full">
+        @for (product of filteredProducts() || []; track product.id) {
+        <div class="product-card">
+          <div class="product-actions">
+            <button
+              class="text-primary-500 p-1"
+              (click)="openEditDialog(product.id!)"
+            >
+              <i class="pi pi-pencil"></i>
+            </button>
+            <button
+              class="text-red-500 p-1"
+              (click)="deleteProduct($event, product.id!)"
+            >
+              <i class="pi pi-trash"></i>
+            </button>
+          </div>
+
+          <!-- Mostra l'immagine se presente -->
+          <div *ngIf="product.additionalData?.['image']" class="mb-3">
+            <img
+              [src]="product.additionalData?.['image']"
+              class="w-full h-32 object-cover rounded"
+              alt="{{ product.name }}"
+            />
+          </div>
+
+          <h4 class="text-lg font-semibold mb-1">{{ product.name }}</h4>
+          <p class="text-sm text-gray-600 mb-2 line-clamp-2">
+            {{ product.description || "Nessuna descrizione" }}
+          </p>
+
+          <!-- Badge per gli allergeni se presenti -->
+          <div
+            *ngIf="product.allergens && product.allergens.length > 0"
+            class="flex flex-wrap gap-1 mb-2"
+          >
+            <p-tag
+              *ngFor="let allergen of product.allergens"
+              [value]="getAllergenName(allergen)"
+              severity="warn"
+              [rounded]="true"
+            ></p-tag>
+          </div>
+
+          <div class="flex justify-between items-center mb-2">
+            <span class="product-price">{{ formatPrice(product.price) }}</span>
+            <span class="text-sm text-primary-700">{{
+              getCategoryName(product.categoryId)
+            }}</span>
+          </div>
+
+          <div class="flex flex-wrap gap-1 mt-auto">
+            <p-tag
+              [severity]="product.isActive ? 'success' : 'warn'"
+              [value]="product.isActive ? 'Attivo' : 'Inattivo'"
+            ></p-tag>
+            <p-tag
+              [severity]="getProductSeverity(product)"
+              [value]="product.CCConnection ? 'Cassa in Cloud' : 'Solo Locale'"
+            ></p-tag>
+          </div>
+        </div>
+        } @if ((filteredProducts() || []).length === 0) {
+        <div class="col-span-full text-center p-5">
+          @if (loading()) {
+          <i class="pi pi-spin pi-spinner mr-2"></i>Caricamento prodotti... }
+          @else { <i class="pi pi-info-circle mr-2"></i>Nessun prodotto trovato
+          }
+        </div>
+        }
+      </div>
+      }
+
+      <!-- Vista tabella -->
+      @if (viewMode() === 'list' && !loading() && filteredProducts() &&
+      filteredProducts()!.length > 0) {
+      <div
+        class="relative w-full min-w-0 break-words rounded border-0 bg-white shadow-lg"
+      >
+        <p-table
+          [value]="filteredProducts() || []"
+          [loading]="loading()"
+          [paginator]="(filteredProducts()?.length || 0) > 10"
+          [rows]="10"
+          styleClass="p-datatable-sm"
+          responsiveLayout="scroll"
+        >
+          <ng-template pTemplate="header">
+            <tr>
+              <th pSortableColumn="name">
+                Nome <p-sortIcon field="name"></p-sortIcon>
+              </th>
+              <th pSortableColumn="price" class="text-right">
+                Prezzo <p-sortIcon field="price"></p-sortIcon>
+              </th>
+              <th pSortableColumn="categoryId">
+                Categoria <p-sortIcon field="categoryId"></p-sortIcon>
+              </th>
+              <th class="text-center">Stato</th>
+              <th class="text-center">Azioni</th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-product>
+            <tr>
+              <td>{{ product.name }}</td>
+              <td class="text-right">{{ formatPrice(product.price) }}</td>
+              <td>{{ getCategoryName(product.categoryId) }}</td>
+              <td class="text-center">
+                <p-tag
+                  [severity]="product.isActive ? 'success' : 'warn'"
+                  [value]="product.isActive ? 'Attivo' : 'Inattivo'"
+                ></p-tag>
+              </td>
+              <td class="flex gap-3 justify-center">
+                <button
+                  class="text-primary-500 p-1"
+                  (click)="openEditDialog(product.id!)"
+                >
+                  <i class="pi pi-pencil"></i>
+                </button>
+                <button
+                  class="text-red-500 p-1"
+                  (click)="deleteProduct($event, product.id!)"
+                >
+                  <i class="pi pi-trash"></i>
+                </button>
+              </td>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="emptymessage">
+            <tr>
+              <td colspan="5" class="text-center">
+                @if (loading()) {
+                <i class="pi pi-spin pi-spinner mr-2"></i>Caricamento prodotti... }
+                @else { <!-- Lascia vuoto poiché abbiamo già il messaggio centralizzato --> }
+              </td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </div>
+      }
+    </div>
+  }
+</div>
+
+<!-- Dialog per la creazione/modifica di un prodotto -->
+<p-dialog
+  [visible]="createDialogVisible()"
+  (visibleChange)="onCreateDialogVisibilityChange($event)"
+  [modal]="true"
+  header="Crea Nuovo Prodotto"
+  styleClass="product-dialog"
+  [style]="{ width: '90vw', maxWidth: '550px' }"
+  [closeOnEscape]="true"
+>
+  <!-- All'interno del dialog di creazione prodotto -->
+  <form [formGroup]="createForm" class="p-fluid p-3">
+    <!-- Nome e prezzo -->
+    <div class="field mb-4">
+      <label for="name" class="font-medium mb-2 block">Nome</label>
+      <input
+        type="text"
+        pInputText
+        id="name"
+        formControlName="name"
+        class="w-full"
+      />
+    </div>
+
+    <div class="flex flex-col md:flex-row gap-3 mb-4">
+      <div class="flex-1">
+        <label for="price" class="font-medium mb-2 block">Prezzo (€)</label>
+        <p-inputNumber
+          id="price"
+          formControlName="price"
+          mode="currency"
+          currency="EUR"
+          locale="it-IT"
+          class="w-full"
+        ></p-inputNumber>
+      </div>
+
+      <div class="flex-1">
+        <label for="categoryId" class="font-medium mb-2 block">Categoria</label>
+        <p-dropdown
+          id="categoryId"
+          formControlName="categoryId"
+          [options]="categories() || []"
+          optionLabel="name"
+          optionValue="id"
+          class="w-full"
+        ></p-dropdown>
+      </div>
+    </div>
+
+    <!-- Immagine del prodotto - VERSIONE MIGLIORATA E CENTRATA -->
+    <div class="field mb-4">
+      <label class="font-medium mb-2 block">Immagine</label>
+      <div class="flex flex-col items-center w-full">
+        <!-- Container dell'immagine con larghezza controllata e centrato -->
+        <div *ngIf="productImage" class="image-preview-container mx-auto mb-3">
+          <div class="relative">
+            <!-- Immagine centrata e dimensioni controllate -->
+            <img
+              [src]="productImage"
+              class="rounded shadow-sm object-contain max-h-40"
+              alt="Anteprima prodotto"
+            />
+
+            <!-- Pulsante di rimozione nell'angolo in alto a destra dell'immagine -->
+            <button
+              icon="pi pi-times"
+              class="p-button-xs absolute top-2 right-2"
+              (click)="removeImage()"
+            >
+              <i class="pi pi-times text-white"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Uploader centrato -->
+        <div *ngIf="!productImage" class="w-full flex justify-center mb-2">
+          <p-fileUpload
+            mode="basic"
+            chooseLabel="Carica immagine"
+            accept="image/*"
+            [auto]="true"
+            [customUpload]="true"
+            (uploadHandler)="onImageUpload($event)"
+            [maxFileSize]="1000000"
+            styleClass="p-button-outlined"
+          ></p-fileUpload>
+        </div>
+
+        <small class="text-xs text-gray-500 mt-1 text-center w-full">
+          L'immagine sarà salvata solo localmente, non su Cassa in Cloud
+        </small>
+      </div>
+    </div>
+
+    <!-- Allergeni -->
+    <div class="field mb-4">
+      <label for="allergens" class="font-medium mb-2 block">Allergeni</label>
+      <p-multiSelect
+        id="allergens"
+        formControlName="allergens"
+        [options]="availableAllergens"
+        optionLabel="name"
+        optionValue="id"
+        placeholder="Seleziona gli allergeni"
+        [filter]="true"
+        class="w-full"
+      ></p-multiSelect>
+    </div>
+
+    <!-- Aggiungiamo il campo dipartimento solo se CCConnection è abilitato -->
+    <div class="field mb-4" *ngIf="createForm.get('CCConnection')?.value">
+      <label for="departmentId" class="font-medium mb-2 block">
+        Dipartimento (Cassa in Cloud)
+      </label>
+      <p-dropdown
+        id="departmentId"
+        formControlName="departmentId"
+        [options]="departments()"
+        optionLabel="description"
+        optionValue="id"
+        [filter]="true"
+        filterBy="description"
+        [loading]="loadingDepartments()"
+        placeholder="Seleziona un dipartimento"
+        class="w-full"
+      ></p-dropdown>
+      <small class="text-xs text-gray-500 mt-1 block">
+        Il dipartimento è necessario per l'integrazione con Cassa in Cloud
+      </small>
+    </div>
+
+    <!-- Descrizione e altri campi -->
+    <div class="field mb-4">
+      <label for="description" class="font-medium mb-2 block"
+        >Descrizione</label
+      >
+      <textarea
+        pInputText
+        id="description"
+        formControlName="description"
+        rows="3"
+        class="w-full"
+      ></textarea>
+    </div>
+
+    <!-- Proprietà dei prodotti -->
+    <div class="field mb-4">
+      <label class="font-medium mb-2 block">Proprietà</label>
+      <div class="grid grid-cols-2" formGroupName="additionalData">
+        <div class="field-checkbox flex align-items-center mb-2">
+          <p-checkbox
+            id="isVegetarian"
+            [binary]="true"
+            formControlName="isVegetarian"
+          ></p-checkbox>
+          <label for="isVegetarian" class="ml-2">Vegetariano</label>
+        </div>
+        <div class="field-checkbox flex align-items-center mb-2">
+          <p-checkbox
+            id="isVegan"
+            [binary]="true"
+            formControlName="isVegan"
+          ></p-checkbox>
+          <label for="isVegan" class="ml-2">Vegano</label>
+        </div>
+        <div class="field-checkbox flex align-items-center mb-2">
+          <p-checkbox
+            id="isGlutenFree"
+            [binary]="true"
+            formControlName="isGlutenFree"
+          ></p-checkbox>
+          <label for="isGlutenFree" class="ml-2">Senza glutine</label>
+        </div>
+        <div class="field-checkbox flex align-items-center mb-2">
+          <p-checkbox
+            id="isLactoseFree"
+            [binary]="true"
+            formControlName="isLactoseFree"
+          ></p-checkbox>
+          <label for="isLactoseFree" class="ml-2">Senza lattosio</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Integrazione Cassa in Cloud -->
+    <div class="field-checkbox flex align-items-center mb-3">
+      <p-checkbox
+        id="CCConnection"
+        [binary]="true"
+        formControlName="CCConnection"
+      ></p-checkbox>
+      <label for="CCConnection" class="ml-2 font-medium">
+        Sincronizza con Cassa in Cloud
+      </label>
+    </div>
+
+    <!-- Stato attivo -->
+    <div class="field-checkbox flex align-items-center mb-3">
+      <p-checkbox
+        id="isActive"
+        [binary]="true"
+        formControlName="isActive"
+      ></p-checkbox>
+      <label for="isActive" class="ml-2 font-medium">Prodotto attivo</label>
+    </div>
+  </form>
+
+  <ng-template pTemplate="footer">
+    <div
+      class="h-full w-full flex flex-row justify-end items-center gap-3 pt-4"
+    >
+      <button
+        pButton
+        icon="pi pi-times"
+        label="Annulla"
+        class="p-button-text"
+        (click)="closeCreateDialog()"
+      ></button>
+      <button
+        pButton
+        icon="pi pi-check"
+        label="Crea"
+        [loading]="creatingProduct()"
+        [disabled]="createForm.invalid"
+        (click)="createProduct()"
+      ></button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<!-- Dialog per la modifica -->
+<p-dialog
+  [visible]="editDialogVisible()"
+  (visibleChange)="onDialogVisibilityChange($event)"
+  [modal]="true"
+  header="Modifica Prodotto"
+  styleClass="product-dialog"
+  [style]="{ width: '90vw', maxWidth: '550px' }"
+  [closeOnEscape]="true"
+>
+  @if(editingProduct()) {
+  <form [formGroup]="editForm" class="p-fluid p-3">
+    <!-- Nome e prezzo -->
+    <div class="field mb-4">
+      <label for="edit-name" class="font-medium mb-2 block">Nome</label>
+      <input
+        type="text"
+        pInputText
+        id="edit-name"
+        formControlName="name"
+        class="w-full"
+      />
+    </div>
+
+    <div class="flex flex-col md:flex-row gap-3 mb-4">
+      <div class="flex-1">
+        <label for="edit-price" class="font-medium mb-2 block"
+          >Prezzo (€)</label
+        >
+        <p-inputNumber
+          id="edit-price"
+          formControlName="price"
+          mode="currency"
+          currency="EUR"
+          locale="it-IT"
+          class="w-full"
+        ></p-inputNumber>
+      </div>
+
+      <div class="flex-1">
+        <label for="edit-categoryId" class="font-medium mb-2 block"
+          >Categoria</label
+        >
+        <p-dropdown
+          id="edit-categoryId"
+          formControlName="categoryId"
+          [options]="categories() || []"
+          optionLabel="name"
+          optionValue="id"
+          class="w-full"
+        ></p-dropdown>
+      </div>
+    </div>
+
+    <!-- Immagine del prodotto -->
+    <div class="field mb-4">
+      <label class="font-medium mb-2 block">Immagine</label>
+      <div class="flex flex-col items-center w-full">
+        <!-- Container dell'immagine con larghezza controllata e centrato -->
+        <div *ngIf="productImage" class="image-preview-container mx-auto mb-3">
+          <div class="relative">
+            <!-- Immagine centrata e dimensioni controllate -->
+            <img
+              [src]="productImage"
+              class="rounded shadow-sm object-contain max-h-40"
+              alt="Anteprima prodotto"
+            />
+
+            <!-- Pulsante di rimozione nell'angolo in alto a destra dell'immagine -->
+            <button
+              icon="pi pi-times"
+              class="p-button-xs absolute top-2 right-2"
+              (click)="removeImage()"
+            >
+              <i class="pi pi-times text-white"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Uploader centrato -->
+        <div *ngIf="!productImage" class="w-full flex justify-center mb-2">
+          <p-fileUpload
+            mode="basic"
+            chooseLabel="Carica immagine"
+            accept="image/*"
+            [auto]="true"
+            [customUpload]="true"
+            (uploadHandler)="onImageUpload($event)"
+            [maxFileSize]="1000000"
+            styleClass="p-button-outlined"
+          ></p-fileUpload>
+        </div>
+
+        <small class="text-xs text-gray-500 mt-1 text-center w-full">
+          L'immagine sarà salvata solo localmente, non su Cassa in Cloud
+        </small>
+      </div>
+    </div>
+
+    <!-- Allergeni -->
+    <div class="field mb-4">
+      <label for="edit-allergens" class="font-medium mb-2 block"
+        >Allergeni</label
+      >
+      <p-multiSelect
+        id="edit-allergens"
+        formControlName="allergens"
+        [options]="availableAllergens"
+        optionLabel="name"
+        optionValue="id"
+        placeholder="Seleziona gli allergeni"
+        [filter]="true"
+        class="w-full"
+      ></p-multiSelect>
+    </div>
+
+    <!-- Aggiungiamo il campo dipartimento solo se CCConnection è abilitato -->
+    <div class="field mb-4" *ngIf="editForm.get('CCConnection')?.value">
+      <label for="edit-departmentId" class="font-medium mb-2 block">
+        Dipartimento (Cassa in Cloud)
+      </label>
+      <p-dropdown
+        id="edit-departmentId"
+        formControlName="departmentId"
+        [options]="departments()"
+        optionLabel="description"
+        optionValue="id"
+        [filter]="true"
+        filterBy="description"
+        [loading]="loadingDepartments()"
+        placeholder="Seleziona un dipartimento"
+        class="w-full"
+      ></p-dropdown>
+      <small class="text-xs text-gray-500 mt-1 block">
+        Il dipartimento è necessario per l'integrazione con Cassa in Cloud
+      </small>
+    </div>
+
+    <!-- Descrizione -->
+    <div class="field mb-4">
+      <label for="edit-description" class="font-medium mb-2 block"
+        >Descrizione</label
+      >
+      <textarea
+        pInputText
+        id="edit-description"
+        formControlName="description"
+        rows="3"
+        class="w-full"
+      ></textarea>
+    </div>
+
+    <!-- Proprietà dei prodotti -->
+    <div class="field mb-4">
+      <label class="font-medium mb-2 block">Proprietà</label>
+      <div class="grid grid-cols-2" formGroupName="additionalData">
+        <div class="field-checkbox flex align-items-center mb-2">
+          <p-checkbox
+            id="edit-isVegetarian"
+            [binary]="true"
+            formControlName="isVegetarian"
+          ></p-checkbox>
+          <label for="edit-isVegetarian" class="ml-2">Vegetariano</label>
+        </div>
+        <div class="field-checkbox flex align-items-center mb-2">
+          <p-checkbox
+            id="edit-isVegan"
+            [binary]="true"
+            formControlName="isVegan"
+          ></p-checkbox>
+          <label for="edit-isVegan" class="ml-2">Vegano</label>
+        </div>
+        <div class="field-checkbox flex align-items-center mb-2">
+          <p-checkbox
+            id="edit-isGlutenFree"
+            [binary]="true"
+            formControlName="isGlutenFree"
+          ></p-checkbox>
+          <label for="edit-isGlutenFree" class="ml-2">Senza glutine</label>
+        </div>
+        <div class="field-checkbox flex align-items-center mb-2">
+          <p-checkbox
+            id="edit-isLactoseFree"
+            [binary]="true"
+            formControlName="isLactoseFree"
+          ></p-checkbox>
+          <label for="edit-isLactoseFree" class="ml-2">Senza lattosio</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Opzione per aggiornare anche su Cassa in Cloud -->
+    <div
+      class="field-checkbox flex align-items-center mb-3"
+      *ngIf="editingProduct()?.CCConnection"
+    >
+      <p-checkbox
+        id="edit-updateCC"
+        [binary]="true"
+        formControlName="updateCC"
+      ></p-checkbox>
+      <label for="edit-updateCC" class="ml-2 font-medium">
+        Aggiorna anche su Cassa in Cloud
+      </label>
+    </div>
+
+    <!-- Stato attivo -->
+    <div class="field-checkbox flex align-items-center mb-3">
+      <p-checkbox
+        id="edit-isActive"
+        [binary]="true"
+        formControlName="isActive"
+      ></p-checkbox>
+      <label for="edit-isActive" class="ml-2 font-medium"
+        >Prodotto attivo</label
+      >
+    </div>
+  </form>
+  }
+
+  <ng-template pTemplate="footer">
+    <div
+      class="h-full w-full flex flex-row justify-end items-center gap-3 pt-4"
+    >
+      <button
+        pButton
+        icon="pi pi-times"
+        label="Annulla"
+        class="p-button-text"
+        (click)="closeEditDialog()"
+      ></button>
+      <button
+        pButton
+        icon="pi pi-check"
+        label="Salva"
+        [loading]="updatingProduct()"
+        [disabled]="editForm.invalid"
+        (click)="updateProduct()"
+      ></button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<!-- Dialog per la sincronizzazione da Cassa in Cloud -->
+<p-dialog
+  [visible]="syncDialogVisible()"
+  (visibleChange)="onSyncDialogVisibilityChange($event)"
+  [modal]="true"
+  header="Sincronizza Prodotti da Cassa in Cloud"
+  styleClass="sync-dialog"
+  [style]="{ width: '90vw', maxWidth: '800px' }"
+  [closeOnEscape]="true"
+>
+  <div *ngIf="importingProducts()" class="my-5">
+    <div class="text-center mb-3">
+      <i class="pi pi-spin pi-sync text-4xl text-primary"></i>
+      <h3 class="mt-2 mb-4 text-lg font-semibold">
+        Importazione prodotti in corso...
+      </h3>
+    </div>
+
+    <p class="mb-2 text-center">
+      Progresso: {{ importProgress() }} di
+      {{ totalProductsToImport() }} prodotti ({{
+        totalProductsToImport() > 0
+          ? ((importProgress() / totalProductsToImport()) * 100).toFixed(0)
+          : 0
+      }}%)
+    </p>
+
+    <div class="progress-bar mb-4">
+      <div
+        class="progress-fill"
+        [style.width.%]="
+          totalProductsToImport() > 0
+            ? (importProgress() / totalProductsToImport()) * 100
+            : 0
+        "
+      ></div>
+    </div>
+
+    <p class="text-sm text-center text-gray-500">
+      Ogni prodotto viene sincronizzato individualmente. L'operazione potrebbe
+      richiedere alcuni minuti.
+    </p>
+  </div>
+  <div class="p-fluid">
+    <!-- Sezione di ricerca -->
+    <div class="mb-4 md:w-1/3">
+      <input
+        pInputText
+        type="text"
+        placeholder="Cerca prodotti..."
+        [(ngModel)]="searchCCQuery"
+        (ngModelChange)="filterCCProducts($event)"
+      />
+    </div>
+
+    <!-- Filtro per categoria -->
+    <div class="mb-4">
+      <p-dropdown
+        [options]="filteredCCCategories() || []"
+        optionLabel="description"
+        optionValue="id"
+        placeholder="Filtra per categoria"
+        [showClear]="true"
+        [style]="{ width: '100%' }"
+        (onChange)="filterCCProductsByCategory($event.value)"
+      ></p-dropdown>
+    </div>
+
+    <!-- Loading state -->
+    <div *ngIf="loadingCCProducts()" class="text-center p-4">
+      <i class="pi pi-spin pi-spinner mr-2"></i>
+      Caricamento prodotti...
+    </div>
+
+    <!-- Error state -->
+    <div *ngIf="errorCCProducts()" class="text-center p-4 text-red-500">
+      <i class="pi pi-exclamation-circle mr-2"></i>
+      {{ errorCCProducts() }}
+    </div>
+
+    <!-- Product selection table -->
+    <p-table
+      *ngIf="
+        !loadingCCProducts() &&
+        !errorCCProducts() &&
+        (filteredCCProducts()?.length || 0) > 0
+      "
+      [value]="filteredCCProducts() || []"
+      [selection]="selectedCCProducts()"
+      (selectionChange)="onSelectionChange($event)"
+      dataKey="id"
+      responsiveLayout="scroll"
+      styleClass="mb-4"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th style="width: 3rem">
+            <p-tableHeaderCheckbox></p-tableHeaderCheckbox>
+          </th>
+          <th>Nome Prodotto</th>
+          <th>Categoria</th>
+          <th>Prezzo</th>
+          <th>Stato</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-product>
+        <tr>
+          <td>
+            <p-tableCheckbox [value]="product"></p-tableCheckbox>
+          </td>
+          <td>{{ product.description }}</td>
+          <td>{{ getCCCategoryName(product.idCategory) }}</td>
+          <td>
+            {{ formatCCPrice(product) }}
+          </td>
+          <td>
+            <p-tag
+              [value]="isProductImported(product.id) ? 'Importato' : 'Nuovo'"
+              [severity]="isProductImported(product.id) ? 'info' : 'success'"
+            ></p-tag>
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="5" class="text-center">
+            <i class="pi pi-info-circle mr-2"></i>Nessun prodotto trovato
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+
+    <!-- Zero products state -->
+    <div
+      *ngIf="
+        !loadingCCProducts() &&
+        !errorCCProducts() &&
+        (filteredCCProducts()?.length || 0) === 0
+      "
+      class="text-center p-4"
+    >
+      <i class="pi pi-info-circle mr-2"></i>
+      Nessun prodotto trovato su Cassa in Cloud
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div
+      class="h-full w-full flex flex-row justify-end items-center gap-3 pt-4"
+    >
+      <button
+        pButton
+        icon="pi pi-times"
+        label="Annulla"
+        class="p-button-text"
+        (click)="closeSyncDialog()"
+      ></button>
+      <button
+        pButton
+        icon="pi pi-cloud-download"
+        label="Sincronizza Selezionati"
+        [disabled]="!selectedCCProducts().length"
+        [loading]="loading()"
+        (click)="syncProducts()"
+      ></button>
+    </div>
+  </ng-template>
+</p-dialog>

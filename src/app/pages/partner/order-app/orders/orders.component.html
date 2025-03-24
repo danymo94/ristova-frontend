@@ -1,0 +1,728 @@
+<div class="p-3">
+  <!-- Header con azioni -->
+  <div
+    class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2"
+  >
+    <div class="flex items-center">
+      <h2 class="text-xl font-semibold text-gray-800 mr-2">Ordini</h2>
+      <p-badge
+        *ngIf="pendingOrders() && pendingOrders()!.length > 0"
+        [value]="getPendingOrdersCount().toString()"
+        severity="warn"
+      ></p-badge>
+    </div>
+
+    <div class="flex gap-2">
+      <!-- Ricerca -->
+      <div class="relative">
+        <input
+          pInputText
+          type="text"
+          placeholder="Cerca ordini..."
+          class="pl-9 border border-gray-300 rounded-md"
+          [ngModel]="searchQueryValue"
+          (ngModelChange)="updateSearchQuery($event)"
+        />
+      </div>
+
+      <!-- Pulsanti di azione -->
+      <p-selectButton
+        [options]="viewOptions"
+        [ngModel]="viewModeValue"
+        (onChange)="updateViewMode($event.value)"
+        optionLabel="value"
+        optionValue="value"
+      >
+        <ng-template #item let-item>
+          <i [class]="item.icon"></i>
+        </ng-template>
+      </p-selectButton>
+
+      <button
+        pButton
+        icon="pi pi-filter"
+        (click)="updateFilterDialogVisible(true)"
+        [class.p-button-outlined]="!hasActiveFilters()"
+        [class.p-button-info]="hasActiveFilters()"
+      ></button>
+      <button
+        pButton
+        icon="pi pi-refresh"
+        (click)="refreshOrders()"
+        [loading]="isLoading()"
+      ></button>
+    </div>
+  </div>
+
+
+
+  <!-- Visualizzazione principale degli ordini -->
+  <div class="mt-4">
+    <!-- Vista a lista -->
+    <div *ngIf="viewMode() === 'list'" class="card">
+      <p-table
+        [value]="filteredOrders() || []"
+        [paginator]="true"
+        [rows]="10"
+        [rowsPerPageOptions]="[5, 10, 25, 50]"
+        [showCurrentPageReport]="true"
+        currentPageReportTemplate="Mostra {first} a {last} di {totalRecords} ordini"
+        [globalFilterFields]="['id', 'customerName', 'tableName']"
+        responsiveLayout="scroll"
+        styleClass="p-datatable-sm"
+        [loading]="isLoading()"
+        emptyMessage="Nessun ordine trovato"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th>ID</th>
+            <th>Data</th>
+            <th>Tipo</th>
+            <th>Tavolo/Cliente</th>
+            <th>Stato</th>
+            <th>Totale</th>
+            <th>Elementi</th>
+            <th>Azioni</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-order>
+          <tr>
+            <td>{{ order.id?.substring(0, 8) }}</td>
+            <td>{{ formatDate(order.createdAt) }}</td>
+            <td>
+              <p-tag
+                *ngIf="order.type === 'table'"
+                icon="pi pi-table"
+                severity="info"
+                value="Tavolo"
+              ></p-tag>
+              <p-tag
+                *ngIf="order.type === 'preorder'"
+                icon="pi pi-calendar"
+                severity="success"
+                value="Preordine"
+              ></p-tag>
+            </td>
+            <td>
+              {{
+                order.type === "table" ? order.tableName : order.customerName
+              }}
+            </td>
+            <td>
+              <p-tag
+                [value]="getStatusLabel(order.status)"
+                [severity]="getStatusSeverity(order.status)"
+              ></p-tag>
+            </td>
+            <td>€ {{ order.total.toFixed(2) }}</td>
+            <td>{{ calculateTotalItems(order) }}</td>
+            <td>
+              <div class="flex gap-1">
+                <button
+                  pButton
+                  icon="pi pi-eye"
+                  class="p-button-text p-button-sm"
+                  (click)="viewOrderDetails(order)"
+                  pTooltip="Visualizza dettagli"
+                ></button>
+                <button
+                  *ngIf="order.status === 'pending'"
+                  pButton
+                  icon="pi pi-check"
+                  class="p-button-success p-button-sm"
+                  (click)="updateOrderStatus(order.id!, 'confirmed')"
+                  pTooltip="Conferma"
+                ></button>
+                <button
+                  *ngIf="order.status === 'confirmed'"
+                  pButton
+                  icon="pi pi-sync"
+                  class="p-button-info p-button-sm"
+                  (click)="updateOrderStatus(order.id!, 'processing')"
+                  pTooltip="In elaborazione"
+                ></button>
+                <button
+                  *ngIf="order.status === 'processing'"
+                  pButton
+                  icon="pi pi-check-circle"
+                  class="p-button-success p-button-sm"
+                  (click)="updateOrderStatus(order.id!, 'completed')"
+                  pTooltip="Completa"
+                ></button>
+                <button
+                  *ngIf="
+                    order.status !== 'completed' && order.status !== 'cancelled'
+                  "
+                  pButton
+                  icon="pi pi-times"
+                  class="p-button-danger p-button-sm"
+                  (click)="updateOrderStatus(order.id!, 'cancelled')"
+                  pTooltip="Annulla"
+                ></button>
+              </div>
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </div>
+
+    <!-- Vista a griglia -->
+    <div
+      *ngIf="viewMode() === 'grid'"
+      class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
+    >
+      <p-card
+        *ngFor="let order of filteredOrders()"
+        [header]="'#' + order.id?.substring(0, 8)"
+        subheader="{{ formatDate(order.createdAt) }}"
+        styleClass="order-card"
+      >
+        <ng-template pTemplate="header">
+          <div class="flex justify-between items-center p-3 bg-gray-50">
+            <div>
+              <p-tag
+                *ngIf="order.type === 'table'"
+                icon="pi pi-table"
+                severity="info"
+                value="Tavolo"
+              ></p-tag>
+              <p-tag
+                *ngIf="order.type === 'preorder'"
+                icon="pi pi-calendar"
+                severity="success"
+                value="Preordine"
+              ></p-tag>
+            </div>
+            <p-tag
+              [value]="getStatusLabel(order.status)"
+              [severity]="getStatusSeverity(order.status)"
+            ></p-tag>
+          </div>
+        </ng-template>
+
+        <div>
+          <p class="mb-2">
+            <strong>{{
+              order.type === "table" ? "Tavolo:" : "Cliente:"
+            }}</strong>
+            {{ order.type === "table" ? order.tableName : order.customerName }}
+          </p>
+          <p class="mb-2">
+            <strong>Prodotti:</strong> {{ calculateTotalItems(order) }}
+          </p>
+          <p class="mb-2">
+            <strong>Totale:</strong> € {{ order.total.toFixed(2) }}
+          </p>
+          <p *ngIf="order.type === 'preorder' && order.pickupTime" class="mb-2">
+            <strong>{{
+              order.deliveryMode === "PICKUP" ? "Ritiro:" : "Consegna:"
+            }}</strong>
+            {{ order.pickupTime }}
+          </p>
+
+          <div
+            *ngIf="order.items && order.items.length > 0"
+            class="mt-3 border-t pt-2"
+          >
+            <p class="text-sm font-medium mb-1">Elementi:</p>
+            <ul class="text-sm">
+              <li *ngFor="let item of order.items.slice(0, 3)" class="mb-1">
+                {{ item.quantity }}x {{ item.name }}
+              </li>
+              <li *ngIf="order.items.length > 3" class="text-gray-500 italic">
+                + altri {{ order.items.length - 3 }} elementi...
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <ng-template pTemplate="footer">
+          <div class="flex justify-between">
+            <button
+              pButton
+              label="Dettagli"
+              icon="pi pi-eye"
+              class="p-button-text p-button-sm"
+              (click)="viewOrderDetails(order)"
+            ></button>
+            <div class="flex gap-2">
+              <button
+                *ngIf="order.status === 'pending'"
+                pButton
+                icon="pi pi-check"
+                class="p-button-success p-button-sm"
+                (click)="updateOrderStatus(order.id!, 'confirmed')"
+                pTooltip="Conferma"
+              ></button>
+              <button
+                *ngIf="order.status === 'confirmed'"
+                pButton
+                icon="pi pi-sync"
+                class="p-button-info p-button-sm"
+                (click)="updateOrderStatus(order.id!, 'processing')"
+                pTooltip="In elaborazione"
+              ></button>
+              <button
+                *ngIf="order.status === 'processing'"
+                pButton
+                icon="pi pi-check-circle"
+                class="p-button-success p-button-sm"
+                (click)="updateOrderStatus(order.id!, 'completed')"
+                pTooltip="Completa"
+              ></button>
+              <button
+                *ngIf="
+                  order.status !== 'completed' && order.status !== 'cancelled'
+                "
+                pButton
+                icon="pi pi-times"
+                class="p-button-danger p-button-sm"
+                (click)="updateOrderStatus(order.id!, 'cancelled')"
+                pTooltip="Annulla"
+              ></button>
+            </div>
+          </div>
+        </ng-template>
+      </p-card>
+    </div>
+
+    <!-- Vista calendario (placeholder) -->
+    <div *ngIf="viewMode() === 'calendar'" class="card p-4">
+      <p class="text-center text-gray-500">
+        La vista calendario sarà disponibile in futuro.
+      </p>
+    </div>
+
+    <!-- Placeholder quando non ci sono ordini -->
+    <div
+      *ngIf="!filteredOrders() || filteredOrders()!.length === 0"
+      class="empty-state text-center p-6"
+    >
+      <i class="pi pi-inbox text-6xl text-gray-300 mb-4"></i>
+      <h3 class="text-xl text-gray-600 mb-2">Nessun ordine trovato</h3>
+      <p class="text-gray-500 max-w-lg mx-auto">
+        Non ci sono ordini che corrispondono ai criteri selezionati. Prova a
+        modificare i filtri o a creare un nuovo ordine.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- Dialog dei filtri -->
+<p-dialog
+  header="Filtri"
+  [visible]="filterDialogVisibleValue"
+  (visibleChange)="updateFilterDialogVisible($event)"
+  [modal]="true"
+  [style]="{ width: '500px' }"
+  [draggable]="false"
+  [resizable]="false"
+>
+  <div class="p-fluid">
+    <div class="field mb-4">
+      <label for="status" class="block text-sm font-medium text-gray-700 mb-1"
+        >Stato</label
+      >
+      <p-dropdown
+        id="status"
+        [options]="statusOptions"
+        [(ngModel)]="selectedStatusValue"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="Seleziona uno stato"
+        [showClear]="true"
+        (onChange)="updateSelectedStatus($event.value)"
+      ></p-dropdown>
+    </div>
+
+    <div class="field mb-4">
+      <label for="type" class="block text-sm font-medium text-gray-700 mb-1"
+        >Tipo di ordine</label
+      >
+      <p-dropdown
+        id="type"
+        [options]="typeOptions"
+        [(ngModel)]="selectedTypeValue"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="Seleziona un tipo"
+        [showClear]="true"
+        (onChange)="updateSelectedType($event.value)"
+      ></p-dropdown>
+    </div>
+
+    <div class="field mb-4">
+      <label
+        for="dateRange"
+        class="block text-sm font-medium text-gray-700 mb-1"
+        >Intervallo di date</label
+      >
+      <!-- ERRORE: (onSelect)="updateDateRange($event)" -->
+      <!-- CORREZIONE: -->
+      <p-calendar
+        id="dateRange"
+        [(ngModel)]="dateRangeValue"
+        selectionMode="range"
+        [readonlyInput]="true"
+        [showIcon]="true"
+        [showButtonBar]="true"
+        placeholder="Seleziona un intervallo di date"
+        (onSelect)="updateDateRange(dateRangeValue)"
+      ></p-calendar>
+    </div>
+
+    <div class="field mb-4">
+      <label for="tableId" class="block text-sm font-medium text-gray-700 mb-1"
+        >ID Tavolo</label
+      >
+      <input
+        id="tableId"
+        type="text"
+        pInputText
+        [(ngModel)]="tableIdValue"
+        placeholder="Inserisci ID tavolo"
+        (ngModelChange)="updateTableId($event)"
+      />
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <button
+      pButton
+      pRipple
+      label="Annulla"
+      icon="pi pi-times"
+      class="p-button-text"
+      (click)="updateFilterDialogVisible(false)"
+    ></button>
+    <button
+      pButton
+      pRipple
+      label="Reimposta"
+      icon="pi pi-refresh"
+      class="p-button-outlined"
+      (click)="resetFilters()"
+    ></button>
+    <button
+      pButton
+      pRipple
+      label="Applica"
+      icon="pi pi-check"
+      (click)="applyFilters()"
+    ></button>
+  </ng-template>
+</p-dialog>
+
+<!-- Dialog dei dettagli dell'ordine -->
+<p-dialog
+  header="Dettagli Ordine"
+  [visible]="detailsDialogVisibleValue"
+  (visibleChange)="onDetailsDialogVisibilityChange($event)"
+  [modal]="true"
+  [style]="{ width: '650px' }"
+  [draggable]="false"
+  [resizable]="false"
+>
+  <div *ngIf="selectedOrder()" class="p-2">
+    <div class="flex justify-between mb-4">
+      <div>
+        <h2 class="text-xl font-semibold">
+            #{{ selectedOrder()?.id ? (selectedOrder()!.id || '').substring(0, 8) : "N/A" }}
+          </h2>
+        <p class="text-gray-600">
+          {{ formatDate(selectedOrder()?.createdAt) }}
+        </p>
+      </div>
+      <div>
+        <p-tag
+          [value]="getStatusLabel(selectedOrder()!.status)"
+          [severity]="getStatusSeverity(selectedOrder()!.status)"
+        ></p-tag>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <div class="border rounded p-3">
+        <h3 class="text-md font-medium mb-2">Informazioni</h3>
+        <p class="mb-1">
+          <strong>Tipo:</strong>
+          {{ selectedOrder()?.type === "table" ? "Tavolo" : "Preordine" }}
+        </p>
+        <p class="mb-1">
+          <strong>{{
+            selectedOrder()?.type === "table" ? "Tavolo:" : "Cliente:"
+          }}</strong>
+          {{
+            selectedOrder()?.type === "table"
+              ? selectedOrder()?.tableName
+              : selectedOrder()?.customerName
+          }}
+        </p>
+        <p *ngIf="selectedOrder()?.type === 'preorder'" class="mb-1">
+          <strong>Modalità:</strong>
+          {{ getDeliveryModeLabel(selectedOrder()?.deliveryMode) }}
+        </p>
+        <p
+          *ngIf="
+            selectedOrder()?.type === 'preorder' && selectedOrder()?.pickupTime
+          "
+          class="mb-1"
+        >
+          <strong>Orario:</strong> {{ formatDate(selectedOrder()?.pickupTime) }}
+        </p>
+        <p *ngIf="selectedOrder()?.CCOrderId" class="mb-1">
+          <strong>ID Cassa in Cloud:</strong> {{ selectedOrder()?.CCOrderId }}
+        </p>
+      </div>
+
+      <div class="border rounded p-3">
+        <h3 class="text-md font-medium mb-2">Riepilogo</h3>
+        <p class="mb-1">
+          <strong>Totale prodotti:</strong>
+          {{ calculateTotalItems(selectedOrder()!) }}
+        </p>
+        <p class="mb-1">
+          <strong>Importo totale:</strong> €
+          {{ getFormattedTotal(selectedOrder()) }}
+        </p>
+        <p class="mb-1">
+          <strong>Importo pagato:</strong> €
+          {{ getFormattedPayedAmount(selectedOrder()) }}
+        </p>
+        <p class="mb-1">
+          <strong>Stato pagamento:</strong>
+          <span
+            [ngClass]="{
+              'text-green-600': isFullyPaid(selectedOrder()),
+              'text-amber-600': isPartiallyPaid(selectedOrder()),
+              'text-red-600': isNotPaid(selectedOrder())
+            }"
+          >
+            {{ getPaymentStatusText(selectedOrder()) }}
+          </span>
+        </p>
+      </div>
+    </div>
+
+    <div
+      *ngIf="
+        selectedOrder()?.type === 'preorder' && selectedOrder()?.contactInfo
+      "
+      class="border rounded p-3 mb-4"
+    >
+      <h3 class="text-md font-medium mb-2">Informazioni di contatto</h3>
+      <p *ngIf="selectedOrder()?.contactInfo?.email" class="mb-1">
+        <strong>Email:</strong> {{ selectedOrder()?.contactInfo?.email }}
+      </p>
+      <p *ngIf="selectedOrder()?.contactInfo?.phone" class="mb-1">
+        <strong>Telefono:</strong> {{ selectedOrder()?.contactInfo?.phone }}
+      </p>
+      <p *ngIf="selectedOrder()?.contactInfo?.address" class="mb-1">
+        <strong>Indirizzo:</strong> {{ selectedOrder()?.contactInfo?.address }}
+      </p>
+      <p *ngIf="selectedOrder()?.contactInfo?.notes" class="mb-1">
+        <strong>Note:</strong> {{ selectedOrder()?.contactInfo?.notes }}
+      </p>
+    </div>
+
+    <div class="border rounded p-3 mb-4">
+      <h3 class="text-md font-medium mb-2">Elementi dell'ordine</h3>
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead>
+          <tr>
+            <th
+              class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+            >
+              Prodotto
+            </th>
+            <th
+              class="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
+            >
+              Qtà
+            </th>
+            <th
+              class="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+            >
+              Prezzo
+            </th>
+            <th
+              class="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+            >
+              Subtotale
+            </th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200">
+          <tr *ngFor="let item of selectedOrder()?.items">
+            <td class="px-2 py-2 whitespace-nowrap text-sm text-gray-900">
+              {{ item.name }}
+              <div *ngIf="item.notes" class="text-xs text-gray-500">
+                {{ item.notes }}
+              </div>
+              <div *ngIf="item.username" class="text-xs text-blue-500">
+                {{ item.username }}
+              </div>
+            </td>
+            <td
+              class="px-2 py-2 whitespace-nowrap text-sm text-gray-900 text-center"
+            >
+              {{ item.quantity }}
+            </td>
+            <td
+              class="px-2 py-2 whitespace-nowrap text-sm text-gray-900 text-right"
+            >
+              € {{ item.price.toFixed(2) }}
+            </td>
+            <td
+              class="px-2 py-2 whitespace-nowrap text-sm text-gray-900 text-right"
+            >
+              € {{ (item.price * item.quantity).toFixed(2) }}
+            </td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td
+              colspan="3"
+              class="px-2 py-2 text-right text-sm font-medium text-gray-900"
+            >
+              Totale
+            </td>
+            <td class="px-2 py-2 text-right text-sm font-bold text-gray-900">
+              € {{ getFormattedTotal(selectedOrder()) }}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div
+      *ngIf="selectedOrder()?.type === 'table' && selectedOrder()?.userItems"
+      class="border rounded p-3 mb-4"
+    >
+      <h3 class="text-md font-medium mb-2">Ripartizione per utente</h3>
+      <div *ngFor="let user of getOrderUsers()" class="mb-3">
+        <div class="flex justify-between items-center mb-2">
+          <h4 class="text-sm font-semibold">{{ getUserDisplayName(user) }}</h4>
+          <span class="text-sm"
+            >Totale: € {{ calculateUserTotal(user).toFixed(2) }}</span
+          >
+        </div>
+        <ul class="text-sm pl-5 list-disc">
+          <li *ngFor="let item of getUserItems(user)" class="mb-1">
+            {{ item.quantity }}x {{ item.name }} - €
+            {{ (item.price * item.quantity).toFixed(2) }}
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div
+      *ngIf="selectedOrder()?.metadata?.CCSyncStatus"
+      class="border rounded p-3"
+    >
+      <h3 class="text-md font-medium mb-2">Informazioni di sincronizzazione</h3>
+      <p class="mb-1">
+        <strong>Stato:</strong>
+        <span
+          [ngClass]="{
+            'text-green-600':
+              selectedOrder()?.metadata?.CCSyncStatus === 'synced',
+            'text-amber-600':
+              selectedOrder()?.metadata?.CCSyncStatus === 'pending',
+            'text-red-600': selectedOrder()?.metadata?.CCSyncStatus === 'failed'
+          }"
+        >
+          {{
+            selectedOrder()?.metadata?.CCSyncStatus === "synced"
+              ? "Sincronizzato"
+              : selectedOrder()?.metadata?.CCSyncStatus === "pending"
+              ? "In attesa"
+              : "Fallito"
+          }}
+        </span>
+      </p>
+      <p
+        *ngIf="selectedOrder()?.metadata?.CCErrorMessage"
+        class="mb-1 text-sm text-red-600"
+      >
+        <strong>Errore:</strong> {{ selectedOrder()?.metadata?.CCErrorMessage }}
+      </p>
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div class="flex justify-between">
+      <div>
+        <button
+          pButton
+          pRipple
+          label="Chiudi"
+          icon="pi pi-times"
+          class="p-button-text"
+          (click)="closeDetailsDialog()"
+        ></button>
+      </div>
+      <div class="flex gap-2" *ngIf="selectedOrder()">
+        <button
+          *ngIf="selectedOrder()?.status === 'pending'"
+          pButton
+          pRipple
+          icon="pi pi-check"
+          label="Conferma"
+          class="p-button-success"
+          (click)="updateOrderStatus(selectedOrder()!.id!, 'confirmed')"
+        ></button>
+        <button
+          *ngIf="selectedOrder()?.status === 'confirmed'"
+          pButton
+          pRipple
+          icon="pi pi-sync"
+          label="In elaborazione"
+          class="p-button-info"
+          (click)="updateOrderStatus(selectedOrder()!.id!, 'processing')"
+        ></button>
+        <button
+          *ngIf="selectedOrder()?.status === 'processing'"
+          pButton
+          pRipple
+          icon="pi pi-check-circle"
+          label="Completa"
+          class="p-button-success"
+          (click)="updateOrderStatus(selectedOrder()!.id!, 'completed')"
+        ></button>
+        <button
+          *ngIf="
+            selectedOrder()?.status !== 'completed' &&
+            selectedOrder()?.status !== 'cancelled'
+          "
+          pButton
+          pRipple
+          icon="pi pi-times"
+          label="Annulla"
+          class="p-button-danger"
+          (click)="updateOrderStatus(selectedOrder()!.id!, 'cancelled')"
+        ></button>
+      </div>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<style>
+  .order-card {
+    transition: all 0.3s ease;
+  }
+
+  .order-card:hover {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+      0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+
+  .empty-state {
+    padding: 3rem 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+</style>

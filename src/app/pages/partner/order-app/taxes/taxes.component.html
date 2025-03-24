@@ -1,0 +1,498 @@
+<div class="p-4">
+  <h2 class="text-2xl font-bold mb-4">Gestione Tasse</h2>
+
+  <!-- Stato vuoto quando non c'è progetto selezionato -->
+  @if (!selectedProject()) {
+  <div class="empty-state">
+    <i class="pi pi-info-circle"></i>
+    <h3>Nessun ristorante selezionato</h3>
+    <p>
+      Seleziona un ristorante dal menu in alto per visualizzare le tasse
+      disponibili.
+    </p>
+  </div>
+  }
+
+  <!-- Stato quando il progetto non ha configurazione Cassa in Cloud -->
+  @if (selectedProject() && !selectedProject()!.CCConnection) {
+  <div class="empty-state">
+    <i class="pi pi-exclamation-triangle"></i>
+    <h3>Connessione Cassa in Cloud non configurata</h3>
+    <p>
+      Questo ristorante non ha una connessione attiva con Cassa in Cloud. La
+      gestione delle tasse è disponibile solo per i ristoranti connessi a Cassa
+      in Cloud.
+    </p>
+  </div>
+  }
+
+  <!-- Stato con progetto selezionato e connessione Cassa in Cloud attiva -->
+  @if (selectedProject() && selectedProject()!.CCConnection) {
+  <div
+    class="w-full flex flex-col items-start p-5 justify-center bg-primary-50 rounded-lg mb-5"
+  >
+    <div class="w-full flex flex-row justify-between items-center mb-4">
+      <h3 class="text-lg font-semibold text-primary-700">
+        Tasse Cassa in Cloud
+      </h3>
+      <div class="flex items-center gap-2">
+        <img src="assets/logoCC.png" alt="Cassa in Cloud Logo" class="h-10" />
+        <button
+          pButton
+          icon="pi pi-refresh"
+          class="p-button-rounded p-button-text"
+          [loading]="loading()"
+          (click)="refreshTaxes()"
+          title="Aggiorna tasse"
+        ></button>
+      </div>
+    </div>
+
+    <div class="w-full flex flex-row justify-between items-center mb-4">
+      <input
+        pInputText
+        type="text"
+        placeholder="Cerca tasse..."
+        class="w-full md:w-auto rounded border-0 px-3 py-2 text-sm text-primary-600 placeholder:text-primary-400 shadow focus:outline-none"
+        [(ngModel)]="searchQuery"
+        (ngModelChange)="filterTaxes($event)"
+      />
+
+      <!-- Bottone per creare una nuova tassa -->
+      <button
+        pButton
+        icon="pi pi-plus"
+        label="Nuova Tassa"
+        class="p-button-sm"
+        (click)="openCreateDialog()"
+      ></button>
+    </div>
+
+    <!-- Tabella tasse -->
+    <div
+      class="relative w-full min-w-0 flex-col break-words rounded border-0 bg-white shadow-lg"
+    >
+      <p-table
+        #taxesTable
+        tableStyleClass="!text-primary-400"
+        [value]="filteredTaxes() || []"
+        [loading]="loading()"
+        [paginator]="(filteredTaxes()?.length || 0) > 10"
+        [rows]="10"
+        styleClass="p-datatable-sm"
+        responsiveLayout="scroll"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th class="text-primary-700">Descrizione</th>
+            <th class="text-primary-700 text-right">Aliquota (%)</th>
+            <th class="text-primary-700 text-center" style="width: 100px">
+              Predefinita
+            </th>
+            <th class="text-primary-700 text-center" style="width: 150px">
+              Azioni
+            </th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-tax>
+          <tr>
+            <td class="text-primary-600">{{ tax.description }}</td>
+            <td class="text-primary-600 text-right">
+              {{ tax.rate | number : "1.2-2" }}
+            </td>
+            <td class="text-center">
+              @if (tax.isDefault) {
+              <i class="pi pi-check text-green-500"></i>
+              }
+            </td>
+            <td class="flex gap-3 justify-center">
+              <button
+                class="text-primary-500 p-1"
+                (click)="openEditDialog(tax.id)"
+                pTooltip="Modifica"
+              >
+                <i class="pi pi-pencil"></i>
+              </button>
+              <button
+                class="text-red-500 p-1"
+                (click)="deleteTax($event, tax.id)"
+                pTooltip="Elimina"
+              >
+                <i class="pi pi-trash"></i>
+              </button>
+            </td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="4" class="text-center p-4">
+              @if (loading()) {
+              <i class="pi pi-spin pi-spinner mr-2"></i>Caricamento tasse... }
+              @else if (error()) {
+              <i class="pi pi-exclamation-circle text-red-500 mr-2"></i
+              >{{ error() }}
+              } @else {
+              <i class="pi pi-info-circle mr-2"></i>Nessuna tassa trovata }
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </div>
+  </div>
+  }
+
+ <!-- Dialog per l'editing delle tasse -->
+<p-dialog
+[visible]="editDialogVisible()"
+(visibleChange)="onDialogVisibilityChange($event)"
+[modal]="true"
+[draggable]="false"
+[resizable]="false"
+header="Modifica Tassa"
+styleClass="tax-dialog"
+[style]="{width: '90vw', maxWidth: '650px'}"
+contentStyleClass="p-0 md:p-3"
+[closeOnEscape]="true"
+[dismissableMask]="true"
+(onHide)="closeEditDialog()"
+>
+@if(editingTax()) {
+<form [formGroup]="editForm" class="p-fluid p-3">
+  <!-- Dettagli principali -->
+  <div class="mb-4">
+    <div class="flex flex-col md:flex-row gap-3 md:gap-4">
+      <div class="flex-1">
+        <label for="description" class="font-medium mb-2 block">Descrizione</label>
+        <input
+          type="text"
+          pInputText
+          id="description"
+          formControlName="description"
+          class="w-full"
+        />
+        @if(editForm.get('description')?.invalid && editForm.get('description')?.touched) {
+          <small class="p-error">La descrizione è obbligatoria</small>
+        }
+      </div>
+      
+      <div class="flex-1">
+        <label for="externalId" class="font-medium mb-2 block">ID Esterno</label>
+        <input
+          type="text"
+          pInputText
+          id="externalId"
+          formControlName="externalId"
+          class="w-full"
+        />
+      </div>
+    </div>
+  </div>
+
+  <!-- Informazioni sull'aliquota (ora modificabile) -->
+  <div class="mb-4">
+    <div class="flex flex-col md:flex-row gap-3 md:gap-4">
+      <div class="flex-1">
+        <label for="rate" class="font-medium mb-2 block">Aliquota (%)</label>
+        <p-inputNumber
+          id="rate"
+          formControlName="rate"
+          [min]="0"
+          [max]="100"
+          [step]="0.1"
+          [showButtons]="false"
+          placeholder="Inserisci aliquota"
+          suffix="%"
+          class="w-full"
+        ></p-inputNumber>
+        @if(editForm.get('rate')?.invalid && editForm.get('rate')?.touched) {
+          <small class="p-error">L'aliquota deve essere tra 0 e 100</small>
+        }
+      </div>
+      
+      <div class="flex-1">
+        <div class="bg-primary-50 p-3 rounded h-full flex flex-col justify-center">
+          <div class="flex flex-wrap gap-4">
+            <div>
+              <span class="font-medium">Predefinita:</span>
+              <span class="ml-2">{{ editingTax()?.isDefault ? "Sì" : "No" }}</span>
+            </div>
+            <div>
+              <span class="font-medium">Attiva:</span>
+              <span class="ml-2">{{ editingTax()?.isActive ? "Sì" : "No" }}</span>
+            </div>
+          </div>
+          <small class="block mt-2 text-primary-600">* Questi valori non possono essere modificati</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Opzioni per l'esenzione IVA -->
+  <div class="mb-4" *ngIf="editForm.get('rate')?.value === 0">
+    <div class="flex flex-col md:flex-row gap-3 md:gap-4">
+      <div class="flex-1">
+        <label for="nature" class="font-medium mb-2 block">Tipo di Esenzione</label>
+        <p-dropdown
+          id="nature"
+          formControlName="nature"
+          [options]="naturaTaxOptions"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="Seleziona tipo esenzione"
+          class="w-full"
+        ></p-dropdown>
+      </div>
+      
+      <div class="flex-1">
+        <!-- Placeholder per mantenere il layout -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Opzioni di stampa fiscale -->
+  <div class="mb-4" *ngIf="editingTax()?.rate === 0">
+    <div class="flex flex-col md:flex-row gap-3 md:gap-4">
+      <div class="flex-1">
+        <div class="flex align-items-center">
+          <p-checkbox
+            formControlName="noFiscalPrint"
+            [binary]="true"
+            inputId="noFiscalPrint"
+          ></p-checkbox>
+          <label for="noFiscalPrint" class="ml-2">Non stampare riga scontrino</label>
+        </div>
+      </div>
+      
+      <div class="flex-1">
+        <div class="flex align-items-center">
+          <p-checkbox
+            formControlName="noFiscalPrintOnMixedReceipt"
+            [binary]="true"
+            inputId="noFiscalPrintOnMixedReceipt"
+          ></p-checkbox>
+          <label for="noFiscalPrintOnMixedReceipt" class="ml-2">Non stampare in scontrini misti</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ventilazione IVA -->
+  <div class="mb-4">
+    <div class="flex flex-col md:flex-row gap-3 md:gap-4">
+      <div class="flex-1">
+        <div class="flex align-items-center mb-3">
+          <p-checkbox
+            formControlName="ventilazione"
+            [binary]="true"
+            inputId="ventilazione"
+          ></p-checkbox>
+          <label for="ventilazione" class="ml-2">Configurazione con "ventilazione"</label>
+        </div>
+      </div>
+      
+      <div class="flex-1" *ngIf="editForm.get('ventilazione')?.value">
+        <label for="atecoCode" class="font-medium mb-2 block">Codice ATECO</label>
+        <input
+          type="text"
+          pInputText
+          id="atecoCode"
+          formControlName="atecoCode"
+          class="w-full"
+        />
+        @if(editForm.get('atecoCode')?.invalid && editForm.get('atecoCode')?.touched) {
+          <small class="p-error">Il codice ATECO è obbligatorio con ventilazione abilitata</small>
+        }
+      </div>
+    </div>
+  </div>
+</form>
+}
+
+<ng-template pTemplate="footer">
+  <div class="flex flex-col sm:flex-row justify-content-end gap-2">
+    <button
+      pButton
+      icon="pi pi-times"
+      label="Annulla"
+      class="p-button-text w-full sm:w-auto order-2 sm:order-1"
+      (click)="closeEditDialog()"
+    ></button>
+    <button
+      pButton
+      icon="pi pi-check"
+      label="Salva"
+      class="w-full sm:w-auto order-1 sm:order-2"
+      [loading]="updatingTax()"
+      [disabled]="editForm.invalid"
+      (click)="saveTaxChanges()"
+    ></button>
+  </div>
+</ng-template>
+</p-dialog>
+
+<!-- Dialog per la creazione di una nuova tassa -->
+<p-dialog
+  [visible]="createDialogVisible()"
+  (visibleChange)="onCreateDialogVisibilityChange($event)"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  header="Crea Nuova Tassa"
+  styleClass="tax-dialog"
+  [style]="{width: '90vw', maxWidth: '650px'}"
+  contentStyleClass="p-0 md:p-3"
+  [closeOnEscape]="true"
+  [dismissableMask]="true"
+  (onHide)="closeCreateDialog()"
+>
+  <form [formGroup]="createForm" class="p-fluid p-3">
+    <!-- Dettagli principali -->
+    <div class="mb-4">
+      <div class="flex flex-col md:flex-row gap-3 md:gap-4">
+        <div class="flex-1">
+          <label for="create-description" class="font-medium mb-2 block">Descrizione</label>
+          <input
+            type="text"
+            pInputText
+            id="create-description"
+            formControlName="description"
+            class="w-full"
+          />
+          @if(createForm.get('description')?.invalid && createForm.get('description')?.touched) {
+            <small class="p-error">La descrizione è obbligatoria</small>
+          }
+        </div>
+        
+        <div class="flex-1">
+          <label for="create-externalId" class="font-medium mb-2 block">ID Esterno</label>
+          <input
+            type="text"
+            pInputText
+            id="create-externalId"
+            formControlName="externalId"
+            class="w-full"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Aliquota -->
+    <div class="mb-4">
+      <div class="flex flex-col md:flex-row gap-3 md:gap-4">
+        <div class="flex-1">
+          <label for="create-rate" class="font-medium mb-2 block">Aliquota (%)</label>
+          <p-inputNumber
+            id="create-rate"
+            formControlName="rate"
+            [min]="0"
+            [max]="100"
+            [step]="0.1"
+            [showButtons]="false"
+            placeholder="Inserisci aliquota"
+            suffix="%"
+            class="w-full"
+          ></p-inputNumber>
+          @if(createForm.get('rate')?.invalid && createForm.get('rate')?.touched) {
+            <small class="p-error">L'aliquota deve essere tra 0 e 100</small>
+          }
+        </div>
+        
+        <div class="flex-1" *ngIf="createForm.get('rate')?.value === 0">
+          <label for="create-nature" class="font-medium mb-2 block">Tipo di Esenzione</label>
+          <p-dropdown
+            id="create-nature"
+            formControlName="nature"
+            [options]="naturaTaxOptions"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Seleziona tipo esenzione"
+            class="w-full"
+          ></p-dropdown>
+          @if(createForm.get('nature')?.invalid && createForm.get('nature')?.touched) {
+            <small class="p-error">Il tipo di esenzione è obbligatorio per aliquota 0%</small>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- Opzioni di stampa fiscale -->
+    <div class="mb-4" *ngIf="createForm.get('rate')?.value === 0">
+      <div class="flex flex-col md:flex-row gap-3 md:gap-4">
+        <div class="flex-1">
+          <div class="flex align-items-center">
+            <p-checkbox
+              formControlName="noFiscalPrint"
+              [binary]="true"
+              inputId="create-noFiscalPrint"
+            ></p-checkbox>
+            <label for="create-noFiscalPrint" class="ml-2">Non stampare riga scontrino</label>
+          </div>
+        </div>
+        
+        <div class="flex-1">
+          <div class="flex align-items-center">
+            <p-checkbox
+              formControlName="noFiscalPrintOnMixedReceipt"
+              [binary]="true"
+              inputId="create-noFiscalPrintOnMixedReceipt"
+            ></p-checkbox>
+            <label for="create-noFiscalPrintOnMixedReceipt" class="ml-2">Non stampare in scontrini misti</label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ventilazione IVA -->
+    <div class="mb-4">
+      <div class="flex flex-col md:flex-row gap-3 md:gap-4">
+        <div class="flex-1">
+          <div class="flex align-items-center mb-3">
+            <p-checkbox
+              formControlName="ventilazione"
+              [binary]="true"
+              inputId="create-ventilazione"
+            ></p-checkbox>
+            <label for="create-ventilazione" class="ml-2">Configurazione con "ventilazione"</label>
+          </div>
+        </div>
+        
+        <div class="flex-1" *ngIf="createForm.get('ventilazione')?.value">
+          <label for="create-atecoCode" class="font-medium mb-2 block">Codice ATECO</label>
+          <input
+            type="text"
+            pInputText
+            id="create-atecoCode"
+            formControlName="atecoCode"
+            class="w-full"
+          />
+          @if(createForm.get('atecoCode')?.invalid && createForm.get('atecoCode')?.touched) {
+            <small class="p-error">Il codice ATECO è obbligatorio con ventilazione abilitata</small>
+          }
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <ng-template pTemplate="footer">
+    <div class="flex flex-col sm:flex-row justify-content-end gap-2">
+      <button
+        pButton
+        icon="pi pi-times"
+        label="Annulla"
+        class="p-button-text w-full sm:w-auto order-2 sm:order-1"
+        (click)="closeCreateDialog()"
+      ></button>
+      <button
+        pButton
+        icon="pi pi-check"
+        label="Crea"
+        class="w-full sm:w-auto order-1 sm:order-2"
+        [loading]="creatingTax()"
+        [disabled]="createForm.invalid"
+        (click)="createTax()"
+      ></button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+</div>

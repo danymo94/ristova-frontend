@@ -1,0 +1,1457 @@
+<div class="p-4">
+  <!-- Intestazione -->
+  <div class="w-full flex flex-row justify-between items-center mb-4">
+    <h2 class="text-2xl font-bold mb-4">Gestione Progetti</h2>
+
+    <div class="flex items-center gap-2">
+      <button
+        pButton
+        icon="pi pi-refresh"
+        class="p-button-rounded p-button-text"
+        [loading]="isLoading()"
+        (click)="loadProjects()"
+        pTooltip="Aggiorna elenco"
+      ></button>
+      <button
+        pButton
+        [icon]="viewMode() === 'grid' ? 'pi pi-list' : 'pi pi-th-large'"
+        class="p-button-rounded p-button-text"
+        (click)="toggleViewMode()"
+        [pTooltip]="viewMode() === 'grid' ? 'Vista lista' : 'Vista griglia'"
+      ></button>
+      <button
+        pButton
+        icon="pi pi-plus"
+        label="Nuovo Progetto"
+        class="p-button-sm"
+        (click)="openCreateDialog()"
+      ></button>
+    </div>
+  </div>
+
+  <!-- Filtri -->
+  <div
+    class="w-full flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4"
+  >
+    <div class="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+      <input
+        pInputText
+        type="text"
+        placeholder="Cerca progetti..."
+        class="w-full md:w-auto rounded border-0 px-3 py-2 text-sm shadow"
+        [(ngModel)]="searchQuery"
+        (ngModelChange)="filterPartners($event)"
+      />
+    </div>
+  </div>
+
+  <!-- Vista vuota quando non ci sono progetti -->
+  <div
+    *ngIf="
+      !isLoading() && (!filteredProjects() || filteredProjects()!.length === 0)
+    "
+    class="empty-state w-full"
+  >
+    <i class="pi pi-building"></i>
+    <h3>Nessun progetto disponibile</h3>
+    <p>
+      Non ci sono progetti registrati. Puoi creare un nuovo progetto utilizzando
+      il pulsante "Nuovo Progetto".
+    </p>
+    <div class="flex gap-2 justify-center mt-4">
+      <button
+        pButton
+        pRipple
+        icon="pi pi-plus"
+        label="Crea nuovo progetto"
+        class="p-button-primary"
+        (click)="openCreateDialog()"
+      ></button>
+    </div>
+  </div>
+
+  <!-- Vista griglia -->
+  @if (viewMode() === 'grid' && !isLoading() && filteredProjects() &&
+  filteredProjects()!.length > 0) {
+  <div class="project-grid w-full">
+    @for (project of filteredProjects(); track project.id) {
+    <div class="project-card">
+      <div class="flex items-center gap-4 mb-3 relative">
+        <!-- Logo del progetto con fallback -->
+        <div
+          class="logo-preview"
+          *ngIf="!project.logo"
+          [style.background-color]="getRandomColor(project.name)"
+        >
+          <span>{{ getInitials(project.name) }}</span>
+        </div>
+        <img
+          *ngIf="project.logo"
+          [src]="project.logo"
+          class="logo-preview"
+          alt="Logo progetto"
+        />
+        <!-- Badge di connessione CC e TheFork -->
+        <div class="connection-badges absolute top-0 right-0 flex gap-1">
+          <span
+            *ngIf="project.CCConnection"
+            class="connection-badge"
+            pTooltip="Connesso con Cassa in Cloud"
+            >CC</span
+          >
+          <span
+            *ngIf="project.TConnection"
+            class="connection-badge tf-badge"
+            pTooltip="Connesso con TheFork"
+            >T</span
+          >
+        </div>
+        <div class="flex-1 min-w-0">
+          <h4 class="text-lg font-semibold truncate">
+            {{ project.name }}
+          </h4>
+          <p class="text-gray-600 text-sm">{{ project.mail }}</p>
+        </div>
+      </div>
+
+      <div class="project-info mb-4">
+        <div class="flex justify-between mb-2">
+          <span class="text-sm text-gray-500">Città:</span>
+          <span class="text-sm font-medium">{{ project.address.city }}</span>
+        </div>
+        <div class="flex justify-between mb-2">
+          <span class="text-sm text-gray-500">Telefono:</span>
+          <span class="text-sm font-medium">{{ project.phone }}</span>
+        </div>
+        <div class="flex justify-between mb-2">
+          <span class="text-sm text-gray-500">Stato:</span>
+          <span class="text-sm font-medium">
+            <p-tag
+              [severity]="project.isActive ? 'success' : 'danger'"
+              [value]="project.isActive ? 'Attivo' : 'Disattivo'"
+            ></p-tag>
+          </span>
+        </div>
+      </div>
+
+      <div class="project-actions flex justify-end gap-2 mt-auto">
+        <button
+          pButton
+          icon="pi pi-pencil"
+          class="p-button-rounded p-button-text"
+          (click)="openEditDialog(project)"
+          pTooltip="Modifica progetto"
+        ></button>
+        @if(role() === 'admin') {
+        <button
+          pButton
+          icon="pi pi-trash"
+          class="p-button-rounded p-button-text p-button-danger"
+          (click)="deleteProject($event, project.id)"
+          pTooltip="Elimina progetto"
+        ></button>
+        }
+      </div>
+    </div>
+    }
+  </div>
+  }
+
+  <!-- Vista tabella -->
+  @if (viewMode() === 'list' && !isLoading() && filteredProjects() &&
+  filteredProjects()!.length > 0) {
+  <div
+    class="relative w-full min-w-0 break-words rounded border-0 bg-white shadow-lg"
+  >
+    <p-table
+      [value]="filteredProjects() || []"
+      [paginator]="(filteredProjects()?.length || 0) > 10"
+      [rows]="10"
+      styleClass="p-datatable-sm"
+      [loading]="isLoading()"
+      responsiveLayout="scroll"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th style="width: 50px"></th>
+          <th pSortableColumn="name">
+            Nome <p-sortIcon field="name"></p-sortIcon>
+          </th>
+          <th pSortableColumn="address.city">
+            Città <p-sortIcon field="address.city"></p-sortIcon>
+          </th>
+          <th pSortableColumn="mail">
+            Email <p-sortIcon field="mail"></p-sortIcon>
+          </th>
+          <th pSortableColumn="phone">
+            Telefono <p-sortIcon field="phone"></p-sortIcon>
+          </th>
+          <th class="text-center">Connessioni</th>
+          <th class="text-center">Stato</th>
+          <th class="text-center" style="width: 100px">Azioni</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-project>
+        <tr>
+          <td>
+            <div
+              class="logo-preview-small"
+              *ngIf="!project.logo"
+              [style.background-color]="getRandomColor(project.name)"
+            >
+              {{ getInitials(project.name) }}
+            </div>
+            <img
+              *ngIf="project.logo"
+              [src]="project.logo"
+              class="logo-preview-small"
+              alt="Logo progetto"
+            />
+          </td>
+          <td>{{ project.name }}</td>
+          <td>{{ project.address.city }}</td>
+          <td>{{ project.mail }}</td>
+          <td>{{ project.phone }}</td>
+          <td class="text-center">
+            <span class="flex justify-center gap-1">
+              <span
+                *ngIf="project.CCConnection"
+                class="connection-badge-small"
+                pTooltip="Connesso con Cassa in Cloud"
+                >CC</span
+              >
+              <span
+                *ngIf="project.TConnection"
+                class="connection-badge-small tf-badge"
+                pTooltip="Connesso con TheFork"
+                >T</span
+              >
+            </span>
+          </td>
+          <td class="text-center">
+            <p-tag
+              [severity]="project.isActive ? 'success' : 'danger'"
+              [value]="project.isActive ? 'Attivo' : 'Disattivo'"
+            ></p-tag>
+          </td>
+          <td>
+            <div class="flex gap-2 justify-center">
+              <button
+                pButton
+                icon="pi pi-pencil"
+                class="p-button-text p-button-rounded"
+                (click)="openEditDialog(project)"
+                pTooltip="Modifica progetto"
+              ></button>
+              @if(role() === 'admin') {
+              <button
+                pButton
+                icon="pi pi-trash"
+                class="p-button-text p-button-rounded p-button-danger"
+                (click)="deleteProject($event, project.id)"
+                pTooltip="Elimina progetto"
+              ></button>
+              }
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+  }
+</div>
+
+<!-- Dialog per la creazione di un nuovo progetto -->
+<p-dialog
+  [visible]="createDialogVisible()"
+  (visibleChange)="onCreateDialogVisibilityChange($event)"
+  [modal]="true"
+  header="Crea Nuovo Progetto"
+  styleClass="project-dialog"
+  [style]="{ width: '90vw', maxWidth: '800px' }"
+  [closeOnEscape]="true"
+>
+  <form [formGroup]="projectForm" class="p-fluid p-3">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+      <div class="field">
+        <label class="block text-sm font-medium text-gray-700 mb-1">
+          Immagini
+        </label>
+        <div class="logo-container mb-4">
+          <div class="mb-3">
+            <label class="block text-xs text-gray-600 mb-1">Logo</label>
+            <div class="flex items-center gap-3">
+              <div
+                class="logo-preview-large"
+                *ngIf="!logoPath"
+                [style.background-color]="
+                  getRandomColor(projectForm.get('name')?.value || '')
+                "
+              >
+                {{ getInitials(projectForm.get("name")?.value || "") }}
+              </div>
+              <img
+                *ngIf="logoPath"
+                [src]="projectForm.get('logo')?.value"
+                class="logo-preview-large"
+                alt="Logo progetto"
+              />
+              <div class="logo-upload-controls flex flex-col gap-2">
+                <p-fileUpload
+                  mode="basic"
+                  chooseLabel="Carica logo"
+                  [auto]="true"
+                  [customUpload]="true"
+                  (uploadHandler)="onSelectedImage($event, 'logo')"
+                  accept="image/*"
+                  [maxFileSize]="1000000"
+                  class="flex-grow logo-upload"
+                ></p-fileUpload>
+                <button
+                  *ngIf="logoPath"
+                  pButton
+                  icon="pi pi-trash"
+                  label="Rimuovi"
+                  class="p-button-danger p-button-outlined"
+                  (click)="removeSelectedImage('logo')"
+                ></button>
+              </div>
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-600 mb-1"
+              >Immagine Copertina</label
+            >
+            <div class="flex items-center gap-3">
+              <div class="cover-preview" *ngIf="!coverImagePath">
+                <i class="pi pi-image text-gray-400"></i>
+              </div>
+              <img
+                *ngIf="coverImagePath"
+                [src]="projectForm.get('coverImage')?.value"
+                class="cover-preview"
+                alt="Cover image"
+              />
+              <div class="logo-upload-controls flex flex-col gap-2">
+                <p-fileUpload
+                  mode="basic"
+                  chooseLabel="Carica copertina"
+                  [auto]="true"
+                  [customUpload]="true"
+                  (uploadHandler)="onSelectedImage($event, 'coverImage')"
+                  accept="image/*"
+                  [maxFileSize]="1000000"
+                  class="flex-grow logo-upload"
+                ></p-fileUpload>
+                <button
+                  *ngIf="coverImagePath"
+                  pButton
+                  icon="pi pi-trash"
+                  label="Rimuovi"
+                  class="p-button-danger p-button-outlined"
+                  (click)="removeSelectedImage('coverImage')"
+                ></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h4 class="mb-4 text-lg font-semibold text-gray-800">
+          Informazioni Principali
+        </h4>
+        <!-- Nome Progetto -->
+        <div class="field mb-3">
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="name"
+          >
+            Nome Progetto *
+          </label>
+          <input
+            pInputText
+            id="name"
+            formControlName="name"
+            class="w-full"
+            placeholder="Inserisci nome progetto"
+          />
+          <small *ngIf="formHasError('name')" class="text-red-500">
+            Il nome è obbligatorio
+          </small>
+        </div>
+
+        <!-- Descrizione -->
+        <div class="field mb-3">
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="description"
+          >
+            Descrizione
+          </label>
+          <textarea
+            pInputTextarea
+            id="description"
+            formControlName="description"
+            class="w-full"
+            placeholder="Inserisci descrizione"
+            rows="3"
+          ></textarea>
+        </div>
+
+        @if(role() === 'admin') {
+        <!-- Partner Selection (Solo per Admin) -->
+        <div class="field mb-3">
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="partnerId"
+          >
+            Partner *
+          </label>
+          <p-dropdown
+            id="partnerId"
+            [options]="partners() || []"
+            optionLabel="fullName"
+            optionValue="id"
+            placeholder="Seleziona partner"
+            formControlName="partnerId"
+            styleClass="w-full"
+          ></p-dropdown>
+          <small *ngIf="formHasError('partnerId')" class="text-red-500">
+            Seleziona un partner
+          </small>
+        </div>
+
+        <!-- Stato Attivo -->
+        <div class="field-checkbox flex align-items-center mb-3">
+          <p-checkbox
+            id="isActive"
+            [binary]="true"
+            formControlName="isActive"
+          ></p-checkbox>
+          <label for="isActive" class="ml-2 font-medium">Progetto attivo</label>
+        </div>
+        }
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+      <!-- Contatti -->
+      <div>
+        <h4 class="mb-4 text-lg font-semibold text-gray-800">Contatti</h4>
+
+        <!-- Email -->
+        <div class="field mb-3">
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="mail"
+          >
+            Email *
+          </label>
+          <input
+            pInputText
+            id="mail"
+            formControlName="mail"
+            class="w-full"
+            placeholder="email@esempio.com"
+          />
+          <small *ngIf="formHasError('mail')" class="text-red-500">
+            Inserisci un'email valida
+          </small>
+        </div>
+
+        <!-- Telefono -->
+        <div class="field mb-3">
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="phone"
+          >
+            Telefono *
+          </label>
+          <input
+            pInputText
+            id="phone"
+            formControlName="phone"
+            class="w-full"
+            placeholder="Numero di telefono"
+          />
+          <small *ngIf="formHasError('phone')" class="text-red-500">
+            Il telefono è obbligatorio
+          </small>
+        </div>
+      </div>
+
+      <!-- Indirizzo -->
+      <div>
+        <h4 class="mb-4 text-lg font-semibold text-gray-800">Indirizzo</h4>
+        <div formGroupName="address">
+          <!-- Via -->
+          <div class="field mb-3">
+            <label
+              class="block text-sm font-medium text-gray-700 mb-1"
+              for="street"
+            >
+              Via *
+            </label>
+            <p-autoComplete
+              id="street"
+              formControlName="street"
+              [suggestions]="addressSuggestions"
+              (completeMethod)="onAddressInput($event)"
+              placeholder="Inserisci via"
+              styleClass="w-full"
+            ></p-autoComplete>
+            <small *ngIf="formHasError('address.street')" class="text-red-500">
+              La via è obbligatoria
+            </small>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <!-- Città -->
+            <div class="field mb-3">
+              <label
+                class="block text-sm font-medium text-gray-700 mb-1"
+                for="city"
+              >
+                Città *
+              </label>
+              <input
+                pInputText
+                id="city"
+                formControlName="city"
+                class="w-full"
+                placeholder="Città"
+              />
+              <small *ngIf="formHasError('address.city')" class="text-red-500">
+                La città è obbligatoria
+              </small>
+            </div>
+
+            <!-- CAP -->
+            <div class="field mb-3">
+              <label
+                class="block text-sm font-medium text-gray-700 mb-1"
+                for="zipcode"
+              >
+                CAP *
+              </label>
+              <p-autoComplete
+                id="zipcode"
+                formControlName="zipcode"
+                [suggestions]="zipcodeSuggestions"
+                (completeMethod)="onZipcodeInput($event)"
+                placeholder="Inserisci CAP"
+                inputStyleClass="!w-full"
+              ></p-autoComplete>
+              <small
+                *ngIf="formHasError('address.zipcode')"
+                class="text-red-500"
+              >
+                Il CAP è obbligatorio
+              </small>
+            </div>
+          </div>
+
+          <!-- Nazione -->
+          <div class="field mb-3">
+            <label
+              class="block text-sm font-medium text-gray-700 mb-1"
+              for="country"
+            >
+              Nazione *
+            </label>
+            <input
+              pInputText
+              id="country"
+              formControlName="country"
+              class="w-full"
+              placeholder="Nazione"
+            />
+            <small *ngIf="formHasError('address.country')" class="text-red-500">
+              La nazione è obbligatoria
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    @if(role() === 'admin') {
+    <!-- Sezione API Integrations -->
+    <div class="mt-6 bg-blue-50 p-4 rounded-lg">
+      <h4 class="mb-4 text-lg font-semibold text-gray-800">Integrazioni API</h4>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Cassa in Cloud -->
+        <div class="field">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Cassa in Cloud
+          </label>
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center">
+              <p-checkbox
+                id="CCConnection"
+                [binary]="true"
+                formControlName="CCConnection"
+              ></p-checkbox>
+              <label for="CCConnection" class="ml-2">Attiva connessione</label>
+            </div>
+
+            <div class="flex flex-col gap-2">
+              <div class="flex">
+                <input
+                  pInputText
+                  formControlName="CCApiKey"
+                  placeholder="API Key Cassa in Cloud"
+                  class="w-full rounded-r-none"
+                  [disabled]="!projectForm.get('CCConnection')?.value"
+                />
+                <button
+                  pButton
+                  icon="pi pi-sync"
+                  (click)="getCCsalesPoints()"
+                  [disabled]="
+                    !projectForm.get('CCConnection')?.value ||
+                    !projectForm.get('CCApiKey')?.value
+                  "
+                  class="p-button-primary rounded-l-none"
+                  pTooltip="Sincronizza punti vendita"
+                ></button>
+              </div>
+
+              <p-dropdown
+                [options]="CCsalesPoints || []"
+                optionLabel="name"
+                placeholder="Seleziona Punto Vendita"
+                formControlName="CCSalesPointId"
+                styleClass="w-full"
+                [disabled]="
+                  !projectForm.get('CCConnection')?.value ||
+                  CCsalesPoints.length === 0
+                "
+                (onChange)="setProjectBySalesPoint($event)"
+              ></p-dropdown>
+            </div>
+          </div>
+        </div>
+
+        <!-- TheFork -->
+        <div class="field">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            TheFork
+          </label>
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center">
+              <p-checkbox
+                id="TConnection"
+                [binary]="true"
+                formControlName="TConnection"
+              ></p-checkbox>
+              <label for="TConnection" class="ml-2">Attiva connessione</label>
+            </div>
+
+            <div class="flex flex-col gap-2">
+              <div class="flex">
+                <input
+                  pInputText
+                  formControlName="TApiKey"
+                  placeholder="API Key TheFork"
+                  class="w-full rounded-r-none"
+                  [disabled]="!projectForm.get('TConnection')?.value"
+                />
+                <button
+                  pButton
+                  icon="pi pi-sync"
+                  [disabled]="
+                    !projectForm.get('TConnection')?.value ||
+                    !projectForm.get('TApiKey')?.value
+                  "
+                  class="p-button-primary rounded-l-none"
+                  pTooltip="Sincronizza punti vendita"
+                ></button>
+              </div>
+
+              <p-dropdown
+                placeholder="Seleziona Punto Vendita"
+                formControlName="TSalesPointId"
+                styleClass="w-full"
+                [disabled]="!projectForm.get('TConnection')?.value"
+              ></p-dropdown>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stripe -->
+      <div class="mt-4" formGroupName="additionalData">
+        <label class="block text-sm font-medium text-gray-700 mb-2">
+          Stripe
+        </label>
+        <input
+          pInputText
+          formControlName="stripeApiKey"
+          class="w-full"
+          placeholder="Stripe API Key"
+        />
+      </div>
+    </div>
+
+    <!-- Sezione App Disponibili -->
+    <div class="mt-6" formGroupName="additionalData">
+      <h4 class="mb-4 text-lg font-semibold text-gray-800">
+        Applicazioni Disponibili
+      </h4>
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div class="flex items-center">
+          <p-checkbox
+            formControlName="orderApp"
+            [binary]="true"
+            inputId="orderApp"
+          ></p-checkbox>
+          <label for="orderApp" class="ml-2 text-sm text-gray-700"
+            >Order App</label
+          >
+        </div>
+        <div class="flex items-center">
+          <p-checkbox
+            formControlName="kambusaApp"
+            [binary]="true"
+            inputId="kambusaApp"
+          ></p-checkbox>
+          <label for="kambusaApp" class="ml-2 text-sm text-gray-700"
+            >Kambusa App</label
+          >
+        </div>
+        <div class="flex items-center">
+          <p-checkbox
+            formControlName="workersApp"
+            [binary]="true"
+            inputId="workersApp"
+          ></p-checkbox>
+          <label for="workersApp" class="ml-2 text-sm text-gray-700"
+            >Workers App</label
+          >
+        </div>
+        <div class="flex items-center">
+          <p-checkbox
+            formControlName="enoApp"
+            [binary]="true"
+            inputId="enoApp"
+          ></p-checkbox>
+          <label for="enoApp" class="ml-2 text-sm text-gray-700">Eno App</label>
+        </div>
+        <div class="flex items-center">
+          <p-checkbox
+            formControlName="bookingApp"
+            [binary]="true"
+            inputId="bookingApp"
+          ></p-checkbox>
+          <label for="bookingApp" class="ml-2 text-sm text-gray-700"
+            >Booking App</label
+          >
+        </div>
+        <div class="flex items-center">
+          <p-checkbox
+            formControlName="productionApp"
+            [binary]="true"
+            inputId="productionApp"
+          ></p-checkbox>
+          <label for="productionApp" class="ml-2 text-sm text-gray-700"
+            >Production App</label
+          >
+        </div>
+      </div>
+    </div>
+    }
+
+    <!-- Orari di apertura -->
+    <div class="mt-6">
+      <h4
+        class="mb-4 text-lg font-semibold text-gray-800 flex items-center gap-2"
+      >
+        Orari di Apertura
+        <button
+          pButton
+          type="button"
+          icon="pi pi-plus"
+          class="p-button-sm p-button-rounded"
+          (click)="addOpeningHour()"
+          pTooltip="Aggiungi orario"
+        ></button>
+      </h4>
+
+      <div formArrayName="openingHours">
+        @for(hour of OpeningHours.controls; track hour; let i= $index) {
+        <div
+          [formGroupName]="i"
+          class="flex gap-3 items-center mb-3 bg-gray-50 p-3 rounded"
+        >
+          <button
+            pButton
+            icon="pi pi-trash"
+            type="button"
+            class="p-button-rounded p-button-danger p-button-text flex-none"
+            (click)="removeOpeningHour(i)"
+            pTooltip="Rimuovi orario"
+          ></button>
+
+          <p-dropdown
+            formControlName="day"
+            [options]="daysOfWeek"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Giorno"
+            styleClass="w-full max-w-[180px]"
+          ></p-dropdown>
+
+          <div class="flex items-center gap-2">
+            <span class="text-sm">Da</span>
+            <p-calendar
+              formControlName="startTime"
+              [timeOnly]="true"
+              hourFormat="24"
+              placeholder="Inizio"
+              inputStyleClass="w-full"
+              [showIcon]="true"
+            ></p-calendar>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <span class="text-sm">a</span>
+            <p-calendar
+              formControlName="endTime"
+              [timeOnly]="true"
+              hourFormat="24"
+              placeholder="Fine"
+              inputStyleClass="w-full"
+              [showIcon]="true"
+            ></p-calendar>
+          </div>
+        </div>
+        }
+      </div>
+    </div>
+  </form>
+
+  <ng-template pTemplate="footer">
+    <div class="flex justify-end gap-3 pt-4">
+      <button
+        pButton
+        icon="pi pi-times"
+        label="Annulla"
+        class="p-button-text"
+        (click)="closeCreateDialog()"
+      ></button>
+      <button
+        pButton
+        icon="pi pi-save"
+        label="Salva"
+        [loading]="isLoading()"
+        [disabled]="projectForm.invalid"
+        (click)="createProject()"
+      ></button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<!-- Dialog per la modifica progetto -->
+<p-dialog
+  [visible]="editDialogVisible()"
+  (visibleChange)="onEditDialogVisibilityChange($event)"
+  [modal]="true"
+  header="Modifica Progetto"
+  styleClass="project-dialog"
+  [style]="{ width: '90vw', maxWidth: '800px' }"
+  [closeOnEscape]="true"
+>
+  @if(editingProject()) {
+  <!-- Il contenuto del form di modifica -->
+  <form [formGroup]="projectForm" class="p-fluid p-3">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+      <div class="field">
+        <label class="block text-sm font-medium text-gray-700 mb-1">
+          Immagini
+        </label>
+        <div class="logo-container mb-4">
+          <div class="mb-3">
+            <label class="block text-xs text-gray-600 mb-1">Logo</label>
+            <div class="flex items-center gap-3">
+              <div
+                class="logo-preview-large"
+                *ngIf="!logoPath"
+                [style.background-color]="
+                  getRandomColor(projectForm.get('name')?.value || '')
+                "
+              >
+                {{ getInitials(projectForm.get("name")?.value || "") }}
+              </div>
+              <img
+                *ngIf="logoPath"
+                [src]="projectForm.get('logo')?.value"
+                class="logo-preview-large"
+                alt="Logo progetto"
+              />
+              <div class="logo-upload-controls flex flex-col gap-2">
+                <p-fileUpload
+                  mode="basic"
+                  chooseLabel="Carica logo"
+                  [auto]="true"
+                  [customUpload]="true"
+                  (uploadHandler)="onSelectedImage($event, 'logo')"
+                  accept="image/*"
+                  [maxFileSize]="1000000"
+                  class="flex-grow logo-upload"
+                ></p-fileUpload>
+                <button
+                  *ngIf="logoPath"
+                  pButton
+                  icon="pi pi-trash"
+                  label="Rimuovi"
+                  class="p-button-danger p-button-outlined"
+                  (click)="removeSelectedImage('logo')"
+                ></button>
+              </div>
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-600 mb-1"
+              >Immagine Copertina</label
+            >
+            <div class="flex items-center gap-3">
+              <div class="cover-preview" *ngIf="!coverImagePath">
+                <i class="pi pi-image text-gray-400"></i>
+              </div>
+              <img
+                *ngIf="coverImagePath"
+                [src]="projectForm.get('coverImage')?.value"
+                class="cover-preview"
+                alt="Cover image"
+              />
+              <div class="logo-upload-controls flex flex-col gap-2">
+                <p-fileUpload
+                  mode="basic"
+                  chooseLabel="Carica copertina"
+                  [auto]="true"
+                  [customUpload]="true"
+                  (uploadHandler)="onSelectedImage($event, 'coverImage')"
+                  accept="image/*"
+                  [maxFileSize]="1000000"
+                  class="flex-grow logo-upload"
+                ></p-fileUpload>
+                <button
+                  *ngIf="coverImagePath"
+                  pButton
+                  icon="pi pi-trash"
+                  label="Rimuovi"
+                  class="p-button-danger p-button-outlined"
+                  (click)="removeSelectedImage('coverImage')"
+                ></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h4 class="mb-4 text-lg font-semibold text-gray-800">
+          Informazioni Principali
+        </h4>
+        <!-- Nome Progetto -->
+        <div class="field mb-3">
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="edit-name"
+          >
+            Nome Progetto *
+          </label>
+          <input
+            pInputText
+            id="edit-name"
+            formControlName="name"
+            class="w-full"
+            placeholder="Inserisci nome progetto"
+          />
+          <small *ngIf="formHasError('name')" class="text-red-500">
+            Il nome è obbligatorio
+          </small>
+        </div>
+
+        <!-- Descrizione -->
+        <div class="field mb-3">
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="edit-description"
+          >
+            Descrizione
+          </label>
+          <textarea
+            pInputTextarea
+            id="edit-description"
+            formControlName="description"
+            class="w-full"
+            placeholder="Inserisci descrizione"
+            rows="3"
+          ></textarea>
+        </div>
+
+        @if(role() === 'admin') {
+        <!-- Partner Selection (Solo per Admin) -->
+        <div class="field mb-3">
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="edit-partnerId"
+          >
+            Partner *
+          </label>
+          <p-dropdown
+            id="edit-partnerId"
+            [options]="partners() || []"
+            optionLabel="fullName"
+            optionValue="id"
+            placeholder="Seleziona partner"
+            formControlName="partnerId"
+            styleClass="w-full"
+          ></p-dropdown>
+          <small *ngIf="formHasError('partnerId')" class="text-red-500">
+            Seleziona un partner
+          </small>
+        </div>
+
+        <!-- Stato Attivo -->
+        <div class="field-checkbox flex align-items-center mb-3">
+          <p-checkbox
+            id="edit-isActive"
+            [binary]="true"
+            formControlName="isActive"
+          ></p-checkbox>
+          <label for="edit-isActive" class="ml-2 font-medium"
+            >Progetto attivo</label
+          >
+        </div>
+        }
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+      <!-- Contatti -->
+      <div>
+        <h4 class="mb-4 text-lg font-semibold text-gray-800">Contatti</h4>
+
+        <!-- Email -->
+        <div class="field mb-3">
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="edit-mail"
+          >
+            Email *
+          </label>
+          <input
+            pInputText
+            id="edit-mail"
+            formControlName="mail"
+            class="w-full"
+            placeholder="email@esempio.com"
+          />
+          <small *ngIf="formHasError('mail')" class="text-red-500">
+            Inserisci un'email valida
+          </small>
+        </div>
+
+        <!-- Telefono -->
+        <div class="field mb-3">
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="edit-phone"
+          >
+            Telefono *
+          </label>
+          <input
+            pInputText
+            id="edit-phone"
+            formControlName="phone"
+            class="w-full"
+            placeholder="Numero di telefono"
+          />
+          <small *ngIf="formHasError('phone')" class="text-red-500">
+            Il telefono è obbligatorio
+          </small>
+        </div>
+      </div>
+
+      <!-- Indirizzo -->
+      <div>
+        <h4 class="mb-4 text-lg font-semibold text-gray-800">Indirizzo</h4>
+        <div formGroupName="address">
+          <!-- Via -->
+          <div class="field mb-3">
+            <label
+              class="block text-sm font-medium text-gray-700 mb-1"
+              for="edit-street"
+            >
+              Via *
+            </label>
+            <p-autoComplete
+              id="edit-street"
+              formControlName="street"
+              [suggestions]="addressSuggestions"
+              (completeMethod)="onAddressInput($event)"
+              placeholder="Inserisci via"
+              styleClass="w-full"
+            ></p-autoComplete>
+            <small *ngIf="formHasError('address.street')" class="text-red-500">
+              La via è obbligatoria
+            </small>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <!-- Città -->
+            <div class="field mb-3">
+              <label
+                class="block text-sm font-medium text-gray-700 mb-1"
+                for="edit-city"
+              >
+                Città *
+              </label>
+              <input
+                pInputText
+                id="edit-city"
+                formControlName="city"
+                class="w-full"
+                placeholder="Città"
+              />
+              <small *ngIf="formHasError('address.city')" class="text-red-500">
+                La città è obbligatoria
+              </small>
+            </div>
+
+            <!-- CAP -->
+            <div class="field mb-3">
+              <label
+                class="block text-sm font-medium text-gray-700 mb-1"
+                for="edit-zipcode"
+              >
+                CAP *
+              </label>
+              <p-autoComplete
+                id="edit-zipcode"
+                formControlName="zipcode"
+                [suggestions]="zipcodeSuggestions"
+                (completeMethod)="onZipcodeInput($event)"
+                placeholder="Inserisci CAP"
+                inputStyleClass="!w-full"
+              ></p-autoComplete>
+              <small
+                *ngIf="formHasError('address.zipcode')"
+                class="text-red-500"
+              >
+                Il CAP è obbligatorio
+              </small>
+            </div>
+          </div>
+
+          <!-- Nazione -->
+          <div class="field mb-3">
+            <label
+              class="block text-sm font-medium text-gray-700 mb-1"
+              for="edit-country"
+            >
+              Nazione *
+            </label>
+            <input
+              pInputText
+              id="edit-country"
+              formControlName="country"
+              class="w-full"
+              placeholder="Nazione"
+            />
+            <small *ngIf="formHasError('address.country')" class="text-red-500">
+              La nazione è obbligatoria
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    @if(role() === 'admin') {
+    <!-- Sezione API Integrations -->
+    <div class="mt-6 bg-blue-50 p-4 rounded-lg">
+      <h4 class="mb-4 text-lg font-semibold text-gray-800">Integrazioni API</h4>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Cassa in Cloud -->
+        <div class="field">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Cassa in Cloud
+          </label>
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center">
+              <p-checkbox
+                id="edit-CCConnection"
+                [binary]="true"
+                formControlName="CCConnection"
+              ></p-checkbox>
+              <label for="edit-CCConnection" class="ml-2"
+                >Attiva connessione</label
+              >
+            </div>
+
+            <div class="flex flex-col gap-2">
+              <div class="flex">
+                <input
+                  pInputText
+                  formControlName="CCApiKey"
+                  placeholder="API Key Cassa in Cloud"
+                  class="w-full rounded-r-none"
+                  [disabled]="!projectForm.get('CCConnection')?.value"
+                />
+                <button
+                  pButton
+                  icon="pi pi-sync"
+                  (click)="getCCsalesPoints()"
+                  [disabled]="
+                    !projectForm.get('CCConnection')?.value ||
+                    !projectForm.get('CCApiKey')?.value
+                  "
+                  class="p-button-primary rounded-l-none"
+                  pTooltip="Sincronizza punti vendita"
+                ></button>
+              </div>
+
+              <p-dropdown
+                [options]="CCsalesPoints || []"
+                optionLabel="name"
+                placeholder="Seleziona Punto Vendita"
+                formControlName="CCSalesPointId"
+                styleClass="w-full"
+                [disabled]="
+                  !projectForm.get('CCConnection')?.value ||
+                  CCsalesPoints.length === 0
+                "
+                (onChange)="setProjectBySalesPoint($event)"
+              ></p-dropdown>
+            </div>
+          </div>
+        </div>
+
+        <!-- TheFork -->
+        <div class="field">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            TheFork
+          </label>
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center">
+              <p-checkbox
+                id="edit-TConnection"
+                [binary]="true"
+                formControlName="TConnection"
+              ></p-checkbox>
+              <label for="edit-TConnection" class="ml-2"
+                >Attiva connessione</label
+              >
+            </div>
+
+            <div class="flex flex-col gap-2">
+              <div class="flex">
+                <input
+                  pInputText
+                  formControlName="TApiKey"
+                  placeholder="API Key TheFork"
+                  class="w-full rounded-r-none"
+                  [disabled]="!projectForm.get('TConnection')?.value"
+                />
+                <button
+                  pButton
+                  icon="pi pi-sync"
+                  [disabled]="
+                    !projectForm.get('TConnection')?.value ||
+                    !projectForm.get('TApiKey')?.value
+                  "
+                  class="p-button-primary rounded-l-none"
+                  pTooltip="Sincronizza punti vendita"
+                ></button>
+              </div>
+
+              <p-dropdown
+                placeholder="Seleziona Punto Vendita"
+                formControlName="TSalesPointId"
+                styleClass="w-full"
+                [disabled]="!projectForm.get('TConnection')?.value"
+              ></p-dropdown>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stripe -->
+      <div class="mt-4" formGroupName="additionalData">
+        <label class="block text-sm font-medium text-gray-700 mb-2">
+          Stripe
+        </label>
+        <input
+          pInputText
+          formControlName="stripeApiKey"
+          class="w-full"
+          placeholder="Stripe API Key"
+        />
+      </div>
+    </div>
+
+    <!-- Sezione App Disponibili -->
+    <div class="mt-6" formGroupName="additionalData">
+      <h4 class="mb-4 text-lg font-semibold text-gray-800">
+        Applicazioni Disponibili
+      </h4>
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div class="flex items-center">
+          <p-checkbox
+            formControlName="orderApp"
+            [binary]="true"
+            inputId="edit-orderApp"
+          ></p-checkbox>
+          <label for="edit-orderApp" class="ml-2 text-sm text-gray-700"
+            >Order App</label
+          >
+        </div>
+        <div class="flex items-center">
+          <p-checkbox
+            formControlName="kambusaApp"
+            [binary]="true"
+            inputId="edit-kambusaApp"
+          ></p-checkbox>
+          <label for="edit-kambusaApp" class="ml-2 text-sm text-gray-700"
+            >Kambusa App</label
+          >
+        </div>
+        <div class="flex items-center">
+          <p-checkbox
+            formControlName="workersApp"
+            [binary]="true"
+            inputId="edit-workersApp"
+          ></p-checkbox>
+          <label for="edit-workersApp" class="ml-2 text-sm text-gray-700"
+            >Workers App</label
+          >
+        </div>
+        <div class="flex items-center">
+          <p-checkbox
+            formControlName="enoApp"
+            [binary]="true"
+            inputId="edit-enoApp"
+          ></p-checkbox>
+          <label for="edit-enoApp" class="ml-2 text-sm text-gray-700"
+            >Eno App</label
+          >
+        </div>
+        <div class="flex items-center">
+          <p-checkbox
+            formControlName="bookingApp"
+            [binary]="true"
+            inputId="edit-bookingApp"
+          ></p-checkbox>
+          <label for="edit-bookingApp" class="ml-2 text-sm text-gray-700"
+            >Booking App</label
+          >
+        </div>
+        <div class="flex items-center">
+          <p-checkbox
+            formControlName="productionApp"
+            [binary]="true"
+            inputId="edit-productionApp"
+          ></p-checkbox>
+          <label for="edit-productionApp" class="ml-2 text-sm text-gray-700"
+            >Production App</label
+          >
+        </div>
+      </div>
+    </div>
+    }
+
+    <!-- Orari di apertura -->
+    <div class="mt-6">
+      <h4
+        class="mb-4 text-lg font-semibold text-gray-800 flex items-center gap-2"
+      >
+        Orari di Apertura
+        <button
+          pButton
+          type="button"
+          icon="pi pi-plus"
+          class="p-button-sm p-button-rounded"
+          (click)="addOpeningHour()"
+          pTooltip="Aggiungi orario"
+        ></button>
+      </h4>
+
+      <div formArrayName="openingHours">
+        @for(hour of OpeningHours.controls; track hour; let i= $index) {
+        <div
+          [formGroupName]="i"
+          class="flex gap-3 items-center mb-3 bg-gray-50 p-3 rounded"
+        >
+          <button
+            pButton
+            icon="pi pi-trash"
+            type="button"
+            class="p-button-rounded p-button-danger p-button-text flex-none"
+            (click)="removeOpeningHour(i)"
+            pTooltip="Rimuovi orario"
+          ></button>
+
+          <p-dropdown
+            formControlName="day"
+            [options]="daysOfWeek"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Giorno"
+            styleClass="w-full max-w-[180px]"
+          ></p-dropdown>
+
+          <div class="flex items-center gap-2">
+            <span class="text-sm">Da</span>
+            <p-calendar
+              formControlName="startTime"
+              [timeOnly]="true"
+              hourFormat="24"
+              placeholder="Inizio"
+              inputStyleClass="w-full"
+              [showIcon]="true"
+            ></p-calendar>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <span class="text-sm">a</span>
+            <p-calendar
+              formControlName="endTime"
+              [timeOnly]="true"
+              hourFormat="24"
+              placeholder="Fine"
+              inputStyleClass="w-full"
+              [showIcon]="true"
+            ></p-calendar>
+          </div>
+        </div>
+        }
+      </div>
+    </div>
+  </form>
+  }
+
+  <ng-template pTemplate="footer">
+    <div class="flex justify-end gap-3 pt-4">
+      <button
+        pButton
+        icon="pi pi-times"
+        label="Annulla"
+        class="p-button-text"
+        (click)="closeEditDialog()"
+      ></button>
+      <button
+        pButton
+        icon="pi pi-save"
+        label="Salva Modifiche"
+        [loading]="isLoading()"
+        [disabled]="projectForm.invalid"
+        (click)="updateProject()"
+      ></button>
+    </div>
+  </ng-template>
+</p-dialog>

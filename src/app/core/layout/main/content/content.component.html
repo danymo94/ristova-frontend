@@ -1,0 +1,10 @@
+<div
+  id="content"
+  class="h-full w-full absolute p-4 pb-8 right-0 overflow-y-scroll transition-all duration-300 ease-in-out"
+  [ngClass]="{
+    'lg:w-5/6': isSidebarOpen(),
+    'ml-0 lg:w-full': !isSidebarOpen()
+  }"
+>
+  <router-outlet></router-outlet>
+</div>

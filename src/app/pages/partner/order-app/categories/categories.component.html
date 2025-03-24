@@ -1,0 +1,618 @@
+<div class="container mx-auto p-3 sm:p-4 md:p-5">
+  <!-- Stato vuoto quando non c'è progetto selezionato -->
+  @if (!selectedProject()) {
+  <div class="empty-state">
+    <i class="pi pi-info-circle"></i>
+    <h3>Nessun ristorante selezionato</h3>
+    <p>
+      Seleziona un ristorante dal menu in alto per visualizzare le categorie
+      disponibili.
+    </p>
+  </div>
+  } @else{
+  <!-- Header con titolo e pulsanti azione -->
+  <div class="flex flex-wrap justify-between items-center mb-4">
+    <h1 class="text-2xl font-bold mb-2 md:mb-0">Gestione Categorie</h1>
+    <div class="flex gap-2">
+      <button
+        pButton
+        pRipple
+        icon="pi pi-refresh"
+        class="p-button-outlined"
+        [disabled]="loading()"
+        (click)="refreshCategories()"
+        pTooltip="Aggiorna categorie"
+        tooltipPosition="bottom"
+      ></button>
+      <button
+        *ngIf="selectedProject()?.CCConnection"
+        pButton
+        pRipple
+        icon="pi pi-sync"
+        label="Sincronizza categorie"
+        class="p-button-outlined"
+        (click)="openSyncDialog()"
+        pTooltip="Sincronizza categorie da Cassa in Cloud"
+        tooltipPosition="bottom"
+      ></button>
+      <button
+        pButton
+        pRipple
+        icon="pi pi-plus"
+        label="Nuova categoria"
+        class="p-button-primary"
+        (click)="openCreateDialog()"
+        pTooltip="Crea nuova categoria"
+        tooltipPosition="bottom"
+      ></button>
+    </div>
+  </div>
+
+  <!-- Barra di ricerca -->
+  <div class="p-inputgroup mb-4 max-w-md">
+    <input
+      type="text"
+      pInputText
+      placeholder="Cerca categorie..."
+      [(ngModel)]="searchQuery"
+      (ngModelChange)="filterCategories($event)"
+    />
+  </div>
+
+  <!-- Stato di caricamento -->
+  <div *ngIf="loading()" class="flex justify-center my-5">
+    <i class="pi pi-spin pi-spinner text-4xl text-primary"></i>
+  </div>
+
+  <!-- Messaggio stato vuoto -->
+  <div
+    *ngIf="!loading() && (!categories() || categories()!.length === 0)"
+    class="empty-state"
+  >
+    <i class="pi pi-list"></i>
+    <h3>Nessuna categoria disponibile</h3>
+    <p *ngIf="!selectedProject()?.CCConnection">
+      Non ci sono categorie configurate per questo progetto. Puoi creare una
+      nuova categoria utilizzando il pulsante qui sotto.
+    </p>
+    <p *ngIf="selectedProject()?.CCConnection">
+      Non ci sono categorie configurate per questo progetto. Con la connessione
+      a Cassa in Cloud attiva, puoi sincronizzare le categorie esistenti da
+      Cassa in Cloud.
+    </p>
+    <div class="flex gap-2 justify-center mt-4">
+      <button
+        pButton
+        pRipple
+        icon="pi pi-plus"
+        label="Crea nuova categoria"
+        class="p-button-primary"
+        (click)="openCreateDialog()"
+      ></button>
+      <button
+        *ngIf="selectedProject()?.CCConnection"
+        pButton
+        pRipple
+        icon="pi pi-sync"
+        label="Sincronizza da Cassa in Cloud"
+        class="p-button-outlined"
+        (click)="openSyncDialog()"
+      ></button>
+    </div>
+  </div>
+
+  <!-- Tabella categorie -->
+  <ng-container *ngIf="!loading() && categories() && categories()!.length > 0">
+    <p-table
+      [value]="categories() || []"
+      styleClass="p-datatable-sm"
+      [paginator]="(categories()?.length || 0) > 10"
+      [rows]="10"
+      [showCurrentPageReport]="true"
+      [rowsPerPageOptions]="[10, 25, 50]"
+      currentPageReportTemplate="Visualizzati {first} a {last} di {totalRecords} categorie"
+      responsiveLayout="stack"
+      [globalFilterFields]="['name']"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th pSortableColumn="name">
+            Nome <p-sortIcon field="name"></p-sortIcon>
+          </th>
+          <th pSortableColumn="sortOrder">
+            Ordine <p-sortIcon field="sortOrder"></p-sortIcon>
+          </th>
+          <th class="text-center">Stato</th>
+          <th class="text-center">Connessione</th>
+          <th pSortableColumn="updatedAt" class="text-center">
+            Ultimo Aggiornamento <p-sortIcon field="updatedAt"></p-sortIcon>
+          </th>
+          <th class="text-center" style="width: 150px">Azioni</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-category let-i="rowIndex">
+        <tr>
+          <td>{{ category.name }}</td>
+          <td class="text-center">{{ category.sortOrder || i }}</td>
+          <td class="text-center">
+            <p-tag
+              [severity]="category.isActive ? 'success' : 'warn'"
+              [value]="category.isActive ? 'Attiva' : 'Inattiva'"
+              [rounded]="true"
+            ></p-tag>
+          </td>
+          <td class="text-center">
+            <p-tag
+              [severity]="getCategorySeverity(category)"
+              [value]="category.CCConnection ? 'Cassa in Cloud' : 'Solo Locale'"
+              [rounded]="true"
+            ></p-tag>
+          </td>
+          <td class="text-center">
+            {{ category.updatedAt | date : "dd/MM/yyyy HH:mm" }}
+          </td>
+          <td>
+            <div class="flex gap-1 justify-center">
+              <button
+                pButton
+                pRipple
+                icon="pi pi-pencil"
+                class="p-button-text p-button-rounded p-button-sm"
+                pTooltip="Modifica categoria"
+                tooltipPosition="top"
+                (click)="openEditDialog(category.id!)"
+              ></button>
+              <button
+                pButton
+                pRipple
+                icon="pi pi-trash"
+                class="p-button-text p-button-rounded p-button-danger p-button-sm"
+                pTooltip="Elimina categoria"
+                tooltipPosition="top"
+                (click)="deleteCategory($event, category.id!)"
+              ></button>
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="6" class="text-center p-4">Nessuna categoria trovata</td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </ng-container>
+  }
+
+  <!-- Dialog per creare una nuova categoria -->
+  <p-dialog
+    header="Crea nuova categoria"
+    [visible]="createDialogVisible()"
+    (visibleChange)="onCreateDialogVisibilityChange($event)"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [style]="{ width: '450px' }"
+    styleClass="category-dialog"
+  >
+    <form [formGroup]="createForm" class="p-fluid">
+      <div class="field mb-4">
+        <label for="name" class="block font-medium mb-2"
+          >Nome categoria *</label
+        >
+        <input
+          id="name"
+          type="text"
+          pInputText
+          formControlName="name"
+          placeholder="Inserisci il nome della categoria"
+          class="w-full"
+        />
+        <small
+          *ngIf="
+            createForm.get('name')?.invalid && createForm.get('name')?.touched
+          "
+          class="p-error block mt-1"
+        >
+          Il nome della categoria è obbligatorio
+        </small>
+      </div>
+
+      <div class="field mb-4">
+        <label for="description" class="block font-medium mb-2"
+          >Descrizione</label
+        >
+        <input
+          id="description"
+          type="text"
+          pInputText
+          formControlName="description"
+          placeholder="Inserisci una descrizione (opzionale)"
+          class="w-full"
+        />
+      </div>
+
+      <div class="field mb-4">
+        <label for="sortOrder" class="block font-medium mb-2"
+          >Ordine di visualizzazione</label
+        >
+        <p-inputNumber
+          id="sortOrder"
+          formControlName="sortOrder"
+          [showButtons]="true"
+          buttonLayout="horizontal"
+          spinnerMode="horizontal"
+          [min]="0"
+          [step]="1"
+          styleClass="w-full"
+          decrementButtonClass="p-button-secondary"
+          incrementButtonClass="p-button-secondary"
+          incrementButtonIcon="pi pi-plus"
+          decrementButtonIcon="pi pi-minus"
+        ></p-inputNumber>
+      </div>
+
+      <div class="field-checkbox mb-4">
+        <p-checkbox
+          formControlName="isActive"
+          [binary]="true"
+          inputId="isActive"
+        ></p-checkbox>
+        <label for="isActive" class="ml-2">Categoria attiva</label>
+      </div>
+
+      <div class="field-checkbox mb-4">
+        <p-checkbox
+          formControlName="CCConnection"
+          [binary]="true"
+          inputId="CCConnection"
+          [disabled]="!selectedProject()?.CCConnection"
+        ></p-checkbox>
+        <label for="CCConnection" class="ml-2"
+          >Connessione con Cassa in Cloud</label
+        >
+      </div>
+
+      <small
+        *ngIf="!selectedProject()?.CCConnection"
+        class="p-error block mt-1"
+      >
+        Il progetto non ha connessione a Cassa in Cloud
+      </small>
+    </form>
+
+    <ng-template pTemplate="footer">
+      <button
+        pButton
+        pRipple
+        label="Annulla"
+        icon="pi pi-times"
+        class="p-button-text"
+        (click)="closeCreateDialog()"
+        [disabled]="creatingCategory()"
+      ></button>
+      <button
+        pButton
+        pRipple
+        label="Crea"
+        icon="pi pi-check"
+        class="p-button-primary"
+        (click)="createCategory()"
+        [disabled]="createForm.invalid || creatingCategory()"
+        [loading]="creatingCategory()"
+      ></button>
+    </ng-template>
+  </p-dialog>
+
+  <!-- Dialog per modificare una categoria esistente -->
+  <p-dialog
+    header="Modifica categoria"
+    [visible]="editDialogVisible()"
+    (visibleChange)="onDialogVisibilityChange($event)"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [style]="{ width: '450px' }"
+    styleClass="category-dialog"
+  >
+    <form [formGroup]="editForm" class="p-fluid">
+      <div class="field mb-4">
+        <label for="edit-name" class="block font-medium mb-2"
+          >Nome categoria *</label
+        >
+        <input
+          id="edit-name"
+          type="text"
+          pInputText
+          formControlName="name"
+          placeholder="Inserisci il nome della categoria"
+          class="w-full"
+        />
+        <small
+          *ngIf="editForm.get('name')?.invalid && editForm.get('name')?.touched"
+          class="p-error block mt-1"
+        >
+          Il nome della categoria è obbligatorio
+        </small>
+      </div>
+
+      <div class="field mb-4">
+        <label for="edit-description" class="block font-medium mb-2"
+          >Descrizione</label
+        >
+        <input
+          id="edit-description"
+          type="text"
+          pInputText
+          formControlName="description"
+          placeholder="Inserisci una descrizione (opzionale)"
+          class="w-full"
+        />
+      </div>
+
+      <div class="field mb-4">
+        <label for="edit-sortOrder" class="block font-medium mb-2"
+          >Ordine di visualizzazione</label
+        >
+        <p-inputNumber
+          id="edit-sortOrder"
+          formControlName="sortOrder"
+          [showButtons]="true"
+          buttonLayout="horizontal"
+          spinnerMode="horizontal"
+          [min]="0"
+          [step]="1"
+          styleClass="w-full"
+          decrementButtonClass="p-button-secondary"
+          incrementButtonClass="p-button-secondary"
+          incrementButtonIcon="pi pi-plus"
+          decrementButtonIcon="pi pi-minus"
+        ></p-inputNumber>
+      </div>
+
+      <div class="field-checkbox mb-4">
+        <p-checkbox
+          formControlName="isActive"
+          [binary]="true"
+          inputId="edit-isActive"
+        ></p-checkbox>
+        <label for="edit-isActive" class="ml-2">Categoria attiva</label>
+      </div>
+
+      <!-- Mostra l'informazione sulla connessione CC ma non permetti di modificarla -->
+      <div *ngIf="editingCategory()" class="bg-primary-50 p-3 rounded mb-4">
+        <div class="flex items-center">
+          <i
+            [class]="
+              editingCategory()?.CCConnection
+                ? 'pi pi-check-circle text-green-500 mr-2'
+                : 'pi pi-times-circle text-gray-400 mr-2'
+            "
+          ></i>
+          <span>{{
+            editingCategory()?.CCConnection
+              ? "Connessa a Cassa in Cloud"
+              : "Non connessa a Cassa in Cloud"
+          }}</span>
+        </div>
+      </div>
+
+      <!-- Dettagli CC se presenti -->
+      <div
+        *ngIf="editingCategory()?.CCConnection"
+        class="bg-primary-50 p-3 rounded mb-4"
+      >
+        <h4 class="text-md font-medium mb-2">
+          Dettagli integrazione Cassa in Cloud
+        </h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label class="text-sm font-medium">ID Categoria CC</label>
+            <p class="text-sm">{{ editingCategory()?.CCCategoryId }}</p>
+          </div>
+          <div>
+            <label class="text-sm font-medium">Punto Vendita CC</label>
+            <p class="text-sm">{{ editingCategory()?.CCSalesPointId }}</p>
+          </div>
+        </div>
+      </div>
+    </form>
+
+    <ng-template pTemplate="footer">
+      <button
+        pButton
+        pRipple
+        label="Annulla"
+        icon="pi pi-times"
+        class="p-button-text"
+        (click)="closeEditDialog()"
+        [disabled]="updatingCategory()"
+      ></button>
+      <button
+        pButton
+        pRipple
+        label="Salva"
+        icon="pi pi-check"
+        class="p-button-primary"
+        (click)="updateCategory()"
+        [disabled]="editForm.invalid || updatingCategory()"
+        [loading]="updatingCategory()"
+      ></button>
+    </ng-template>
+  </p-dialog>
+
+  <!-- Dialog per sincronizzare categorie da Cassa in Cloud -->
+  <p-dialog
+    header="Sincronizza categorie da Cassa in Cloud"
+    [visible]="syncDialogVisible()"
+    (visibleChange)="onSyncDialogVisibilityChange($event)"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [style]="{ width: '90%', maxWidth: '800px' }"
+    styleClass="sync-dialog"
+  >
+    <div class="p-fluid">
+      <!-- Stato di caricamento per le categorie CC -->
+      <div *ngIf="loadingCCCategories()" class="flex justify-center my-5">
+        <i class="pi pi-spin pi-spinner text-4xl text-primary"></i>
+        <span class="ml-3">Caricamento categorie da Cassa in Cloud...</span>
+      </div>
+
+      <!-- Barra di ricerca per categorie CC -->
+      <div
+        class="p-inputgroup mb-4"
+      >
+        <input
+          type="text"
+          pInputText
+          placeholder="Cerca categorie in Cassa in Cloud..."
+          [(ngModel)]="searchCCQuery"
+          (ngModelChange)="filterCCCategories($event)"
+        />
+        <button
+          *ngIf="searchCCQuery"
+          pButton
+          icon="pi pi-times"
+          class="p-button-secondary"
+          (click)="filterCCCategories('')"
+        ></button>
+      </div>
+
+      <!-- Tabella categorie CC -->
+      <p-table
+        [value]="filteredCCCategories()!"
+        [selection]="selectedCCCategories()"
+        (selectionChange)="onSelectionChange($event)"
+        dataKey="id"
+        [paginator]="filteredCCCategories()!.length > 10"
+        [rows]="10"
+        [showCurrentPageReport]="true"
+        [rowsPerPageOptions]="[10, 25, 50]"
+        styleClass="p-datatable-sm"
+        currentPageReportTemplate="Visualizzati {first} a {last} di {totalRecords} categorie"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th style="width: 3rem">
+              <p-tableHeaderCheckbox></p-tableHeaderCheckbox>
+            </th>
+            <th>Nome</th>
+            <th class="text-center">Stato</th>
+            <th class="text-center">Importata</th>
+            <th class="text-center">Ultimo Aggiornamento</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-ccCategory>
+          <tr [ngClass]="{ 'p-highlight': isCategoryImported(ccCategory.id) }">
+            <td>
+              <p-tableCheckbox [value]="ccCategory"></p-tableCheckbox>
+            </td>
+            <td>{{ ccCategory.description }}</td>
+            <td class="text-center">
+              <div class="flex justify-center gap-2">
+                <span
+                  *ngIf="ccCategory.enableForRisto"
+                  class="pi pi-check-circle text-green-500"
+                  pTooltip="Abilitata per Ristorante"
+                  tooltipPosition="top"
+                ></span>
+                <span
+                  *ngIf="ccCategory.enableForSale"
+                  class="pi pi-shopping-cart text-blue-500"
+                  pTooltip="Abilitata per Vendita"
+                  tooltipPosition="top"
+                ></span>
+                <span
+                  *ngIf="
+                    ccCategory.enableForECommerce ||
+                    ccCategory.enableForMobileCommerce
+                  "
+                  class="pi pi-globe text-orange-500"
+                  pTooltip="Abilitata per E-commerce"
+                  tooltipPosition="top"
+                ></span>
+              </div>
+            </td>
+            <td class="text-center">
+              <p-tag
+                *ngIf="isCategoryImported(ccCategory.id!)"
+                severity="success"
+                value="Importata"
+              ></p-tag>
+              <p-tag
+                *ngIf="!isCategoryImported(ccCategory.id!)"
+                severity="secondary"
+                value="Non importata"
+              ></p-tag>
+            </td>
+            <td class="text-center">
+              {{ ccCategory.lastUpdate | date : "dd/MM/yyyy HH:mm" }}
+            </td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="5" class="text-center p-4">
+              Nessuna categoria trovata in Cassa in Cloud
+            </td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="summary">
+          <div class="flex justify-between items-center">
+            <span
+              >Selezionate {{ selectedCCCategories().length }} categorie</span
+            >
+            <span
+              *ngIf="
+                ccCategories() &&
+                filteredCCCategories() &&
+                ccCategories()?.length !== filteredCCCategories()?.length
+              "
+            >
+              Mostrate {{ filteredCCCategories()?.length }} di
+              {{ ccCategories()?.length }} categorie
+            </span>
+          </div>
+        </ng-template>
+      </p-table>
+
+      <!-- Messaggio se non ci sono categorie da sincronizzare -->
+      <div
+        *ngIf="
+          ccCategories() &&
+          ccCategories()?.length === 0 &&
+          !loadingCCCategories()
+        "
+        class="p-message p-message-info mb-4"
+      >
+        <i class="pi pi-info-circle p-message-icon"></i>
+        <span class="p-message-text"
+          >Non ci sono categorie disponibili in Cassa in Cloud.</span
+        >
+      </div>
+    </div>
+
+    <ng-template pTemplate="footer">
+      <button
+        pButton
+        pRipple
+        label="Annulla"
+        icon="pi pi-times"
+        class="p-button-text"
+        (click)="closeSyncDialog()"
+        [disabled]="loading()"
+      ></button>
+      <button
+        pButton
+        pRipple
+        label="Sincronizza"
+        icon="pi pi-sync"
+        class="p-button-primary"
+        (click)="syncCategories()"
+        [disabled]="selectedCCCategories().length === 0 || loading()"
+        [loading]="loading()"
+      ></button>
+    </ng-template>
+  </p-dialog>
+</div>
