@@ -124,6 +124,11 @@ export const partnerRoutes: RouteSection[] = [
         routerLink: '/partner/rawproducts',
         iconClass: 'pi pi-box',
       },
+      {
+        name: 'Raw Products',
+        routerLink: '/partner/warehouses',
+        iconClass: 'pi pi-box',
+      },
     ],
   },
 ];

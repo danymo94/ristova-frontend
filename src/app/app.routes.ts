@@ -156,6 +156,14 @@ export const routes: Routes = [
           ),
         pathMatch: 'full',
       },
+      {
+        path: 'warehouses',
+        loadComponent: () =>
+          import('./pages/partner/kambusa-app/warehouses/warehouses.component').then(
+            (m) => m.WarehousesComponent
+          ),
+        pathMatch: 'full',
+      },
 
     ],
   },
