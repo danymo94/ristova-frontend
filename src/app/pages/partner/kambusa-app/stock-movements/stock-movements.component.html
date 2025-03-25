@@ -1,0 +1,1411 @@
+<div class="container mx-auto p-3 sm:p-4 md:p-5">
+  <!-- Stato vuoto quando non c'è progetto selezionato -->
+  @if (!selectedProject()) {
+  <div class="empty-state">
+    <i class="pi pi-info-circle"></i>
+    <h3>Nessun ristorante selezionato</h3>
+    <p>
+      Seleziona un ristorante dal menu in alto per visualizzare i movimenti di
+      magazzino.
+    </p>
+  </div>
+  } @else {
+  <!-- Header con titolo e pulsanti azione -->
+  <div class="flex flex-wrap justify-between items-center mb-4">
+    <h1 class="text-2xl font-bold mb-2 md:mb-0">Movimenti di Magazzino</h1>
+    <div class="flex gap-2">
+      <!-- Ricerca -->
+      <div class="p-inputgroup">
+        <span class="p-inputgroup-addon">
+          <i class="pi pi-search"></i>
+        </span>
+        <input
+          type="text"
+          pInputText
+          placeholder="Cerca movimenti..."
+          (input)="onSearch($event)"
+        />
+      </div>
+
+      <!-- Filtri -->
+      <div class="flex">
+        <button
+          pButton
+          pRipple
+          label="Tutti"
+          [class.p-button-outlined]="filterType() !== 'ALL'"
+          [class.p-button-primary]="filterType() === 'ALL'"
+          (click)="filterByType('ALL')"
+        ></button>
+        <button
+          pButton
+          pRipple
+          label="Acquisti"
+          [class.p-button-outlined]="filterType() !== 'PURCHASE'"
+          [class.p-button-info]="filterType() === 'PURCHASE'"
+          (click)="filterByType('PURCHASE')"
+        ></button>
+        <button
+          pButton
+          pRipple
+          label="Vendite"
+          [class.p-button-outlined]="filterType() !== 'SALE'"
+          [class.p-button-success]="filterType() === 'SALE'"
+          (click)="filterByType('SALE')"
+        ></button>
+      </div>
+
+      <!-- Toggle visualizzazione -->
+      <button
+        pButton
+        pRipple
+        [icon]="viewMode() === 'grid' ? 'pi pi-list' : 'pi pi-th-large'"
+        class="p-button-outlined"
+        (click)="viewMode.set(viewMode() === 'grid' ? 'list' : 'grid')"
+        pTooltip="Cambia visualizzazione"
+        tooltipPosition="bottom"
+      ></button>
+      <button
+        pButton
+        pRipple
+        icon="pi pi-refresh"
+        class="p-button-outlined"
+        [loading]="loading()"
+        (click)="refreshData()"
+        pTooltip="Aggiorna dati"
+        tooltipPosition="bottom"
+      ></button>
+
+      <!-- Pulsante nuovo movimento -->
+      <button
+        pButton
+        pRipple
+        icon="pi pi-plus"
+        label="Nuovo Movimento"
+        class="p-button-primary"
+        (click)="openMoveDialog()"
+        pTooltip="Crea nuovo movimento di magazzino"
+        tooltipPosition="bottom"
+      ></button>
+    </div>
+  </div>
+
+  <!-- Stato di caricamento -->
+  <div *ngIf="loading()" class="flex justify-center my-5">
+    <i class="pi pi-spin pi-spinner text-4xl text-primary"></i>
+  </div>
+
+  <!-- Messaggio stato vuoto -->
+  <div
+    *ngIf="!loading() && (!movements() || movements()!.length === 0)"
+    class="empty-state"
+  >
+    <i class="pi pi-arrow-right-arrow-left"></i>
+    <h3>Nessun movimento trovato</h3>
+    <p>Non ci sono movimenti di magazzino registrati per questo progetto.</p>
+    <div class="flex gap-2 justify-center mt-4">
+      <button
+        pButton
+        pRipple
+        icon="pi pi-plus"
+        label="Nuovo Movimento"
+        class="p-button-primary"
+        (click)="openMoveDialog()"
+      ></button>
+    </div>
+  </div>
+
+  <!-- Lista movimenti - vista tabella -->
+  <p-table
+    *ngIf="
+      !loading() &&
+      movements() &&
+      movements()!.length > 0 &&
+      viewMode() === 'list'
+    "
+    [value]="movements()!"
+    [paginator]="true"
+    [rows]="10"
+    [rowsPerPageOptions]="[10, 25, 50]"
+    [showCurrentPageReport]="true"
+    currentPageReportTemplate="Mostrando {first} a {last} di {totalRecords} movimenti"
+    styleClass="p-datatable-sm"
+  >
+    <ng-template pTemplate="header">
+      <tr>
+        <th pSortableColumn="movementDate">
+          Data <p-sortIcon field="movementDate"></p-sortIcon>
+        </th>
+        <th pSortableColumn="movementType">
+          Tipo <p-sortIcon field="movementType"></p-sortIcon>
+        </th>
+        <th pSortableColumn="warehouseId">
+          Magazzino <p-sortIcon field="warehouseId"></p-sortIcon>
+        </th>
+        <th pSortableColumn="reference">
+          Riferimento <p-sortIcon field="reference"></p-sortIcon>
+        </th>
+        <th class="text-right" pSortableColumn="totalQuantity">
+          Quantità <p-sortIcon field="totalQuantity"></p-sortIcon>
+        </th>
+        <th class="text-right" pSortableColumn="totalAmount">
+          Importo <p-sortIcon field="totalAmount"></p-sortIcon>
+        </th>
+        <th pSortableColumn="status">
+          Stato <p-sortIcon field="status"></p-sortIcon>
+        </th>
+        <th style="width: 150px">Azioni</th>
+      </tr>
+    </ng-template>
+
+    <ng-template pTemplate="body" let-movement>
+      <tr>
+        <td>{{ movement.movementDate | date : "dd/MM/yyyy" }}</td>
+        <td>
+          <div class="flex items-center">
+            <i
+              [class]="getMovementTypeIcon(movement.movementType) + ' mr-2'"
+            ></i>
+            {{ getMovementTypeName(movement.movementType) }}
+          </div>
+        </td>
+        <td>
+          {{ getWarehouseName(movement.warehouseId) }}
+          <div
+            *ngIf="movement.sourceWarehouseId && movement.targetWarehouseId"
+            class="text-xs text-gray-500"
+          >
+            Da: {{ getWarehouseName(movement.sourceWarehouseId) }} →
+            {{ getWarehouseName(movement.targetWarehouseId) }}
+          </div>
+        </td>
+        <td>
+          {{ movement.reference || "-" }}
+          <div *ngIf="movement.invoiceId" class="text-xs text-gray-500">
+            Fattura: {{ movement.invoiceId }}
+          </div>
+        </td>
+        <td class="text-right">{{ movement.totalQuantity }}</td>
+        <td class="text-right">
+          {{ movement.totalAmount | currency : "EUR" }}
+        </td>
+        <td>
+          <p-tag
+            [value]="getStatusLabel(movement.status)"
+            [severity]="getStatusSeverity(movement.status)"
+          ></p-tag>
+        </td>
+        <td>
+          <div class="flex gap-1 justify-end">
+            <button
+              pButton
+              icon="pi pi-eye"
+              class="p-button-text p-button-rounded p-button-sm"
+              pTooltip="Visualizza dettagli"
+              tooltipPosition="top"
+              (click)="openDetailsDialog(movement)"
+            ></button>
+
+            <!-- Menu di cambio stato -->
+            <button
+              *ngIf="movement.status === 'draft'"
+              pButton
+              icon="pi pi-check-circle"
+              class="p-button-text p-button-rounded p-button-sm p-button-success"
+              pTooltip="Conferma movimento"
+              tooltipPosition="top"
+              (click)="updateMovementStatus(movement, 'confirmed')"
+            ></button>
+
+            <button
+              *ngIf="movement.status === 'draft'"
+              pButton
+              icon="pi pi-times-circle"
+              class="p-button-text p-button-rounded p-button-sm p-button-danger"
+              pTooltip="Annulla movimento"
+              tooltipPosition="top"
+              (click)="updateMovementStatus(movement, 'cancelled')"
+            ></button>
+
+            <!-- Elimina -->
+            <button
+              *ngIf="movement.status !== 'confirmed'"
+              pButton
+              icon="pi pi-trash"
+              class="p-button-text p-button-rounded p-button-sm p-button-danger"
+              pTooltip="Elimina"
+              tooltipPosition="top"
+              (click)="openDeleteDialog(movement)"
+            ></button>
+          </div>
+        </td>
+      </tr>
+    </ng-template>
+  </p-table>
+
+  <!-- Lista movimenti - vista griglia -->
+  <div
+    *ngIf="
+      !loading() &&
+      movements() &&
+      movements()!.length > 0 &&
+      viewMode() === 'grid'
+    "
+    class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+  >
+    <p-card *ngFor="let movement of movements()" styleClass="movement-card">
+      <ng-template pTemplate="header">
+        <div class="p-3 flex justify-between items-center bg-gray-50">
+          <div class="flex items-center">
+            <i
+              [class]="getMovementTypeIcon(movement.movementType) + ' mr-2'"
+            ></i>
+            <span class="font-bold">{{
+              getMovementTypeName(movement.movementType)
+            }}</span>
+          </div>
+          <p-tag
+            [value]="getStatusLabel(movement.status)"
+            [severity]="getStatusSeverity(movement.status)"
+          ></p-tag>
+        </div>
+      </ng-template>
+
+      <div class="p-2">
+        <div class="mb-3">
+          <div class="flex justify-between mb-1">
+            <span class="text-gray-600">Data:</span>
+            <span class="font-medium">{{
+              movement.movementDate | date : "dd/MM/yyyy"
+            }}</span>
+          </div>
+
+          <div class="flex justify-between mb-1">
+            <span class="text-gray-600">Magazzino:</span>
+            <span class="font-medium">{{
+              getWarehouseName(movement.warehouseId)
+            }}</span>
+          </div>
+
+          <div
+            *ngIf="movement.sourceWarehouseId && movement.targetWarehouseId"
+            class="flex justify-between mb-1"
+          >
+            <span class="text-gray-600">Trasferimento:</span>
+            <span class="font-medium">
+              {{ getWarehouseName(movement.sourceWarehouseId) }} →
+              {{ getWarehouseName(movement.targetWarehouseId) }}
+            </span>
+          </div>
+
+          <div class="flex justify-between mb-1">
+            <span class="text-gray-600">Quantità:</span>
+            <span class="font-medium">{{ movement.totalQuantity }}</span>
+          </div>
+
+          <div class="flex justify-between mb-1">
+            <span class="text-gray-600">Importo:</span>
+            <span class="font-medium">{{
+              movement.totalAmount | currency : "EUR"
+            }}</span>
+          </div>
+
+          <div *ngIf="movement.reference" class="flex justify-between">
+            <span class="text-gray-600">Riferimento:</span>
+            <span class="font-medium">{{ movement.reference }}</span>
+          </div>
+
+          <div *ngIf="movement.invoiceId" class="flex justify-between">
+            <span class="text-gray-600">Fattura:</span>
+            <span class="font-medium">{{ movement.invoiceId }}</span>
+          </div>
+        </div>
+      </div>
+
+      <ng-template pTemplate="footer">
+        <div class="flex justify-between">
+          <button
+            pButton
+            icon="pi pi-eye"
+            label="Dettagli"
+            class="p-button-text p-button-sm"
+            (click)="openDetailsDialog(movement)"
+          ></button>
+
+          <div>
+            <!-- Menu di cambio stato -->
+            <button
+              *ngIf="movement.status === 'draft'"
+              pButton
+              icon="pi pi-check-circle"
+              class="p-button-text p-button-sm p-button-success mr-2"
+              pTooltip="Conferma"
+              tooltipPosition="top"
+              (click)="updateMovementStatus(movement, 'confirmed')"
+            ></button>
+
+            <button
+              *ngIf="movement.status === 'draft'"
+              pButton
+              icon="pi pi-times-circle"
+              class="p-button-text p-button-sm p-button-danger mr-2"
+              pTooltip="Annulla"
+              tooltipPosition="top"
+              (click)="updateMovementStatus(movement, 'cancelled')"
+            ></button>
+
+            <!-- Elimina -->
+            <button
+              *ngIf="movement.status !== 'confirmed'"
+              pButton
+              icon="pi pi-trash"
+              class="p-button-text p-button-sm p-button-danger"
+              pTooltip="Elimina"
+              tooltipPosition="top"
+              (click)="openDeleteDialog(movement)"
+            ></button>
+          </div>
+        </div>
+      </ng-template>
+    </p-card>
+  </div>
+  }
+</div>
+
+<!-- Dialog per creare un nuovo movimento -->
+<p-dialog
+  [header]="
+    'Nuovo Movimento - Passo ' + (moveDialogStep() + 1) + ' di ' + steps.length
+  "
+  [visible]="moveDialogVisible()"
+  [modal]="true"
+  [style]="{ width: '850px', height: 'auto', minHeight: '600px' }"
+  [draggable]="false"
+  [resizable]="false"
+  (onHide)="moveDialogStep.set(0)"
+  styleClass="movement-dialog"
+>
+  <div class="p-fluid">
+    <!-- Steps -->
+    <p-steps
+      [model]="steps"
+      [readonly]="false"
+      [activeIndex]="moveDialogStep()"
+    ></p-steps>
+
+    <!-- Passo 1: Tipo movimento -->
+    <div *ngIf="moveDialogStep() === 0" class="mt-4">
+      <h2 class="text-xl font-semibold mb-4">Seleziona il tipo di movimento</h2>
+
+      <div class="flex mb-5 p-2">
+        <div class="flex-1 p-2 border-right">
+          <div class="field-radiobutton mb-3">
+            <p-radioButton
+              name="creationType"
+              value="manual"
+              [ngModel]="movementCreationType()"
+              inputId="creationType_manual"
+              (ngModelChange)="movementCreationType.set($event)"
+            ></p-radioButton>
+            <label for="creationType_manual" class="ml-2 font-medium"
+              >Movimento manuale</label
+            >
+          </div>
+          <div class="ml-4 text-gray-600 text-sm mb-3">
+            Crea un movimento inserendo manualmente i prodotti e le quantità
+          </div>
+        </div>
+
+        <div class="flex-1 p-2 border-right">
+          <div class="field-radiobutton mb-3">
+            <p-radioButton
+              name="creationType"
+              value="fromInvoice"
+              [ngModel]="movementCreationType()"
+              inputId="creationType_invoice"
+              (ngModelChange)="movementCreationType.set($event)"
+            ></p-radioButton>
+            <label for="creationType_invoice" class="ml-2 font-medium"
+              >Da Fattura</label
+            >
+          </div>
+          <div class="ml-4 text-gray-600 text-sm mb-3">
+            Crea un movimento partendo dai prodotti di una fattura
+          </div>
+        </div>
+
+        <div class="flex-1 p-2">
+          <div class="field-radiobutton mb-3">
+            <p-radioButton
+              name="creationType"
+              value="costCenter"
+              [ngModel]="movementCreationType()"
+              inputId="creationType_costcenter"
+              (ngModelChange)="movementCreationType.set($event)"
+            ></p-radioButton>
+            <label for="creationType_costcenter" class="ml-2 font-medium"
+              >A Centro di Costo</label
+            >
+          </div>
+          <div class="ml-4 text-gray-600 text-sm mb-3">
+            Assegna una fattura direttamente a un centro di costo
+          </div>
+        </div>
+      </div>
+
+      <div
+        *ngIf="
+          movementCreationType() === 'manual' ||
+          movementCreationType() === 'fromInvoice'
+        "
+        class="mt-4"
+      >
+        <div class="field-checkbox">
+          <p-checkbox
+            [(ngModel)]="enableMultiWarehouse"
+            [binary]="true"
+            inputId="multiWarehouse"
+          ></p-checkbox>
+          <label for="multiWarehouse" class="ml-2">
+            Abilita selezione multi-magazzino (assegna prodotti a magazzini
+            diversi)
+          </label>
+        </div>
+        <small class="text-gray-500">
+          Quando abilitato, potrai scegliere un magazzino diverso per ogni
+          prodotto nella lista
+        </small>
+      </div>
+
+      <!-- Per movimento manuale -->
+      <div *ngIf="movementCreationType() === 'manual'">
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div class="field">
+            <label for="movementType" class="block font-medium mb-2"
+              >Tipo di movimento*</label
+            >
+            <p-dropdown
+              id="movementType"
+              [options]="movementTypes"
+              [ngModel]="movementType()"
+              (ngModelChange)="movementType.set($event)"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="Seleziona tipo"
+              styleClass="w-full"
+              [showClear]="false"
+            >
+              <ng-template pTemplate="selectedItem">
+                <div
+                  class="flex align-items-center gap-2"
+                  *ngIf="movementType()"
+                >
+                  <i [class]="getMovementTypeIcon(movementType())"></i>
+                  <div>{{ getMovementTypeName(movementType()) }}</div>
+                </div>
+              </ng-template>
+              <ng-template let-type pTemplate="item">
+                <div class="flex align-items-center gap-2">
+                  <i [class]="type.icon"></i>
+                  <div>{{ type.label }}</div>
+                </div>
+              </ng-template>
+            </p-dropdown>
+          </div>
+
+          <div class="field">
+            <label for="movementDate" class="block font-medium mb-2"
+              >Data movimento*</label
+            >
+            <p-calendar
+              id="movementDate"
+              [ngModel]="movementDate()"
+              (ngModelChange)="movementDate.set($event)"
+              [showIcon]="true"
+              styleClass="w-full"
+              inputStyleClass="w-full"
+              dateFormat="dd/mm/yy"
+            ></p-calendar>
+          </div>
+        </div>
+
+        <div class="field mb-4">
+          <label for="reference" class="block font-medium mb-2"
+            >Riferimento</label
+          >
+          <input
+            id="reference"
+            type="text"
+            pInputText
+            [ngModel]="movementReference()"
+            (ngModelChange)="movementReference.set($event)"
+            placeholder="Numero ordine, protocollo, ecc."
+          />
+        </div>
+
+        <div class="field mb-4">
+          <label for="notes" class="block font-medium mb-2">Note</label>
+          <textarea
+            id="notes"
+            pInputTextarea
+            [ngModel]="movementNotes()"
+            (ngModelChange)="movementNotes.set($event)"
+            rows="2"
+            placeholder="Note aggiuntive sul movimento"
+          ></textarea>
+        </div>
+      </div>
+
+      <!-- Per movimento da fattura -->
+      <div *ngIf="movementCreationType() === 'fromInvoice'">
+        <div class="field mb-4">
+          <label for="invoiceSelect" class="block font-medium mb-2"
+            >Seleziona fattura*</label
+          >
+          <p-dropdown
+            id="invoiceSelect"
+            [options]="activeInvoices"
+            [ngModel]="selectedInvoiceId()"
+            (ngModelChange)="selectedInvoiceId.set($event)"
+            optionLabel="invoiceNumber"
+            optionValue="id"
+            placeholder="Seleziona fattura"
+            styleClass="w-full"
+            [showClear]="true"
+            (onChange)="selectInvoice($event.value)"
+          >
+            <ng-template let-invoice pTemplate="item">
+              <div class="flex flex-col">
+                <span
+                  >{{ invoice.invoiceNumber }} -
+                  {{ invoice.invoiceDate | date : "dd/MM/yyyy" }}</span
+                >
+                <span class="text-sm text-gray-600"
+                  >€ {{ invoice.totalAmount | number : "1.2-2" }}</span
+                >
+              </div>
+            </ng-template>
+          </p-dropdown>
+        </div>
+      </div>
+
+      <!-- Per movimento a centro di costo -->
+      <div *ngIf="movementCreationType() === 'costCenter'">
+        <div class="field mb-4">
+          <label for="invoiceSelectCostCenter" class="block font-medium mb-2"
+            >Seleziona fattura*</label
+          >
+          <p-dropdown
+            id="invoiceSelectCostCenter"
+            [options]="activeInvoices"
+            [ngModel]="selectedInvoiceId()"
+            (ngModelChange)="selectedInvoiceId.set($event)"
+            optionLabel="invoiceNumber"
+            optionValue="id"
+            placeholder="Seleziona fattura"
+            styleClass="w-full"
+            [showClear]="true"
+            (onChange)="selectInvoice($event.value)"
+          >
+            <ng-template let-invoice pTemplate="item">
+              <div class="flex flex-col">
+                <span
+                  >{{ invoice.invoiceNumber }} -
+                  {{ invoice.invoiceDate | date : "dd/MM/yyyy" }}</span
+                >
+                <span class="text-sm text-gray-600"
+                  >€ {{ invoice.totalAmount | number : "1.2-2" }}</span
+                >
+              </div>
+            </ng-template>
+          </p-dropdown>
+        </div>
+      </div>
+    </div>
+
+    <!-- Passo 2: Selezione magazzino -->
+    <div *ngIf="moveDialogStep() === 1" class="mt-4">
+      <h2 class="text-xl font-semibold mb-4">
+        {{
+          movementType() === "TRANSFER"
+            ? "Seleziona magazzini di origine e destinazione"
+            : "Seleziona un magazzino"
+        }}
+      </h2>
+
+      <!-- Selezione per trasferimento -->
+      <div *ngIf="movementType() === 'TRANSFER'" class="grid grid-cols-1 gap-4">
+        <div class="field mb-3">
+          <label for="sourceWarehouse" class="block font-medium mb-2"
+            >Magazzino di origine*</label
+          >
+          <p-dropdown
+            id="sourceWarehouse"
+            [options]="physicalWarehouses"
+            [ngModel]="selectedSourceWarehouseId()"
+            (ngModelChange)="selectedSourceWarehouseId.set($event)"
+            optionLabel="name"
+            optionValue="id"
+            placeholder="Seleziona il magazzino di origine"
+            styleClass="w-full"
+            [showClear]="true"
+          ></p-dropdown>
+        </div>
+
+        <div class="field mb-3">
+          <label for="targetWarehouse" class="block font-medium mb-2"
+            >Magazzino di destinazione*</label
+          >
+          <p-dropdown
+            id="targetWarehouse"
+            [options]="physicalWarehouses"
+            [ngModel]="selectedTargetWarehouseId()"
+            (ngModelChange)="selectedTargetWarehouseId.set($event)"
+            optionLabel="name"
+            optionValue="id"
+            placeholder="Seleziona il magazzino di destinazione"
+            styleClass="w-full"
+            [showClear]="true"
+            [disabled]="!selectedSourceWarehouseId()"
+          ></p-dropdown>
+
+          <small
+            *ngIf="
+              selectedSourceWarehouseId() &&
+              selectedTargetWarehouseId() &&
+              selectedSourceWarehouseId() === selectedTargetWarehouseId()
+            "
+            class="p-error"
+          >
+            Il magazzino di origine e destinazione non possono essere uguali
+          </small>
+        </div>
+      </div>
+
+      <!-- Selezione per movimento normale -->
+      <div *ngIf="movementType() !== 'TRANSFER'" class="field mb-4">
+        <label for="warehouseSelect" class="block font-medium mb-2">
+          {{
+            movementCreationType() === "costCenter"
+              ? "Seleziona centro di costo*"
+              : "Seleziona magazzino*"
+          }}
+        </label>
+        <p-dropdown
+          id="warehouseSelect"
+          [options]="
+            movementCreationType() === 'costCenter'
+              ? costCenters
+              : physicalWarehouses
+          "
+          [ngModel]="selectedWarehouseId()"
+          (ngModelChange)="selectedWarehouseId.set($event)"
+          optionLabel="name"
+          optionValue="id"
+          placeholder="Seleziona magazzino"
+          styleClass="w-full"
+          [showClear]="true"
+        >
+          <ng-template let-warehouse pTemplate="item">
+            <div class="flex items-center">
+              <i
+                [class]="
+                  warehouse.type === 'PHYSICAL' ? 'pi pi-box' : 'pi pi-euro'
+                "
+                class="mr-2"
+              ></i>
+              <span>{{ warehouse.name }}</span>
+            </div>
+          </ng-template>
+        </p-dropdown>
+      </div>
+    </div>
+
+    <!-- Passo 3: Selezione prodotti -->
+    <div *ngIf="moveDialogStep() === 2" class="mt-4">
+      <h2 class="text-xl font-semibold mb-4">Seleziona i prodotti</h2>
+
+      <!-- Per movimento manuale -->
+      <div *ngIf="movementCreationType() === 'manual'" class="mb-4">
+        <div class="field mb-3">
+          <label for="productSearch" class="block font-medium mb-2"
+            >Cerca e aggiungi prodotti</label
+          >
+          <p-autoComplete
+            id="productSearch"
+            [suggestions]="filteredProducts"
+            (completeMethod)="searchProducts($event)"
+            field="description"
+            [dropdown]="true"
+            [multiple]="false"
+            placeholder="Digita il nome o codice prodotto"
+            styleClass="w-full"
+            (onSelect)="selectProduct($event.value)"
+          >
+            <ng-template let-product pTemplate="item">
+              <div class="flex flex-col">
+                <div>{{ product.description }}</div>
+                <div class="text-sm text-gray-600">
+                  <span>Codice: {{ product.productCode }}</span>
+                  <span class="ml-2"
+                    >Prezzo medio: €
+                    {{
+                      calculateAveragePrice(product) | number : "1.2-2"
+                    }}</span
+                  >
+                </div>
+              </div>
+            </ng-template>
+          </p-autoComplete>
+        </div>
+      </div>
+
+      <!-- Per movimento da fattura -->
+<!-- Sostituzione della sezione dei prodotti da fattura (intorno alla riga 740) -->
+<div
+  *ngIf="movementCreationType() === 'fromInvoice' && selectedInvoiceId()"
+>
+  <div class="mb-3 flex items-center justify-between">
+    <div>
+      <p-checkbox
+        [binary]="true"
+        inputId="selectAllProducts"
+        (onChange)="toggleAllInvoiceProducts($event.checked)"
+      ></p-checkbox>
+      <label for="selectAllProducts" class="ml-2">Seleziona tutti</label>
+    </div>
+    
+    <button 
+      *ngIf="getSelectedInvoiceProductCount() > 0"
+      pButton 
+      pRipple 
+      label="Aggiungi selezionati" 
+      icon="pi pi-plus"
+      class="p-button-sm p-button-success"
+      (click)="addSelectedInvoiceProducts()"
+    ></button>
+  </div>
+
+  <div
+    *ngIf="!invoiceRawProducts() || invoiceRawProducts()!.length === 0"
+    class="p-3 text-center bg-gray-100 rounded"
+  >
+    <i class="pi pi-info-circle text-blue-500 mr-2"></i>
+    Nessun prodotto trovato nella fattura o caricamento in corso...
+  </div>
+
+  <div class="mb-4 border rounded overflow-auto max-h-60">
+    <div
+      *ngFor="let product of invoiceRawProducts(); let i = index"
+      class="border-b p-2"
+      [class.bg-blue-50]="!!invoiceProductsSelection[product.productId]"
+    >
+      <div class="flex items-center">
+        <p-checkbox
+          [binary]="true"
+          [ngModel]="!!invoiceProductsSelection[product.productId]"
+          (ngModelChange)="toggleInvoiceProduct(product.productId, $event)"
+          [inputId]="'product_' + i"
+        ></p-checkbox>
+        <label [for]="'product_' + i" class="ml-2 flex-1">
+          <div>{{ product.description }}</div>
+          <div class="text-sm text-gray-600">
+            Codice: {{ product.productCode }}
+          </div>
+        </label>
+        <div class="text-right">
+          <div>Qtà: {{ product.totalQuantity }}</div>
+          <div>{{ product.averageUnitPrice | currency : "EUR" }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+      <!-- Per assegnazione a centro di costo -->
+      <div
+        *ngIf="movementCreationType() === 'costCenter' && selectedInvoiceId()"
+      >
+        <p class="mb-3">
+          La fattura verrà assegnata interamente al centro di costo selezionato.
+        </p>
+
+        <div
+          *ngIf="!invoiceRawProducts() || invoiceRawProducts()!.length === 0"
+          class="p-3 text-center bg-gray-100 rounded"
+        >
+          <i class="pi pi-info-circle text-blue-500 mr-2"></i>
+          Nessun prodotto trovato nella fattura o caricamento in corso...
+        </div>
+
+        <div *ngFor="let product of invoiceRawProducts()" class="border-b p-2">
+          <div class="flex items-center">
+            <div class="flex-1">
+              <div>{{ product.description }}</div>
+              <div class="text-sm text-gray-600">
+                Codice: {{ product.productCode }}
+              </div>
+            </div>
+            <div class="text-right">
+              <div>Qtà: {{ product.totalQuantity }}</div>
+              <div>{{ product.averageUnitPrice | currency : "EUR" }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabella prodotti selezionati -->
+      <!-- Nel passo 3, nella tabella dei prodotti selezionati -->
+      <div *ngIf="selectedProducts().length > 0" class="mt-4">
+        <h3 class="text-lg font-medium mb-2">Prodotti Selezionati</h3>
+        <p-table [value]="selectedProducts()" styleClass="p-datatable-sm">
+          <ng-template pTemplate="header">
+            <tr>
+              <th>Prodotto</th>
+              <th style="width: 100px">Quantità</th>
+              <th style="width: 120px">Prezzo Unit.</th>
+              <th style="width: 120px">Totale</th>
+              <th style="width: 180px">Magazzino</th>
+              <!-- Nuova colonna per magazzino -->
+              <th style="width: 80px">Azioni</th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-product let-i="rowIndex">
+            <tr>
+              <td>
+                <div class="product-name">{{ product.description }}</div>
+              </td>
+              <td>
+                <p-inputNumber
+                  [ngModel]="product.quantity"
+                  (onInput)="
+                    updateProductQuantity(i, $event.value ? +$event.value : 0)
+                  "
+                  [min]="0"
+                  [showButtons]="true"
+                  buttonLayout="horizontal"
+                  inputId="quantity"
+                  spinnerMode="horizontal"
+                  [step]="1"
+                  decrementButtonClass="p-button-danger"
+                  incrementButtonClass="p-button-success"
+                  incrementButtonIcon="pi pi-plus"
+                  decrementButtonIcon="pi pi-minus"
+                  [size]="'small'"
+                ></p-inputNumber>
+              </td>
+              <td>
+                <p-inputNumber
+                  mode="currency"
+                  currency="EUR"
+                  locale="it-IT"
+                  [ngModel]="product.unitPrice"
+                  (onInput)="
+                    updateProductPrice(i, $event.value ? +$event.value : 0)
+                  "
+                  [min]="0"
+                ></p-inputNumber>
+              </td>
+              <td>
+                <span class="font-bold">{{
+                  product.totalPrice | currency : "EUR"
+                }}</span>
+              </td>
+              <td>
+                <!-- Dropdown per selezionare il magazzino specifico -->
+                <p-dropdown
+                  [options]="physicalWarehouses"
+                  [(ngModel)]="product.warehouseId"
+                  optionLabel="name"
+                  optionValue="id"
+                  placeholder="Seleziona"
+                  styleClass="w-full"
+                  appendTo="body"
+                ></p-dropdown>
+              </td>
+              <td>
+                <button
+                  pButton
+                  pRipple
+                  icon="pi pi-trash"
+                  class="p-button-danger p-button-sm p-button-rounded"
+                  (click)="removeProduct(i)"
+                  pTooltip="Rimuovi prodotto"
+                  tooltipPosition="top"
+                ></button>
+              </td>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="footer">
+            <tr>
+              <td colspan="3" class="text-right font-bold">Totale:</td>
+              <td class="font-bold">{{ totalAmount | currency : "EUR" }}</td>
+              <td colspan="2"></td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </div>
+    </div>
+
+    <!-- Passo 4: Riepilogo e conferma -->
+    <div *ngIf="moveDialogStep() === 3" class="mt-4">
+      <h2 class="text-xl font-semibold mb-4">Conferma il movimento</h2>
+
+      <div class="border rounded p-4 mb-4">
+        <h3 class="text-lg font-medium mb-3">Dati del Movimento</h3>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <div class="mb-2">
+              <span class="font-medium">Tipo movimento:</span>
+              <span class="ml-2">{{
+                getMovementTypeName(movementType())
+              }}</span>
+            </div>
+
+            <div class="mb-2">
+              <span class="font-medium">Data movimento:</span>
+              <span class="ml-2">{{
+                movementDate() | date : "dd/MM/yyyy"
+              }}</span>
+            </div>
+
+            <div *ngIf="movementReference()" class="mb-2">
+              <span class="font-medium">Riferimento:</span>
+              <span class="ml-2">{{ movementReference() }}</span>
+            </div>
+          </div>
+
+          <div>
+            <!-- Magazzini per trasferimento -->
+            <div *ngIf="movementType() === 'TRANSFER'">
+              <div class="mb-2">
+                <span class="font-medium">Magazzino origine:</span>
+                <span class="ml-2">{{
+                  getWarehouseName(selectedSourceWarehouseId()!)
+                }}</span>
+              </div>
+
+              <div class="mb-2">
+                <span class="font-medium">Magazzino destinazione:</span>
+                <span class="ml-2">{{
+                  getWarehouseName(selectedTargetWarehouseId()!)
+                }}</span>
+              </div>
+            </div>
+
+            <!-- Magazzino unico -->
+            <div *ngIf="movementType() !== 'TRANSFER'">
+              <div class="mb-2">
+                <span class="font-medium">Magazzino:</span>
+                <span class="ml-2">{{
+                  getWarehouseName(selectedWarehouseId()!)
+                }}</span>
+              </div>
+            </div>
+
+            <!-- Fattura se da fattura -->
+            <div
+              *ngIf="movementCreationType() !== 'manual' && selectedInvoiceId()"
+            >
+              <div class="mb-2">
+                <span class="font-medium">Fattura:</span>
+                <span class="ml-2">{{ selectedInvoiceId() }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div *ngIf="movementNotes()" class="mt-2">
+          <span class="font-medium">Note:</span>
+          <p class="mt-1">{{ movementNotes() }}</p>
+        </div>
+      </div>
+
+      <div *ngIf="selectedProducts().length > 0" class="border rounded p-4">
+        <h3 class="text-lg font-medium mb-3">
+          Prodotti ({{ selectedProducts().length }})
+        </h3>
+
+        <!-- Nel passo 4, nella tabella di revisione -->
+        <p-table [value]="selectedProducts()" styleClass="p-datatable-sm">
+          <ng-template pTemplate="header">
+            <tr>
+              <th>Prodotto</th>
+              <th style="width: 100px">Quantità</th>
+              <th style="width: 120px">Prezzo Unit.</th>
+              <th style="width: 120px">Totale</th>
+              <th *ngIf="enableMultiWarehouse" style="width: 150px">
+                Magazzino
+              </th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-product>
+            <tr>
+              <td>{{ product.description }}</td>
+              <td class="text-right">{{ product.quantity }}</td>
+              <td class="text-right">
+                {{ product.unitPrice | currency : "EUR" }}
+              </td>
+              <td class="text-right">
+                {{ product.totalPrice | currency : "EUR" }}
+              </td>
+              <td *ngIf="enableMultiWarehouse">
+                {{
+                  getWarehouseName(
+                    product.warehouseId || selectedWarehouseId() || ""
+                  )
+                }}
+              </td>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="footer">
+            <tr>
+              <td
+                [attr.colspan]="enableMultiWarehouse ? 3 : 2"
+                class="text-right font-bold"
+              >
+                Totale:
+              </td>
+              <td class="text-right font-bold">
+                {{ totalAmount | currency : "EUR" }}
+              </td>
+              <td *ngIf="enableMultiWarehouse"></td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </div>
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div class="flex justify-between w-full">
+      <div>
+        <button
+          *ngIf="moveDialogStep() > 0"
+          pButton
+          pRipple
+          label="Indietro"
+          icon="pi pi-arrow-left"
+          class="p-button-outlined"
+          (click)="prevStep()"
+        ></button>
+      </div>
+      <div>
+        <button
+          pButton
+          pRipple
+          label="Annulla"
+          icon="pi pi-times"
+          class="p-button-text mr-2"
+          (click)="moveDialogVisible.set(false)"
+        ></button>
+
+        <button
+          *ngIf="moveDialogStep() < 3"
+          pButton
+          pRipple
+          label="Avanti"
+          icon="pi pi-arrow-right"
+          iconPos="right"
+          class="p-button-primary"
+          [disabled]="!validateCurrentStep()"
+          (click)="nextStep()"
+        ></button>
+
+        <button
+          *ngIf="moveDialogStep() === 3"
+          pButton
+          pRipple
+          label="Crea Movimento"
+          icon="pi pi-check"
+          class="p-button-success"
+          (click)="createMovement()"
+        ></button>
+      </div>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<!-- Dialog per visualizzare i dettagli di un movimento -->
+<p-dialog
+  header="Dettagli Movimento"
+  [(visible)]="detailsDialogVisible"
+  [modal]="true"
+  [style]="{ width: '80%', maxWidth: '1000px' }"
+  [draggable]="false"
+  [resizable]="false"
+  styleClass="details-dialog"
+>
+  <div *ngIf="selectedMovement() && !loading()" class="p-fluid">
+    <div class="mb-4 pb-3 border-bottom-1">
+      <div class="flex justify-between items-start">
+        <div>
+          <h2 class="text-xl font-bold mb-1">
+            {{ getMovementTypeName(selectedMovement()!.movementType) }}
+          </h2>
+          <div class="flex items-center gap-2">
+            <p-tag
+              [value]="getStatusLabel(selectedMovement()!.status)"
+              [severity]="getStatusSeverity(selectedMovement()!.status)"
+            ></p-tag>
+            <span class="text-gray-600">{{
+              selectedMovement()!.movementDate | date : "dd/MM/yyyy"
+            }}</span>
+          </div>
+        </div>
+        <div class="text-right">
+          <div class="text-xl font-bold">
+            {{ selectedMovement()!.totalAmount | currency : "EUR" }}
+          </div>
+          <div class="text-gray-600">
+            Quantità: {{ selectedMovement()!.totalQuantity }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <div class="border rounded p-3">
+        <h3 class="text-lg font-medium mb-2">Informazioni Movimento</h3>
+        <p class="mb-1"><strong>ID:</strong> {{ selectedMovement()!.id }}</p>
+        <p class="mb-1">
+          <strong>Magazzino:</strong>
+          {{ getWarehouseName(selectedMovement()!.warehouseId) }}
+        </p>
+        <p
+          *ngIf="
+            selectedMovement()!.sourceWarehouseId &&
+            selectedMovement()!.targetWarehouseId
+          "
+          class="mb-1"
+        >
+          <strong>Trasferimento:</strong>
+          Da {{ getWarehouseName(selectedMovement()!.sourceWarehouseId || "") }}
+          a
+          {{ getWarehouseName(selectedMovement()!.targetWarehouseId || "") }}
+        </p>
+        <p *ngIf="selectedMovement()!.reference" class="mb-1">
+          <strong>Riferimento:</strong> {{ selectedMovement()!.reference }}
+        </p>
+        <p *ngIf="selectedMovement()!.invoiceId" class="mb-1">
+          <strong>Fattura:</strong> {{ selectedMovement()!.invoiceId }}
+        </p>
+        <p *ngIf="selectedMovement()!.notes" class="mb-1">
+          <strong>Note:</strong> {{ selectedMovement()!.notes }}
+        </p>
+      </div>
+
+      <div class="border rounded p-3">
+        <h3 class="text-lg font-medium mb-2">Date</h3>
+        <p class="mb-1">
+          <strong>Data Movimento:</strong>
+          {{ selectedMovement()!.movementDate | date : "dd/MM/yyyy HH:mm" }}
+        </p>
+        <p class="mb-1">
+          <strong>Data Creazione:</strong>
+          {{ selectedMovement()!.createdAt | date : "dd/MM/yyyy HH:mm" }}
+        </p>
+        <p class="mb-1">
+          <strong>Ultimo Aggiornamento:</strong>
+          {{ selectedMovement()!.lastUpdatedAt | date : "dd/MM/yyyy HH:mm" }}
+        </p>
+      </div>
+    </div>
+
+    <div class="border rounded p-3 mb-4">
+      <h3 class="text-lg font-medium mb-3">Dettagli Prodotti</h3>
+      <p-table
+        [value]="movementDetails() || []"
+        styleClass="p-datatable-sm"
+        [paginator]="true"
+        [rows]="10"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th>Prodotto ID</th>
+            <th style="width: 100px">Direzione</th>
+            <th style="width: 100px">Quantità</th>
+            <th style="width: 120px">Prezzo Unit.</th>
+            <th style="width: 120px">Totale</th>
+            <th>Note</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-detail>
+          <tr>
+            <td>{{ detail.rawProductId }}</td>
+            <td>
+              <p-tag
+                [value]="detail.direction"
+                [severity]="detail.direction === 'IN' ? 'success' : 'danger'"
+              ></p-tag>
+            </td>
+            <td class="text-right">{{ detail.quantity }}</td>
+            <td class="text-right">
+              {{ detail.unitPrice | currency : "EUR" }}
+            </td>
+            <td class="text-right font-medium">
+              {{ detail.totalPrice | currency : "EUR" }}
+            </td>
+            <td>{{ detail.notes || "-" }}</td>
+          </tr>
+        </ng-template>
+        <ng-template
+          pTemplate="footer"
+          *ngIf="movementDetails() && movementDetails()!.length > 0"
+        >
+          <tr>
+            <td colspan="3" class="text-right font-bold">Totale</td>
+            <td class="text-right font-bold">
+              {{ selectedMovement()!.totalQuantity }}
+            </td>
+            <td class="text-right font-bold">
+              {{ selectedMovement()!.totalAmount | currency : "EUR" }}
+            </td>
+            <td></td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="6" class="text-center p-4">
+              <div *ngIf="loading()">
+                <i class="pi pi-spin pi-spinner mr-2"></i> Caricamento
+                dettagli...
+              </div>
+              <div *ngIf="!loading()">
+                Nessun dettaglio movimento disponibile
+              </div>
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </div>
+  </div>
+
+  <div *ngIf="loading()" class="flex justify-center py-6">
+    <i class="pi pi-spin pi-spinner text-4xl text-primary"></i>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <button
+      pButton
+      pRipple
+      label="Chiudi"
+      icon="pi pi-times"
+      class="p-button-text"
+      (click)="detailsDialogVisible.set(false)"
+    ></button>
+    <button
+      *ngIf="selectedMovement() && selectedMovement()!.status === 'draft'"
+      pButton
+      pRipple
+      label="Conferma Movimento"
+      icon="pi pi-check-circle"
+      class="p-button-success ml-2"
+      (click)="
+        updateMovementStatus(selectedMovement()!, 'confirmed');
+        detailsDialogVisible.set(false)
+      "
+    ></button>
+  </ng-template>
+</p-dialog>
+
+<!-- Dialog per conferma eliminazione -->
+<p-dialog
+  header="Conferma Eliminazione"
+  [(visible)]="deleteDialogVisible"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{ width: '450px' }"
+  styleClass="delete-dialog"
+>
+  <div *ngIf="selectedMovement()" class="p-fluid">
+    <p>Sei sicuro di voler eliminare questo movimento?</p>
+    <div class="mt-3 p-3 bg-gray-50 rounded">
+      <p class="mb-1">
+        <strong>Tipo:</strong>
+        {{ getMovementTypeName(selectedMovement()!.movementType) }}
+      </p>
+      <p class="mb-1">
+        <strong>Data:</strong>
+        {{ selectedMovement()!.movementDate | date : "dd/MM/yyyy" }}
+      </p>
+      <p class="mb-1">
+        <strong>Importo:</strong>
+        {{ selectedMovement()!.totalAmount | currency : "EUR" }}
+      </p>
+      <p class="mb-1">
+        <strong>Magazzino:</strong>
+        {{ getWarehouseName(selectedMovement()!.warehouseId) }}
+      </p>
+    </div>
+    <p class="mt-3 text-red-600">
+      Questa azione è irreversibile e rimuoverà tutti i dati associati a questo
+      movimento!
+    </p>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <button
+      pButton
+      pRipple
+      label="Annulla"
+      icon="pi pi-times"
+      class="p-button-text"
+      (click)="deleteDialogVisible.set(false)"
+    ></button>
+    <button
+      pButton
+      pRipple
+      label="Elimina"
+      icon="pi pi-trash"
+      class="p-button-danger"
+      (click)="deleteMovement()"
+    ></button>
+  </ng-template>
+</p-dialog>
+
+<style>
+  .empty-state {
+    padding: 3rem 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .empty-state i {
+    font-size: 3rem;
+    color: #ccc;
+    margin-bottom: 1rem;
+  }
+
+  .empty-state h3 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .movement-card {
+    transition: all 0.3s ease;
+    height: 100%;
+  }
+
+  .movement-card:hover {
+    box-shadow: 0 8px 15px -3px rgba(0, 0, 0, 0.1),
+      0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+
+  .border-right {
+    border-right: 1px solid #e9e9e9;
+  }
+
+  /* Modifica layout per mobile */
+  @media (max-width: 640px) {
+    .border-right {
+      border-right: none;
+      border-bottom: 1px solid #e9e9e9;
+      margin-bottom: 1rem;
+    }
+  }
+</style>

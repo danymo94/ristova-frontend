@@ -164,6 +164,14 @@ export const routes: Routes = [
           ),
         pathMatch: 'full',
       },
+      {
+        path: 'stockmovements',
+        loadComponent: () =>
+          import('./pages/partner/kambusa-app/stock-movements/stock-movements.component').then(
+            (m) => m.StockMovementsComponent
+          ),
+        pathMatch: 'full',
+      },
 
     ],
   },

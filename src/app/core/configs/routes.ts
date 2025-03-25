@@ -125,9 +125,14 @@ export const partnerRoutes: RouteSection[] = [
         iconClass: 'pi pi-box',
       },
       {
-        name: 'Raw Products',
+        name: 'Warehouses',
         routerLink: '/partner/warehouses',
-        iconClass: 'pi pi-box',
+        iconClass: 'pi pi-warehouse',
+      },
+      {
+        name: 'Warehouses',
+        routerLink: '/partner/stockmovements',
+        iconClass: 'pi pi-arrow-right-arrow-left',
       },
     ],
   },
