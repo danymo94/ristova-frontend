@@ -61,15 +61,16 @@ import {
 } from '../../../../core/models/stock-movement.model';
 import { MenuItem } from 'primeng/api';
 
-// Aggiorniamo l'interfaccia MovementProduct
 interface MovementProduct {
   rawProductId: string;
   description: string;
   quantity: number;
   unitPrice: number;
   totalPrice: number;
-  warehouseId?: string; // Aggiungiamo magazzino specifico per prodotto
+  warehouseId?: string;
   notes?: string;
+  availableQty?: number; // Quantità disponibile
+  exceedsAvailable?: boolean; // Flag per indicare se la quantità supera la disponibilità
 }
 
 @Component({
@@ -122,7 +123,6 @@ export class StockMovementsComponent implements OnInit, OnDestroy {
 
   enableMultiWarehouse = true;
 
-
   // Loading states
   loading = computed(
     () =>
@@ -159,6 +159,40 @@ export class StockMovementsComponent implements OnInit, OnDestroy {
 
   // Prodotti del movimento
   selectedProducts = signal<MovementProduct[]>([]);
+
+  warehouseProductBalances = signal<ProductBalance[]>([]);
+  availabilitySearchTerm = signal<string>('');
+  sourceWarehouseProductBalances = signal<ProductBalance[]>([]); // Per i trasferimenti
+
+  // Aggiungi questo computed signal per filtrare i saldi
+  filteredWarehouseBalance = computed(() => {
+    const balances = this.warehouseProductBalances();
+    const searchTerm = this.availabilitySearchTerm().toLowerCase();
+
+    if (!searchTerm) return balances;
+
+    return balances.filter((balance) => {
+      const description = this.getProductDescription(
+        balance.rawProductId
+      ).toLowerCase();
+      return description.includes(searchTerm);
+    });
+  });
+
+  // Computed signal per filtrare il saldo del magazzino di origine in base al termine di ricerca
+  filteredSourceWarehouseBalance = computed(() => {
+    const balances = this.sourceWarehouseProductBalances();
+    const searchTerm = this.availabilitySearchTerm().toLowerCase();
+
+    if (!searchTerm) return balances;
+
+    return balances.filter((balance) => {
+      const description = this.getProductDescription(
+        balance.rawProductId
+      ).toLowerCase();
+      return description.includes(searchTerm);
+    });
+  });
 
   // Dati per la ricerca autocomplete
   filteredProducts: RawProduct[] = [];
@@ -363,27 +397,67 @@ export class StockMovementsComponent implements OnInit, OnDestroy {
   }
 
   selectProduct(product: RawProduct): void {
+    const isOutbound = ['SALE', 'WASTE', 'INTERNAL_USE'].includes(
+      this.movementType()
+    );
+    const isTransfer = this.movementType() === 'TRANSFER';
     const currentProducts = [...this.selectedProducts()];
-    // Usa il magazzino selezionato come default
     const defaultWarehouseId = this.selectedWarehouseId();
-  
+
+    // Se è un movimento di uscita o trasferimento, verifica disponibilità
+    let availableQty = 0;
+    let exceedsAvailable = false;
+
+    if (isOutbound || isTransfer) {
+      let balances = isTransfer
+        ? this.sourceWarehouseProductBalances()
+        : this.warehouseProductBalances();
+
+      const balance = balances.find((b) => b.rawProductId === product.id);
+
+      if (balance) {
+        availableQty = balance.currentQuantity;
+      }
+
+      // Avviso se prodotto non disponibile
+      if (availableQty <= 0) {
+        this.toastService.showWarn(
+          `Attenzione: ${product.description} non è disponibile in magazzino (quantità: ${availableQty})`
+        );
+        exceedsAvailable = true;
+      }
+    }
+
     // Verifica se il prodotto è già stato aggiunto
     const existingProductIndex = currentProducts.findIndex(
       (p) => p.rawProductId === product.id
     );
-  
+
     if (existingProductIndex >= 0) {
       // Se esiste, incrementa la quantità
       const existingProduct = currentProducts[existingProductIndex];
+      const newQuantity = existingProduct.quantity + 1;
+
+      // Verifica disponibilità
+      if ((isOutbound || isTransfer) && newQuantity > availableQty) {
+        this.toastService.showWarn(
+          `Attenzione: La quantità richiesta (${newQuantity}) supera la disponibilità (${availableQty})`
+        );
+        exceedsAvailable = true;
+      }
+
       currentProducts[existingProductIndex] = {
         ...existingProduct,
-        quantity: existingProduct.quantity + 1,
-        totalPrice: (existingProduct.quantity + 1) * existingProduct.unitPrice,
+        quantity: newQuantity,
+        totalPrice: newQuantity * existingProduct.unitPrice,
+        availableQty: isOutbound || isTransfer ? availableQty : undefined,
+        exceedsAvailable:
+          isOutbound || isTransfer ? exceedsAvailable : undefined,
       };
     } else {
       // Se non esiste, aggiungi il prodotto
       const averagePrice = this.calculateAveragePrice(product);
-  
+
       currentProducts.push({
         rawProductId: product.id,
         description: product.description,
@@ -392,9 +466,12 @@ export class StockMovementsComponent implements OnInit, OnDestroy {
         totalPrice: averagePrice,
         warehouseId: defaultWarehouseId || undefined,
         notes: '',
+        availableQty: isOutbound || isTransfer ? availableQty : undefined,
+        exceedsAvailable:
+          isOutbound || isTransfer ? exceedsAvailable : undefined,
       });
     }
-  
+
     this.selectedProducts.set(currentProducts);
   }
 
@@ -405,15 +482,33 @@ export class StockMovementsComponent implements OnInit, OnDestroy {
     this.selectedProducts.set(currentProducts);
   }
 
-  // Aggiorna quantità di un prodotto
   updateProductQuantity(index: number, quantity: number): void {
+    if (quantity < 0) quantity = 0;
+
     const currentProducts = [...this.selectedProducts()];
     const product = currentProducts[index];
+    const isOutbound = ['SALE', 'WASTE', 'INTERNAL_USE'].includes(
+      this.movementType()
+    );
+    const isTransfer = this.movementType() === 'TRANSFER';
+
+    // Verifica disponibilità
+    let exceedsAvailable = false;
+    if ((isOutbound || isTransfer) && product.availableQty !== undefined) {
+      exceedsAvailable = quantity > product.availableQty;
+
+      if (exceedsAvailable) {
+        this.toastService.showWarn(
+          `Attenzione: La quantità richiesta (${quantity}) supera la disponibilità (${product.availableQty})`
+        );
+      }
+    }
 
     currentProducts[index] = {
       ...product,
       quantity,
       totalPrice: quantity * product.unitPrice,
+      exceedsAvailable: isOutbound || isTransfer ? exceedsAvailable : undefined,
     };
 
     this.selectedProducts.set(currentProducts);
@@ -447,70 +542,70 @@ export class StockMovementsComponent implements OnInit, OnDestroy {
   }
 
   // Seleziona o deseleziona tutti i prodotti di una fattura
-// Modifica il metodo toggleAllInvoiceProducts
-toggleAllInvoiceProducts(checked: boolean): void {
-  const invoiceProducts = this.invoiceRawProducts();
-  if (!invoiceProducts) return;
+  // Modifica il metodo toggleAllInvoiceProducts
+  toggleAllInvoiceProducts(checked: boolean): void {
+    const invoiceProducts = this.invoiceRawProducts();
+    if (!invoiceProducts) return;
 
-  const newSelection: Record<string, boolean> = {};
+    const newSelection: Record<string, boolean> = {};
 
-  for (const product of invoiceProducts) {
-    newSelection[product.productId] = checked;
+    for (const product of invoiceProducts) {
+      newSelection[product.productId] = checked;
+    }
+
+    this.invoiceProductsSelection = newSelection;
+
+    // Non aggiungiamo più automaticamente i prodotti
+    // Se l'utente vuole aggiungerli, dovrà cliccare sul pulsante dedicato
   }
 
-  this.invoiceProductsSelection = newSelection;
-  
-  // Non aggiungiamo più automaticamente i prodotti
-  // Se l'utente vuole aggiungerli, dovrà cliccare sul pulsante dedicato
-}
+  // Modifica il metodo toggleInvoiceProduct
+  toggleInvoiceProduct(productId: string, checked: boolean): void {
+    this.invoiceProductsSelection[productId] = checked;
 
-// Modifica il metodo toggleInvoiceProduct
-toggleInvoiceProduct(productId: string, checked: boolean): void {
-  this.invoiceProductsSelection[productId] = checked;
-  
-  // Non aggiungiamo/rimuoviamo più automaticamente i prodotti
-  // L'utente dovrà usare il pulsante "Aggiungi selezionati"
-}
+    // Non aggiungiamo/rimuoviamo più automaticamente i prodotti
+    // L'utente dovrà usare il pulsante "Aggiungi selezionati"
+  }
 
-// Modifica il metodo addSelectedInvoiceProducts
-addSelectedInvoiceProducts(): void {
-  const invoiceProducts = this.invoiceRawProducts();
-  if (!invoiceProducts) return;
+  // Modifica il metodo addSelectedInvoiceProducts
+  addSelectedInvoiceProducts(): void {
+    const invoiceProducts = this.invoiceRawProducts();
+    if (!invoiceProducts) return;
 
-  // Mantieni i prodotti già selezionati
-  const currentProducts = [...this.selectedProducts()];
-  const defaultWarehouseId = this.selectedWarehouseId();
-  
-  // Mappa dei prodotti già selezionati per ID
-  const existingProductsMap = new Map<string, number>();
-  currentProducts.forEach((p, index) => {
-    existingProductsMap.set(p.rawProductId, index);
-  });
+    // Mantieni i prodotti già selezionati
+    const currentProducts = [...this.selectedProducts()];
+    const defaultWarehouseId = this.selectedWarehouseId();
 
-  // Aggiungi o aggiorna i prodotti selezionati
-  for (const product of invoiceProducts) {
-    if (this.invoiceProductsSelection[product.productId]) {
-      // Se il prodotto è già nella lista
-      if (existingProductsMap.has(product.productId)) {
-        // Aggiorna il prodotto esistente (mantieni i valori modificati manualmente)
-        const index = existingProductsMap.get(product.productId)!;
-        // Non sovrascriviamo quantità e prezzi se già impostati dall'utente
-      } else {
-        // Aggiungi nuovo prodotto
-        currentProducts.push({
-          rawProductId: product.productId,
-          description: product.description,
-          quantity: product.totalQuantity,
-          unitPrice: product.averageUnitPrice,
-          totalPrice: product.totalQuantity * product.averageUnitPrice,
-          warehouseId: defaultWarehouseId || undefined,
-        });
+    // Mappa dei prodotti già selezionati per ID
+    const existingProductsMap = new Map<string, number>();
+    currentProducts.forEach((p, index) => {
+      existingProductsMap.set(p.rawProductId, index);
+    });
+
+    // Aggiungi o aggiorna i prodotti selezionati
+    for (const product of invoiceProducts) {
+      if (this.invoiceProductsSelection[product.productId]) {
+        // Se il prodotto è già nella lista
+        if (existingProductsMap.has(product.productId)) {
+          // Aggiorna il prodotto esistente (mantieni i valori modificati manualmente)
+          const index = existingProductsMap.get(product.productId)!;
+          // Non sovrascriviamo quantità e prezzi se già impostati dall'utente
+        } else {
+          // Aggiungi nuovo prodotto
+          currentProducts.push({
+            rawProductId: product.productId,
+            description: product.description,
+            quantity: product.totalQuantity,
+            unitPrice: product.averageUnitPrice,
+            totalPrice: product.totalQuantity * product.averageUnitPrice,
+            warehouseId: defaultWarehouseId || undefined,
+          });
+        }
       }
     }
-  }
 
-  this.selectedProducts.set(currentProducts);
-}
+    this.selectedProducts.set(currentProducts);
+  }
 
   // Seleziona una fattura e carica i suoi prodotti
   selectInvoice(invoiceId: string): void {
@@ -588,23 +683,23 @@ addSelectedInvoiceProducts(): void {
 
   createManualMovement(projectId: string): void {
     const movementType = this.movementType();
-  
+
     if (movementType === 'TRANSFER') {
       // Gestione trasferimenti (come prima)
       // ...
     } else {
       // Raggruppa i prodotti per magazzino
       const productsByWarehouse = this.groupProductsByWarehouse();
-      
+
       // Per ogni magazzino, crea un movimento separato
       for (const warehouseId in productsByWarehouse) {
         const warehouseProducts = productsByWarehouse[warehouseId];
-        
+
         // Determina se è un movimento di entrata o uscita
         const isInbound = ['PURCHASE', 'INVENTORY', 'RETURN'].includes(
           movementType
         );
-  
+
         if (isInbound) {
           // Movimento di entrata
           const inboundData: InboundMovementDto = {
@@ -616,7 +711,7 @@ addSelectedInvoiceProducts(): void {
               notes: p.notes,
             })),
           };
-  
+
           this.stockMovementStore.createInboundMovement({
             projectId,
             warehouseId,
@@ -633,7 +728,7 @@ addSelectedInvoiceProducts(): void {
               notes: p.notes,
             })),
           };
-  
+
           this.stockMovementStore.createOutboundMovement({
             projectId,
             warehouseId,
@@ -642,164 +737,190 @@ addSelectedInvoiceProducts(): void {
         }
       }
     }
-  
+
     // Chiudi il dialog
     this.moveDialogVisible.set(false);
   }
 
   // Nuovo metodo per raggruppare i prodotti per magazzino
-private groupProductsByWarehouse(): Record<string, MovementProduct[]> {
-  const products = this.selectedProducts();
-  const result: Record<string, MovementProduct[]> = {};
-  const defaultWarehouseId = this.selectedWarehouseId();
-  
-  // Raggruppa i prodotti per magazzino
-  for (const product of products) {
-    // Se il prodotto non ha un magazzino specifico, usa quello predefinito
-    const warehouseId = product.warehouseId || defaultWarehouseId;
-    
-    // Se non c'è un magazzino valido, salta (non dovrebbe mai accadere grazie alla validazione)
-    if (!warehouseId) continue;
-    
-    if (!result[warehouseId]) {
-      result[warehouseId] = [];
+  private groupProductsByWarehouse(): Record<string, MovementProduct[]> {
+    const products = this.selectedProducts();
+    const result: Record<string, MovementProduct[]> = {};
+    const defaultWarehouseId = this.selectedWarehouseId();
+
+    // Raggruppa i prodotti per magazzino
+    for (const product of products) {
+      // Se il prodotto non ha un magazzino specifico, usa quello predefinito
+      const warehouseId = product.warehouseId || defaultWarehouseId;
+
+      // Se non c'è un magazzino valido, salta (non dovrebbe mai accadere grazie alla validazione)
+      if (!warehouseId) continue;
+
+      if (!result[warehouseId]) {
+        result[warehouseId] = [];
+      }
+
+      result[warehouseId].push(product);
     }
-    
-    result[warehouseId].push(product);
+
+    return result;
   }
-  
-  return result;
-}
 
-// Modifica anche il metodo di validazione per assicurarsi che ogni prodotto abbia un magazzino
-validateCurrentStep(): boolean {
-  const step = this.moveDialogStep();
+  validateCurrentStep(): boolean {
+    const step = this.moveDialogStep();
 
-  // Validazione in base al passo corrente
-  switch (step) {
-    case 0: // Tipo di movimento
-      return !!this.movementType();
+    // Validazione in base al passo corrente
+    switch (step) {
+      case 0: // Tipo di movimento
+        return !!this.movementType();
 
-    case 1: // Selezione magazzino
-      if (this.movementType() === 'TRANSFER') {
-        return (
-          !!this.selectedSourceWarehouseId() &&
-          !!this.selectedTargetWarehouseId() &&
-          this.selectedSourceWarehouseId() !==
-            this.selectedTargetWarehouseId()
+      case 1: // Selezione magazzino
+        if (this.movementType() === 'TRANSFER') {
+          return (
+            !!this.selectedSourceWarehouseId() &&
+            !!this.selectedTargetWarehouseId() &&
+            this.selectedSourceWarehouseId() !==
+              this.selectedTargetWarehouseId()
+          );
+        } else if (this.movementCreationType() === 'costCenter') {
+          return !!this.selectedWarehouseId();
+        } else {
+          return !!this.selectedWarehouseId();
+        }
+
+      case 2: // Selezione prodotti
+        // Per l'assegnazione a centro di costo, non richiediamo prodotti selezionati
+        if (this.movementCreationType() === 'costCenter') {
+          return true;
+        }
+
+        // Verifica che ci siano prodotti e che ognuno abbia un magazzino assegnato
+        const products = this.selectedProducts();
+        if (products.length === 0) return false;
+
+        // Verifica che nei movimenti di uscita o trasferimento non ci siano prodotti
+        // che superano la disponibilità
+        const isOutbound = ['SALE', 'WASTE', 'INTERNAL_USE'].includes(
+          this.movementType()
         );
-      } else if (this.movementCreationType() === 'costCenter') {
-        return !!this.selectedWarehouseId();
-      } else {
-        return !!this.selectedWarehouseId();
-      }
+        const isTransfer = this.movementType() === 'TRANSFER';
 
-    case 2: // Selezione prodotti
-      // Per l'assegnazione a centro di costo, non richiediamo prodotti selezionati
-      if (this.movementCreationType() === 'costCenter') {
+        if (isOutbound || isTransfer) {
+          const hasExceedingProducts = products.some((p) => p.exceedsAvailable);
+          if (hasExceedingProducts) {
+            this.toastService.showError(
+              'Impossibile procedere: alcuni prodotti superano la disponibilità in magazzino'
+            );
+            return false;
+          }
+        }
+
+        // Se stiamo usando multi-magazzino, verifica che ogni prodotto abbia un magazzino
+        if (this.enableMultiWarehouse && !isTransfer) {
+          return products.every(
+            (p) => p.warehouseId || this.selectedWarehouseId()
+          );
+        }
+
         return true;
-      }
-      
-      // Verifica che ci siano prodotti e che ognuno abbia un magazzino assegnato
-      const products = this.selectedProducts();
-      if (products.length === 0) return false;
-      
-      // Se stiamo usando multi-magazzino, verifica che ogni prodotto abbia un magazzino
-      if (this.enableMultiWarehouse) {
-        return products.every(p => p.warehouseId || this.selectedWarehouseId());
-      }
-      
-      return true;
 
-    default:
-      return true;
-  }
-}
-
-
-createMovementFromInvoice(projectId: string): void {
-  const invoiceId = this.selectedInvoiceId();
-  
-  if (!invoiceId) {
-    this.toastService.showError('Seleziona una fattura');
-    return;
-  }
-  
-  // Verifica che ci siano prodotti nella tabella editabile
-  if (this.selectedProducts().length === 0) {
-    this.toastService.showError('Aggiungi almeno un prodotto dalla fattura');
-    return;
-  }
-
-  // Raggruppa i prodotti per magazzino
-  const productsByWarehouse = this.groupProductsByWarehouse();
-  let successCount = 0;
-  
-  // Per ogni magazzino, crea un movimento separato
-  for (const warehouseId in productsByWarehouse) {
-    const warehouseProducts = productsByWarehouse[warehouseId];
-    
-    const data: CreateMovementFromInvoiceDto = {
-      details: warehouseProducts.map((p) => ({
-        rawProductId: p.rawProductId,
-        quantity: p.quantity,
-        unitPrice: p.unitPrice,
-        totalPrice: p.totalPrice,
-        notes: p.notes,
-      })),
-    };
-
-    this.stockMovementStore.createMovementFromInvoice({
-      projectId,
-      invoiceId,
-      warehouseId,
-      data,
-    });
-    
-    successCount++;
-  }
-
-  if (successCount > 0) {
-    // Chiudi il dialog
-    this.moveDialogVisible.set(false);
-    
-    if (successCount > 1) {
-      this.toastService.showSuccess(`Creati ${successCount} movimenti da fattura`);
-    } else {
-      this.toastService.showSuccess('Movimento creato con successo');
+      case 3: // Riepilogo
+        return true;
     }
-  } else {
-    this.toastService.showError('Nessun movimento creato - verifica la selezione di magazzini e prodotti');
+
+    return true;
   }
-}
+
+  createMovementFromInvoice(projectId: string): void {
+    const invoiceId = this.selectedInvoiceId();
+
+    if (!invoiceId) {
+      this.toastService.showError('Seleziona una fattura');
+      return;
+    }
+
+    // Verifica che ci siano prodotti nella tabella editabile
+    if (this.selectedProducts().length === 0) {
+      this.toastService.showError('Aggiungi almeno un prodotto dalla fattura');
+      return;
+    }
+
+    // Raggruppa i prodotti per magazzino
+    const productsByWarehouse = this.groupProductsByWarehouse();
+    let successCount = 0;
+
+    // Per ogni magazzino, crea un movimento separato
+    for (const warehouseId in productsByWarehouse) {
+      const warehouseProducts = productsByWarehouse[warehouseId];
+
+      const data: CreateMovementFromInvoiceDto = {
+        details: warehouseProducts.map((p) => ({
+          rawProductId: p.rawProductId,
+          quantity: p.quantity,
+          unitPrice: p.unitPrice,
+          totalPrice: p.totalPrice,
+          notes: p.notes,
+        })),
+      };
+
+      this.stockMovementStore.createMovementFromInvoice({
+        projectId,
+        invoiceId,
+        warehouseId,
+        data,
+      });
+
+      successCount++;
+    }
+
+    if (successCount > 0) {
+      // Chiudi il dialog
+      this.moveDialogVisible.set(false);
+
+      if (successCount > 1) {
+        this.toastService.showSuccess(
+          `Creati ${successCount} movimenti da fattura`
+        );
+      } else {
+        this.toastService.showSuccess('Movimento creato con successo');
+      }
+    } else {
+      this.toastService.showError(
+        'Nessun movimento creato - verifica la selezione di magazzini e prodotti'
+      );
+    }
+  }
 
   assignInvoiceToCostCenter(projectId: string): void {
     const invoiceId = this.selectedInvoiceId();
     const costCenterId = this.selectedWarehouseId();
-  
+
     if (!invoiceId || !costCenterId) {
       this.toastService.showError('Seleziona fattura e centro di costo');
       return;
     }
-  
+
     // Verifica che sia selezionato un centro di costo e non un magazzino fisico
-    const selectedWarehouse = this.warehouses()?.find(w => w.id === costCenterId);
+    const selectedWarehouse = this.warehouses()?.find(
+      (w) => w.id === costCenterId
+    );
     if (selectedWarehouse?.type !== 'COST_CENTER') {
       this.toastService.showError('Seleziona un centro di costo valido');
       return;
     }
-  
+
     // Prepara i dati per l'assegnazione della fattura al centro di costo
     const data: CreateMovementFromInvoiceDto = {
-      details: this.invoiceRawProducts()?.map(p => ({
-        rawProductId: p.productId,
-        quantity: p.totalQuantity,
-        unitPrice: p.averageUnitPrice,
-        totalPrice: p.totalPrice,
-        notes: 'Assegnato al centro di costo: ' + selectedWarehouse.name,
-      })) || [],
+      details:
+        this.invoiceRawProducts()?.map((p) => ({
+          rawProductId: p.productId,
+          quantity: p.totalQuantity,
+          unitPrice: p.averageUnitPrice,
+          totalPrice: p.totalPrice,
+          notes: 'Assegnato al centro di costo: ' + selectedWarehouse.name,
+        })) || [],
     };
-  
+
     // Chiama il servizio per l'assegnazione
     this.stockMovementStore.createMovementFromInvoice({
       projectId,
@@ -807,31 +928,35 @@ createMovementFromInvoice(projectId: string): void {
       warehouseId: costCenterId,
       data,
     });
-  
+
     // Chiudi il dialog
     this.moveDialogVisible.set(false);
-    this.toastService.showSuccess('Fattura assegnata al centro di costo con successo');
+    this.toastService.showSuccess(
+      'Fattura assegnata al centro di costo con successo'
+    );
   }
 
-// Metodo per eliminare effettivamente il movimento
-deleteMovement(): void {
-  const projectId = this.selectedProject()?.id;
-  const movement = this.selectedMovement();
+  // Metodo per eliminare effettivamente il movimento
+  deleteMovement(): void {
+    const projectId = this.selectedProject()?.id;
+    const movement = this.selectedMovement();
 
-  if (!projectId || !movement) {
-    this.toastService.showError('Dati insufficienti per eliminare il movimento');
-    return;
+    if (!projectId || !movement) {
+      this.toastService.showError(
+        'Dati insufficienti per eliminare il movimento'
+      );
+      return;
+    }
+
+    // Mostra indicatore di caricamento
+    this.deleteDialogVisible.set(false); // Chiudi il dialog di conferma
+
+    // Chiama lo store per eliminare il movimento
+    this.stockMovementStore.deleteMovement({
+      projectId,
+      id: movement.id,
+    });
   }
-
-  // Mostra indicatore di caricamento
-  this.deleteDialogVisible.set(false); // Chiudi il dialog di conferma
-
-  // Chiama lo store per eliminare il movimento
-  this.stockMovementStore.deleteMovement({
-    projectId,
-    id: movement.id,
-  });
-}
   updateMovementStatus(movement: StockMovement, status: MovementStatus): void {
     const projectId = this.selectedProject()?.id;
 
@@ -847,8 +972,324 @@ deleteMovement(): void {
     });
   }
   // Aggiungi questo metodo alla classe StockMovementsComponent
-getSelectedInvoiceProductCount(): number {
-  if (!this.invoiceProductsSelection) return 0;
-  return Object.values(this.invoiceProductsSelection).filter(Boolean).length;
-}
+  getSelectedInvoiceProductCount(): number {
+    if (!this.invoiceProductsSelection) return 0;
+    return Object.values(this.invoiceProductsSelection).filter(Boolean).length;
+  }
+
+  // Metodo per ottenere la descrizione di un prodotto
+  getProductDescription(rawProductId: string): string {
+    const products = this.rawProducts();
+    if (!products) return 'Prodotto sconosciuto';
+
+    const product = products.find((p) => p.id === rawProductId);
+    return product ? product.description : 'Prodotto sconosciuto';
+  }
+
+  // Metodo per caricare i saldi quando viene selezionato un magazzino
+  loadWarehouseBalance(warehouseId: string | null): void {
+    if (!warehouseId) {
+      this.warehouseProductBalances.set([]);
+      return;
+    }
+
+    const projectId = this.selectedProject()?.id;
+    if (!projectId) return;
+
+    // Carica il saldo del magazzino
+    this.stockMovementStore.fetchWarehouseBalance({
+      projectId,
+      warehouseId,
+    });
+
+    // Usa setTimeout per attendere che lo store completi l'operazione
+    setTimeout(() => {
+      const balance = this.stockMovementStore.warehouseBalance();
+      if (balance && balance.warehouseId === warehouseId) {
+        this.warehouseProductBalances.set(balance.balance || []);
+        this.updateAvailableQuantities();
+      }
+    }, 500);
+  }
+  // Metodo per caricare i saldi quando viene selezionato un magazzino di origine
+  loadSourceWarehouseBalance(warehouseId: string | null): void {
+    if (!warehouseId) {
+      this.sourceWarehouseProductBalances.set([]);
+      return;
+    }
+
+    const projectId = this.selectedProject()?.id;
+    if (!projectId) return;
+
+    // Carica il saldo del magazzino di origine
+    this.stockMovementStore.fetchWarehouseBalance({
+      projectId,
+      warehouseId,
+    });
+
+    // Usa setTimeout per attendere che lo store completi l'operazione
+    setTimeout(() => {
+      const balance = this.stockMovementStore.warehouseBalance();
+      if (balance && balance.warehouseId === warehouseId) {
+        this.sourceWarehouseProductBalances.set(balance.balance || []);
+
+        if (this.movementType() === 'TRANSFER') {
+          this.updateAvailableQuantitiesForTransfer();
+        }
+      }
+    }, 500);
+  }
+  updateAvailableQuantities(): void {
+    // Per movimenti di uscita (non trasferimento)
+    const isOutbound = ['SALE', 'WASTE', 'INTERNAL_USE'].includes(
+      this.movementType()
+    );
+    if (!isOutbound || this.movementType() === 'TRANSFER') return;
+
+    const balances = this.warehouseProductBalances();
+    if (!balances.length) return;
+
+    // Creiamo una mappa per velocizzare la ricerca dei saldi per prodotto
+    const balanceMap = new Map<string, ProductBalance>();
+    balances.forEach((balance) => {
+      balanceMap.set(balance.rawProductId, balance);
+    });
+
+    const currentProducts = [...this.selectedProducts()];
+    let updated = false;
+
+    // Ciclo ottimizzato con meno ricerche
+    for (let i = 0; i < currentProducts.length; i++) {
+      const product = currentProducts[i];
+      const specificWarehouseId =
+        product.warehouseId || this.selectedWarehouseId();
+
+      if (specificWarehouseId === this.selectedWarehouseId()) {
+        // Uso della mappa per trovare il saldo più velocemente
+        const balance = balanceMap.get(product.rawProductId);
+
+        if (balance) {
+          currentProducts[i] = {
+            ...product,
+            availableQty: balance.currentQuantity,
+            exceedsAvailable: product.quantity > balance.currentQuantity,
+          };
+          updated = true;
+        }
+      } else {
+        // Carica il saldo specifico del magazzino solo se necessario
+        this.loadSpecificWarehouseBalance(product, i);
+      }
+    }
+
+    if (updated) {
+      this.selectedProducts.set(currentProducts);
+    }
+  }
+
+  // Metodo per aggiornare le quantità disponibili nei prodotti selezionati per trasferimenti
+  updateAvailableQuantitiesForTransfer(): void {
+    if (this.movementType() !== 'TRANSFER') return;
+
+    const balances = this.sourceWarehouseProductBalances();
+    if (!balances.length) return;
+
+    const currentProducts = [...this.selectedProducts()];
+    let updated = false;
+
+    for (let i = 0; i < currentProducts.length; i++) {
+      const product = currentProducts[i];
+      const balance = balances.find(
+        (b) => b.rawProductId === product.rawProductId
+      );
+
+      if (balance) {
+        currentProducts[i] = {
+          ...product,
+          availableQty: balance.currentQuantity,
+          exceedsAvailable: product.quantity > balance.currentQuantity,
+        };
+        updated = true;
+      }
+    }
+
+    if (updated) {
+      this.selectedProducts.set(currentProducts);
+    }
+  }
+
+  // Modifica il metodo loadSpecificWarehouseBalance
+  loadSpecificWarehouseBalance(product: MovementProduct, index: number): void {
+    const warehouseId = product.warehouseId;
+    if (!warehouseId) return;
+
+    const projectId = this.selectedProject()?.id;
+    if (!projectId) return;
+
+    // Chiamata al servizio per ottenere il saldo del prodotto nel magazzino
+    this.stockMovementStore.fetchProductBalance({
+      projectId,
+      warehouseId,
+      rawProductId: product.rawProductId,
+    });
+
+    // Usa setTimeout per attendere che lo store venga aggiornato
+    setTimeout(() => {
+      const balances = this.stockMovementStore.productBalances();
+      if (!balances) return;
+
+      const balance = balances.find(
+        (b) =>
+          b.rawProductId === product.rawProductId &&
+          b.warehouseId === warehouseId
+      );
+
+      if (balance) {
+        const currentProducts = [...this.selectedProducts()];
+        currentProducts[index] = {
+          ...currentProducts[index],
+          availableQty: balance.currentQuantity,
+          exceedsAvailable:
+            currentProducts[index].quantity > balance.currentQuantity,
+        };
+
+        this.selectedProducts.set(currentProducts);
+      }
+    }, 500);
+  }
+  setWarehouse(warehouseId: string | null): void {
+    this.selectedWarehouseId.set(warehouseId);
+
+    // Se è un movimento in uscita e viene selezionato un magazzino, carica i saldi
+    const isOutbound = ['SALE', 'WASTE', 'INTERNAL_USE'].includes(
+      this.movementType()
+    );
+    if (isOutbound && warehouseId) {
+      this.loadWarehouseBalance(warehouseId);
+    }
+  }
+
+  // Aggiungi un metodo per gestire la selezione del magazzino di origine
+  setSourceWarehouse(warehouseId: string | null): void {
+    this.selectedSourceWarehouseId.set(warehouseId);
+
+    // Per i trasferimenti, carica i saldi del magazzino di origine
+    if (this.movementType() === 'TRANSFER' && warehouseId) {
+      this.loadSourceWarehouseBalance(warehouseId);
+    }
+  }
+
+  addFromBalance(balance: ProductBalance): void {
+    const products = this.rawProducts();
+    if (!products) return;
+
+    const product = products.find((p) => p.id === balance.rawProductId);
+    if (!product) {
+      this.toastService.showError('Prodotto non trovato');
+      return;
+    }
+
+    // Usa il metodo existente per aggiungere il prodotto
+    this.selectProduct(product);
+  }
+
+  // Helper per determinare il colspan nella tabella
+  getTableColspan(): number {
+    const isOutboundOrTransfer = [
+      'SALE',
+      'WASTE',
+      'INTERNAL_USE',
+      'TRANSFER',
+    ].includes(this.movementType());
+    const hasMultiWarehouse =
+      this.enableMultiWarehouse && this.movementType() !== 'TRANSFER';
+
+    let colspan = 2; // Base (prodotto + quantità)
+
+    if (isOutboundOrTransfer) colspan++; // Colonna disponibilità
+    if (hasMultiWarehouse) colspan++; // Colonna magazzino
+
+    return colspan;
+  }
+
+  // Metodo per verificare disponibilità quando si cambia magazzino per un prodotto
+  checkAvailabilityForWarehouse(
+    productIndex: number,
+    warehouseId: string
+  ): void {
+    const isOutbound = ['SALE', 'WASTE', 'INTERNAL_USE'].includes(
+      this.movementType()
+    );
+    if (!isOutbound) return;
+
+    const projectId = this.selectedProject()?.id;
+    if (!projectId || !warehouseId) return;
+
+    // Ottieni il prodotto corrente
+    const currentProducts = [...this.selectedProducts()];
+    const product = currentProducts[productIndex];
+
+    // Mostra indicatore di caricamento
+    this.toastService.showInfo(`Verifica disponibilità in corso...`);
+
+    // Chiama il servizio per ottenere il saldo del prodotto nel magazzino selezionato
+    this.stockMovementStore.fetchProductBalance({
+      projectId,
+      warehouseId,
+      rawProductId: product.rawProductId,
+    });
+
+    // Attendi che lo store venga aggiornato
+    setTimeout(() => {
+      const balances = this.stockMovementStore.productBalances();
+      if (!balances) return;
+
+      const balance = balances.find(
+        (b) =>
+          b.rawProductId === product.rawProductId &&
+          b.warehouseId === warehouseId
+      );
+
+      if (balance) {
+        const availableQty = balance.currentQuantity;
+        const exceedsAvailable = product.quantity > availableQty;
+
+        // Aggiorna il prodotto con la disponibilità
+        currentProducts[productIndex] = {
+          ...product,
+          availableQty,
+          exceedsAvailable,
+        };
+
+        this.selectedProducts.set(currentProducts);
+
+        // Mostra avviso se la quantità supera la disponibilità
+        if (exceedsAvailable) {
+          this.toastService.showWarn(
+            `Attenzione: La quantità richiesta (${product.quantity}) supera la disponibilità (${availableQty})`
+          );
+        }
+      }
+    }, 500);
+  }
+
+  // Helper per verificare se ci sono problemi di disponibilità
+  hasAvailabilityIssues(): boolean {
+    return this.selectedProducts().some((p) => p.exceedsAvailable);
+  }
+
+  // Metodo per aggiungere un prodotto dalla tabella di disponibilità del magazzino di origine
+  addFromSourceBalance(balance: ProductBalance): void {
+    const products = this.rawProducts();
+    if (!products) return;
+
+    const product = products.find((p) => p.id === balance.rawProductId);
+    if (!product) {
+      this.toastService.showError('Prodotto non trovato');
+      return;
+    }
+
+    // Usa il metodo existente per aggiungere il prodotto
+    this.selectProduct(product);
+  }
 }

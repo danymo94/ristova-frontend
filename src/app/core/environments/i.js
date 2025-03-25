@@ -1755,3 +1755,11 @@
       "unit_price": "2.31"
     }
   ]
+
+  // Modifica il metodo selectProduct per verificare disponibilità
+
+  
+  // Aggiorna il metodo updateProductQuantity per verificare disponibilità
+ 
+  
+  // Metodo per aggiungere un prodotto da una riga del bilancio di magazzino

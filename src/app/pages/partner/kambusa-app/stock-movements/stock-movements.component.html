@@ -643,7 +643,7 @@
             id="sourceWarehouse"
             [options]="physicalWarehouses"
             [ngModel]="selectedSourceWarehouseId()"
-            (ngModelChange)="selectedSourceWarehouseId.set($event)"
+            (ngModelChange)="setSourceWarehouse($event)"
             optionLabel="name"
             optionValue="id"
             placeholder="Seleziona il magazzino di origine"
@@ -699,7 +699,7 @@
               : physicalWarehouses
           "
           [ngModel]="selectedWarehouseId()"
-          (ngModelChange)="selectedWarehouseId.set($event)"
+          (ngModelChange)="setWarehouse($event)"
           optionLabel="name"
           optionValue="id"
           placeholder="Seleziona magazzino"
@@ -759,7 +759,165 @@
           </p-autoComplete>
         </div>
       </div>
+      <!-- Nel passo 2, dopo la ricerca prodotti, aggiungi questo subito dopo la chiusura della div movementCreationType() === 'manual' -->
+      <!-- Intorno alla riga 733, dopo </div> della sezione per movimento manuale -->
 
+      <!-- Disponibilità prodotti per movimenti di scarico -->
+      <div
+        *ngIf="
+          ['SALE', 'WASTE', 'INTERNAL_USE'].includes(movementType()) &&
+          selectedWarehouseId()
+        "
+        class="mt-4 mb-4"
+      >
+        <h3 class="text-lg font-medium mb-2">
+          Disponibilità nel magazzino selezionato
+        </h3>
+
+        <div class="p-fluid">
+          <div class="field mb-3">
+            <span class="p-input-icon-right w-full">
+              <i class="pi pi-search"></i>
+              <input
+                type="text"
+                pInputText
+                class="w-full"
+                placeholder="Cerca prodotti disponibili..."
+                [(ngModel)]="availabilitySearchTerm"
+              />
+            </span>
+          </div>
+        </div>
+
+        <div
+          *ngIf="warehouseProductBalances().length === 0"
+          class="p-3 text-center bg-gray-100 rounded"
+        >
+          <i class="pi pi-info-circle text-blue-500 mr-2"></i>
+          Caricamento disponibilità prodotti...
+        </div>
+
+        <p-table
+          [value]="filteredWarehouseBalance()"
+          [paginator]="true"
+          [rows]="5"
+          styleClass="p-datatable-sm"
+          *ngIf="warehouseProductBalances().length > 0"
+        >
+          <ng-template pTemplate="header">
+            <tr>
+              <th>Prodotto</th>
+              <th style="width: 100px">Quantità</th>
+              <th style="width: 120px">Valore</th>
+              <th style="width: 80px">Azioni</th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-balance>
+            <tr>
+              <td>{{ getProductDescription(balance.rawProductId) }}</td>
+              <td class="text-right">{{ balance.currentQuantity }}</td>
+              <td class="text-right">
+                {{ balance.totalValue | currency : "EUR" }}
+              </td>
+              <td>
+                <button
+                  pButton
+                  pRipple
+                  icon="pi pi-plus"
+                  class="p-button-sm p-button-rounded"
+                  (click)="addFromBalance(balance)"
+                  pTooltip="Aggiungi"
+                  tooltipPosition="top"
+                ></button>
+              </td>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="emptymessage">
+            <tr>
+              <td colspan="4" class="text-center p-3">
+                Nessun prodotto disponibile nel magazzino selezionato.
+              </td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </div>
+
+      <!-- Disponibilità prodotti per trasferimenti -->
+      <div
+        *ngIf="movementType() === 'TRANSFER' && selectedSourceWarehouseId()"
+        class="mt-4 mb-4"
+      >
+        <h3 class="text-lg font-medium mb-2">
+          Disponibilità nel magazzino di origine
+        </h3>
+
+        <div class="p-fluid">
+          <div class="field mb-3">
+            <span class="p-input-icon-right w-full">
+              <i class="pi pi-search"></i>
+              <input
+                type="text"
+                pInputText
+                class="w-full"
+                placeholder="Cerca prodotti disponibili..."
+                [(ngModel)]="availabilitySearchTerm"
+              />
+            </span>
+          </div>
+        </div>
+
+        <div
+          *ngIf="sourceWarehouseProductBalances().length === 0"
+          class="p-3 text-center bg-gray-100 rounded"
+        >
+          <i class="pi pi-info-circle text-blue-500 mr-2"></i>
+          Caricamento disponibilità prodotti...
+        </div>
+
+        <p-table
+          [value]="filteredSourceWarehouseBalance()"
+          [paginator]="true"
+          [rows]="5"
+          styleClass="p-datatable-sm"
+          *ngIf="sourceWarehouseProductBalances().length > 0"
+        >
+          <ng-template pTemplate="header">
+            <tr>
+              <th>Prodotto</th>
+              <th style="width: 100px">Quantità</th>
+              <th style="width: 120px">Valore</th>
+              <th style="width: 80px">Azioni</th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-balance>
+            <tr>
+              <td>{{ getProductDescription(balance.rawProductId) }}</td>
+              <td class="text-right">{{ balance.currentQuantity }}</td>
+              <td class="text-right">
+                {{ balance.totalValue | currency : "EUR" }}
+              </td>
+              <td>
+                <button
+                  pButton
+                  pRipple
+                  icon="pi pi-plus"
+                  class="p-button-sm p-button-rounded"
+                  (click)="addFromSourceBalance(balance)"
+                  pTooltip="Aggiungi"
+                  tooltipPosition="top"
+                ></button>
+              </td>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="emptymessage">
+            <tr>
+              <td colspan="4" class="text-center p-3">
+                Nessun prodotto disponibile nel magazzino di origine.
+              </td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </div>
       <!-- Per movimento da fattura -->
       <!-- Sostituzione della sezione dei prodotti da fattura (intorno alla riga 740) -->
       <div
@@ -860,20 +1018,63 @@
       <!-- Nel passo 3, nella tabella dei prodotti selezionati -->
       <div *ngIf="selectedProducts().length > 0" class="mt-4">
         <h3 class="text-lg font-medium mb-2">Prodotti Selezionati</h3>
+
+        <!-- Aggiungi questo avviso sopra la tabella se ci sono problemi di disponibilità -->
+        <div
+          *ngIf="
+            hasAvailabilityIssues() &&
+            ['SALE', 'WASTE', 'INTERNAL_USE', 'TRANSFER'].includes(
+              movementType()
+            )
+          "
+          class="p-3 bg-red-50 border border-red-200 rounded mb-3"
+        >
+          <div class="flex items-center">
+            <i class="pi pi-exclamation-triangle text-red-600 mr-2"></i>
+            <div>
+              <h4 class="text-red-700 font-medium mb-1">
+                Attenzione: problemi di disponibilità
+              </h4>
+              <p class="m-0 text-red-600">
+                Alcune quantità richieste superano la disponibilità in
+                magazzino.
+                <span *ngIf="movementType() === 'TRANSFER'"
+                  >Controlla il magazzino di origine.</span
+                >
+                Correggi le quantità prima di procedere.
+              </p>
+            </div>
+          </div>
+        </div>
+
         <p-table [value]="selectedProducts()" styleClass="p-datatable-sm">
           <ng-template pTemplate="header">
             <tr>
               <th>Prodotto</th>
               <th style="width: 100px">Quantità</th>
+              <th
+                *ngIf="
+                  ['SALE', 'WASTE', 'INTERNAL_USE', 'TRANSFER'].includes(
+                    movementType()
+                  )
+                "
+                style="width: 100px"
+              >
+                Disponibile
+              </th>
               <th style="width: 120px">Prezzo Unit.</th>
               <th style="width: 120px">Totale</th>
-              <th style="width: 180px">Magazzino</th>
-              <!-- Nuova colonna per magazzino -->
+              <th
+                *ngIf="enableMultiWarehouse && movementType() !== 'TRANSFER'"
+                style="width: 180px"
+              >
+                Magazzino
+              </th>
               <th style="width: 80px">Azioni</th>
             </tr>
           </ng-template>
           <ng-template pTemplate="body" let-product let-i="rowIndex">
-            <tr>
+            <tr [ngClass]="{ 'bg-red-100': product.exceedsAvailable }">
               <td>
                 <div class="product-name">{{ product.description }}</div>
               </td>
@@ -894,7 +1095,30 @@
                   incrementButtonIcon="pi pi-plus"
                   decrementButtonIcon="pi pi-minus"
                   [size]="'small'"
+                  [ngClass]="{ 'ng-invalid': product.exceedsAvailable }"
                 ></p-inputNumber>
+                <small *ngIf="product.exceedsAvailable" class="p-error block"
+                  >Supera disponibilità</small
+                >
+              </td>
+              <td
+                *ngIf="
+                  ['SALE', 'WASTE', 'INTERNAL_USE', 'TRANSFER'].includes(
+                    movementType()
+                  )
+                "
+              >
+                <span
+                  [ngClass]="{
+                    'text-red-600 font-bold': product.exceedsAvailable
+                  }"
+                >
+                  {{
+                    product.availableQty !== undefined
+                      ? product.availableQty
+                      : "N/D"
+                  }}
+                </span>
               </td>
               <td>
                 <p-inputNumber
@@ -913,8 +1137,7 @@
                   product.totalPrice | currency : "EUR"
                 }}</span>
               </td>
-              <td>
-                <!-- Dropdown per selezionare il magazzino specifico -->
+              <td *ngIf="enableMultiWarehouse && movementType() !== 'TRANSFER'">
                 <p-dropdown
                   [options]="physicalWarehouses"
                   [(ngModel)]="product.warehouseId"
@@ -923,6 +1146,7 @@
                   placeholder="Seleziona"
                   styleClass="w-full"
                   appendTo="body"
+                  (onChange)="checkAvailabilityForWarehouse(i, $event.value)"
                 ></p-dropdown>
               </td>
               <td>
@@ -936,13 +1160,6 @@
                   tooltipPosition="top"
                 ></button>
               </td>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="footer">
-            <tr>
-              <td colspan="3" class="text-right font-bold">Totale:</td>
-              <td class="font-bold">{{ totalAmount | currency : "EUR" }}</td>
-              <td colspan="2"></td>
             </tr>
           </ng-template>
         </p-table>
