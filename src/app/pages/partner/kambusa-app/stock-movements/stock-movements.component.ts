@@ -6,6 +6,8 @@ import {
   computed,
   effect,
   signal,
+  Injector,
+  runInInjectionContext,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
@@ -109,6 +111,7 @@ export class StockMovementsComponent implements OnInit, OnDestroy {
   private einvoiceStore = inject(EInvoiceStore);
   private rawProductStore = inject(RawProductStore);
   private toastService = inject(ToastService);
+  private injector = inject(Injector);
 
   // Signals
   selectedProject = this.projectStore.selectedProject;
@@ -163,6 +166,24 @@ export class StockMovementsComponent implements OnInit, OnDestroy {
   warehouseProductBalances = signal<ProductBalance[]>([]);
   availabilitySearchTerm = signal<string>('');
   sourceWarehouseProductBalances = signal<ProductBalance[]>([]); // Per i trasferimenti
+
+  // Aggiungi queste proprietà alla classe (vicino a balanceCache)
+  private balanceCache = new Map<string, ProductBalance[]>();
+  private balanceCacheTimestamp = new Map<string, number>();
+  private loadingMap = new Map<string, boolean>();
+  private warehouseBalanceSubject = new Subject<{
+    warehouseId: string;
+    balance: ProductBalance[];
+  }>();
+  private productBalanceSubject = new Subject<{
+    productId: string;
+    warehouseId: string;
+    balance: ProductBalance;
+  }>();
+
+  // Aggiungi queste proprietà "loaded$" (vicino agli altri observable)
+  private warehouseBalanceLoaded$ = this.warehouseBalanceSubject.asObservable();
+  private productBalancesLoaded$ = this.productBalanceSubject.asObservable();
 
   // Aggiungi questo computed signal per filtrare i saldi
   filteredWarehouseBalance = computed(() => {
@@ -225,7 +246,6 @@ export class StockMovementsComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
 
   constructor() {
-    // Monitor project changes
     effect(() => {
       const project = this.selectedProject();
       if (project?.id) {
@@ -397,82 +417,108 @@ export class StockMovementsComponent implements OnInit, OnDestroy {
   }
 
   selectProduct(product: RawProduct): void {
-    const isOutbound = ['SALE', 'WASTE', 'INTERNAL_USE'].includes(
-      this.movementType()
-    );
-    const isTransfer = this.movementType() === 'TRANSFER';
+    const movementType = this.movementType();
+    const isOutbound = ['SALE', 'WASTE', 'INTERNAL_USE'].includes(movementType);
+    const isTransfer = movementType === 'TRANSFER';
     const currentProducts = [...this.selectedProducts()];
-    const defaultWarehouseId = this.selectedWarehouseId();
 
-    // Se è un movimento di uscita o trasferimento, verifica disponibilità
+    // Usa la mappa locale per la disponibilità
     let availableQty = 0;
     let exceedsAvailable = false;
 
-    if (isOutbound || isTransfer) {
-      let balances = isTransfer
-        ? this.sourceWarehouseProductBalances()
-        : this.warehouseProductBalances();
-
-      const balance = balances.find((b) => b.rawProductId === product.id);
-
-      if (balance) {
-        availableQty = balance.currentQuantity;
-      }
-
-      // Avviso se prodotto non disponibile
-      if (availableQty <= 0) {
-        this.toastService.showWarn(
-          `Attenzione: ${product.description} non è disponibile in magazzino (quantità: ${availableQty})`
-        );
-        exceedsAvailable = true;
-      }
+    if (isOutbound) {
+      // Cerca nella mappa locale
+      const balance = this.warehouseProductBalances().find(
+        (b) => b.rawProductId === product.id
+      );
+      availableQty = balance ? balance.currentQuantity : 0;
+      exceedsAvailable = availableQty <= 0;
+    } else if (isTransfer) {
+      // Cerca nella mappa locale per il magazzino di origine
+      const balance = this.sourceWarehouseProductBalances().find(
+        (b) => b.rawProductId === product.id
+      );
+      availableQty = balance ? balance.currentQuantity : 0;
+      exceedsAvailable = availableQty <= 0;
     }
 
-    // Verifica se il prodotto è già stato aggiunto
-    const existingProductIndex = currentProducts.findIndex(
+    // Avvisa se non c'è disponibilità
+    if ((isOutbound || isTransfer) && availableQty <= 0) {
+      this.toastService.showWarn(
+        `${product.description} non è disponibile in magazzino (quantità: ${availableQty})`
+      );
+    }
+
+    // Cerca il prodotto esistente
+    const existingIndex = currentProducts.findIndex(
       (p) => p.rawProductId === product.id
     );
 
-    if (existingProductIndex >= 0) {
-      // Se esiste, incrementa la quantità
-      const existingProduct = currentProducts[existingProductIndex];
-      const newQuantity = existingProduct.quantity + 1;
-
-      // Verifica disponibilità
-      if ((isOutbound || isTransfer) && newQuantity > availableQty) {
-        this.toastService.showWarn(
-          `Attenzione: La quantità richiesta (${newQuantity}) supera la disponibilità (${availableQty})`
-        );
-        exceedsAvailable = true;
-      }
-
-      currentProducts[existingProductIndex] = {
-        ...existingProduct,
+    if (existingIndex >= 0) {
+      // Aggiorna il prodotto esistente
+      const newQuantity = currentProducts[existingIndex].quantity + 1;
+      currentProducts[existingIndex] = {
+        ...currentProducts[existingIndex],
         quantity: newQuantity,
-        totalPrice: newQuantity * existingProduct.unitPrice,
+        totalPrice: newQuantity * currentProducts[existingIndex].unitPrice,
         availableQty: isOutbound || isTransfer ? availableQty : undefined,
         exceedsAvailable:
-          isOutbound || isTransfer ? exceedsAvailable : undefined,
+          isOutbound || isTransfer ? newQuantity > availableQty : undefined,
       };
     } else {
-      // Se non esiste, aggiungi il prodotto
+      // Aggiungi nuovo prodotto
       const averagePrice = this.calculateAveragePrice(product);
-
       currentProducts.push({
         rawProductId: product.id,
         description: product.description,
         quantity: 1,
         unitPrice: averagePrice,
         totalPrice: averagePrice,
-        warehouseId: defaultWarehouseId || undefined,
+        warehouseId: this.selectedWarehouseId() || undefined,
         notes: '',
         availableQty: isOutbound || isTransfer ? availableQty : undefined,
         exceedsAvailable:
-          isOutbound || isTransfer ? exceedsAvailable : undefined,
+          isOutbound || isTransfer ? 1 > availableQty : undefined,
       });
     }
 
     this.selectedProducts.set(currentProducts);
+  }
+
+  // Metodi di supporto
+  private getProductAvailability(
+    productId: string,
+    isTransfer: boolean
+  ): { quantity: number } {
+    const balances = isTransfer
+      ? this.sourceWarehouseProductBalances()
+      : this.warehouseProductBalances();
+
+    const balance = balances.find((b) => b.rawProductId === productId);
+    return { quantity: balance ? balance.currentQuantity : 0 };
+  }
+
+  private addNewProduct(
+    products: MovementProduct[],
+    rawProduct: RawProduct,
+    warehouseId: string | null,
+    availableQty: number,
+    checkAvailability: boolean,
+    exceedsAvailable: boolean
+  ): void {
+    const averagePrice = this.calculateAveragePrice(rawProduct);
+
+    products.push({
+      rawProductId: rawProduct.id,
+      description: rawProduct.description,
+      quantity: 1,
+      unitPrice: averagePrice,
+      totalPrice: averagePrice,
+      warehouseId: warehouseId || undefined,
+      notes: '',
+      availableQty: checkAvailability ? availableQty : undefined,
+      exceedsAvailable: checkAvailability ? exceedsAvailable : undefined,
+    });
   }
 
   // Rimuove un prodotto dall'elenco
@@ -482,36 +528,137 @@ export class StockMovementsComponent implements OnInit, OnDestroy {
     this.selectedProducts.set(currentProducts);
   }
 
-  updateProductQuantity(index: number, quantity: number): void {
-    if (quantity < 0) quantity = 0;
+  /**
+   * Aggiorna la disponibilità dei prodotti in base al tipo di movimento (uscita o trasferimento)
+   */
+  updateProductAvailability(): void {
+    const movementType = this.movementType();
+    const isOutbound = ['SALE', 'WASTE', 'INTERNAL_USE'].includes(movementType);
+    const isTransfer = movementType === 'TRANSFER';
+
+    if (!isOutbound && !isTransfer) return;
+
+    // Seleziona la fonte dei dati di bilancio in base al tipo di movimento
+    const balances = isTransfer
+      ? this.sourceWarehouseProductBalances()
+      : this.warehouseProductBalances();
+
+    if (!balances || !balances.length) return;
+
+    // Crea una mappa per accesso rapido al bilancio
+    const balanceMap = new Map<string, number>();
+    balances.forEach((balance) => {
+      balanceMap.set(balance.rawProductId, balance.currentQuantity);
+    });
 
     const currentProducts = [...this.selectedProducts()];
-    const product = currentProducts[index];
-    const isOutbound = ['SALE', 'WASTE', 'INTERNAL_USE'].includes(
-      this.movementType()
-    );
-    const isTransfer = this.movementType() === 'TRANSFER';
+    if (!currentProducts.length) return;
 
-    // Verifica disponibilità
-    let exceedsAvailable = false;
-    if ((isOutbound || isTransfer) && product.availableQty !== undefined) {
-      exceedsAvailable = quantity > product.availableQty;
+    let updated = false;
 
-      if (exceedsAvailable) {
-        this.toastService.showWarn(
-          `Attenzione: La quantità richiesta (${quantity}) supera la disponibilità (${product.availableQty})`
-        );
+    // Aggiorna tutti i prodotti
+    for (let i = 0; i < currentProducts.length; i++) {
+      const product = currentProducts[i];
+
+      // Per movimenti standard, considera solo i prodotti del magazzino attivo
+      if (!isTransfer) {
+        const warehouseId = product.warehouseId || this.selectedWarehouseId();
+        if (warehouseId !== this.selectedWarehouseId()) continue;
+      }
+
+      const availableQty = balanceMap.get(product.rawProductId) || 0;
+
+      // Aggiorna solo se c'è un cambiamento
+      if (product.availableQty !== availableQty) {
+        currentProducts[i] = {
+          ...product,
+          availableQty,
+          exceedsAvailable: product.quantity > availableQty,
+        };
+        updated = true;
       }
     }
 
-    currentProducts[index] = {
-      ...product,
-      quantity,
-      totalPrice: quantity * product.unitPrice,
-      exceedsAvailable: isOutbound || isTransfer ? exceedsAvailable : undefined,
-    };
+    if (updated) {
+      this.selectedProducts.set(currentProducts);
+    }
+  }
 
-    this.selectedProducts.set(currentProducts);
+  updateProductQuantity(index: number, quantity: number): void {
+    console.log(
+      `⏱️ updateProductQuantity START - index: ${index}, quantity: ${quantity}`
+    );
+
+    if (quantity < 0) quantity = 0;
+
+    try {
+      const currentProducts = [...this.selectedProducts()];
+      if (index >= currentProducts.length) {
+        console.log('❌ updateProductQuantity - Indice fuori range');
+        return;
+      }
+
+      // Se la quantità non è cambiata, usciamo subito
+      if (currentProducts[index].quantity === quantity) {
+        console.log('⚠️ updateProductQuantity - Quantità invariata, esco');
+        return;
+      }
+
+      const product = currentProducts[index];
+
+      // Determina il tipo di movimento
+      const isOutbound = ['SALE', 'WASTE', 'INTERNAL_USE'].includes(
+        this.movementType()
+      );
+      const isTransfer = this.movementType() === 'TRANSFER';
+
+      // Applica la logica di controllo disponibilità SOLO per movimenti di uscita o trasferimento
+      if (isOutbound || isTransfer) {
+        const availableQty = product.availableQty || 0;
+
+        console.log(`📊 Disponibilità attuale: ${availableQty}`);
+
+        // Se la quantità eccede la disponibilità
+        if (quantity > availableQty) {
+          console.log(
+            `⚠️ Quantità eccede disponibilità: ${quantity} > ${availableQty}`
+          );
+
+          // Limita la quantità alla disponibilità
+          quantity = availableQty;
+
+          // Mostra avviso all'utente
+          setTimeout(() => {
+            this.toastService.showWarn(
+              `Attenzione: La quantità è stata limitata alla disponibilità (${availableQty})`
+            );
+          }, 0);
+        }
+      }
+
+      // Crea un nuovo oggetto per il prodotto aggiornato
+      const updatedProduct = {
+        ...product,
+        quantity,
+        totalPrice: quantity * (product.unitPrice || 0),
+      };
+
+      // Sostituisci il prodotto nell'array
+      currentProducts[index] = updatedProduct;
+
+      console.log(
+        `🔄 Prima di set - selectedProducts length: ${currentProducts.length}`
+      );
+      this.selectedProducts.set(currentProducts);
+      console.log(
+        `✅ Dopo set - selectedProducts length: ${
+          this.selectedProducts().length
+        }`
+      );
+      console.log('⏱️ updateProductQuantity END');
+    } catch (error) {
+      console.error('❌ ERRORE in updateProductQuantity:', error);
+    }
   }
 
   // Aggiorna prezzo unitario di un prodotto
@@ -986,34 +1133,86 @@ export class StockMovementsComponent implements OnInit, OnDestroy {
     return product ? product.description : 'Prodotto sconosciuto';
   }
 
-  // Metodo per caricare i saldi quando viene selezionato un magazzino
-  loadWarehouseBalance(warehouseId: string | null): void {
+  // Metodo helper per aggiornare un prodotto con il suo saldo
+  private updateProductWithBalance(
+    index: number,
+    balance: ProductBalance
+  ): void {
+    const currentProducts = [...this.selectedProducts()];
+    if (index >= currentProducts.length) return;
+
+    currentProducts[index] = {
+      ...currentProducts[index],
+      availableQty: balance.currentQuantity,
+      exceedsAvailable:
+        currentProducts[index].quantity > balance.currentQuantity,
+    };
+
+    this.selectedProducts.set(currentProducts);
+  }
+
+  // Metodo helper per recuperare un saldo dalla cache
+  private getBalanceFromCache(
+    warehouseId: string,
+    productId: string
+  ): ProductBalance | null {
+    for (const [key, balances] of this.balanceCache.entries()) {
+      if (key.includes(warehouseId)) {
+        const balance = balances.find((b) => b.rawProductId === productId);
+        if (balance) return balance;
+      }
+    }
+    return null;
+  }
+
+  // Metodo helper per aggiungere un saldo alla cache
+  private addBalanceToCache(
+    warehouseId: string,
+    balance: ProductBalance
+  ): void {
+    const cacheKey = `${this.selectedProject()?.id}_${warehouseId}`;
+
+    let balances = this.balanceCache.get(cacheKey) || [];
+    const existingIndex = balances.findIndex(
+      (b) => b.rawProductId === balance.rawProductId
+    );
+
+    if (existingIndex >= 0) {
+      balances[existingIndex] = balance;
+    } else {
+      balances = [...balances, balance];
+    }
+
+    this.balanceCache.set(cacheKey, balances);
+    this.balanceCacheTimestamp.set(cacheKey, Date.now());
+  }
+
+  /**
+   * Imposta il magazzino e carica il relativo bilancio
+   */
+  setWarehouse(warehouseId: string | null): void {
+    this.selectedWarehouseId.set(warehouseId);
+
     if (!warehouseId) {
       this.warehouseProductBalances.set([]);
       return;
     }
 
+    // Carica il bilancio una sola volta
     const projectId = this.selectedProject()?.id;
     if (!projectId) return;
 
-    // Carica il saldo del magazzino
-    this.stockMovementStore.fetchWarehouseBalance({
-      projectId,
-      warehouseId,
-    });
-
-    // Usa setTimeout per attendere che lo store completi l'operazione
-    setTimeout(() => {
-      const balance = this.stockMovementStore.warehouseBalance();
-      if (balance && balance.warehouseId === warehouseId) {
-        this.warehouseProductBalances.set(balance.balance || []);
-        this.updateAvailableQuantities();
-      }
-    }, 500);
+    this.toastService.showInfo('Caricamento disponibilità prodotti...');
+    this.loadWarehouseData(projectId, warehouseId, false);
   }
-  // Metodo per caricare i saldi quando viene selezionato un magazzino di origine
-  loadSourceWarehouseBalance(warehouseId: string | null): void {
-    if (!warehouseId) {
+
+  /**
+   * Imposta il magazzino di origine per i trasferimenti e carica il relativo bilancio
+   */
+  setSourceWarehouse(warehouseId: string | null): void {
+    this.selectedSourceWarehouseId.set(warehouseId);
+
+    if (!warehouseId || this.movementType() !== 'TRANSFER') {
       this.sourceWarehouseProductBalances.set([]);
       return;
     }
@@ -1021,162 +1220,8 @@ export class StockMovementsComponent implements OnInit, OnDestroy {
     const projectId = this.selectedProject()?.id;
     if (!projectId) return;
 
-    // Carica il saldo del magazzino di origine
-    this.stockMovementStore.fetchWarehouseBalance({
-      projectId,
-      warehouseId,
-    });
-
-    // Usa setTimeout per attendere che lo store completi l'operazione
-    setTimeout(() => {
-      const balance = this.stockMovementStore.warehouseBalance();
-      if (balance && balance.warehouseId === warehouseId) {
-        this.sourceWarehouseProductBalances.set(balance.balance || []);
-
-        if (this.movementType() === 'TRANSFER') {
-          this.updateAvailableQuantitiesForTransfer();
-        }
-      }
-    }, 500);
-  }
-  updateAvailableQuantities(): void {
-    // Per movimenti di uscita (non trasferimento)
-    const isOutbound = ['SALE', 'WASTE', 'INTERNAL_USE'].includes(
-      this.movementType()
-    );
-    if (!isOutbound || this.movementType() === 'TRANSFER') return;
-
-    const balances = this.warehouseProductBalances();
-    if (!balances.length) return;
-
-    // Creiamo una mappa per velocizzare la ricerca dei saldi per prodotto
-    const balanceMap = new Map<string, ProductBalance>();
-    balances.forEach((balance) => {
-      balanceMap.set(balance.rawProductId, balance);
-    });
-
-    const currentProducts = [...this.selectedProducts()];
-    let updated = false;
-
-    // Ciclo ottimizzato con meno ricerche
-    for (let i = 0; i < currentProducts.length; i++) {
-      const product = currentProducts[i];
-      const specificWarehouseId =
-        product.warehouseId || this.selectedWarehouseId();
-
-      if (specificWarehouseId === this.selectedWarehouseId()) {
-        // Uso della mappa per trovare il saldo più velocemente
-        const balance = balanceMap.get(product.rawProductId);
-
-        if (balance) {
-          currentProducts[i] = {
-            ...product,
-            availableQty: balance.currentQuantity,
-            exceedsAvailable: product.quantity > balance.currentQuantity,
-          };
-          updated = true;
-        }
-      } else {
-        // Carica il saldo specifico del magazzino solo se necessario
-        this.loadSpecificWarehouseBalance(product, i);
-      }
-    }
-
-    if (updated) {
-      this.selectedProducts.set(currentProducts);
-    }
-  }
-
-  // Metodo per aggiornare le quantità disponibili nei prodotti selezionati per trasferimenti
-  updateAvailableQuantitiesForTransfer(): void {
-    if (this.movementType() !== 'TRANSFER') return;
-
-    const balances = this.sourceWarehouseProductBalances();
-    if (!balances.length) return;
-
-    const currentProducts = [...this.selectedProducts()];
-    let updated = false;
-
-    for (let i = 0; i < currentProducts.length; i++) {
-      const product = currentProducts[i];
-      const balance = balances.find(
-        (b) => b.rawProductId === product.rawProductId
-      );
-
-      if (balance) {
-        currentProducts[i] = {
-          ...product,
-          availableQty: balance.currentQuantity,
-          exceedsAvailable: product.quantity > balance.currentQuantity,
-        };
-        updated = true;
-      }
-    }
-
-    if (updated) {
-      this.selectedProducts.set(currentProducts);
-    }
-  }
-
-  // Modifica il metodo loadSpecificWarehouseBalance
-  loadSpecificWarehouseBalance(product: MovementProduct, index: number): void {
-    const warehouseId = product.warehouseId;
-    if (!warehouseId) return;
-
-    const projectId = this.selectedProject()?.id;
-    if (!projectId) return;
-
-    // Chiamata al servizio per ottenere il saldo del prodotto nel magazzino
-    this.stockMovementStore.fetchProductBalance({
-      projectId,
-      warehouseId,
-      rawProductId: product.rawProductId,
-    });
-
-    // Usa setTimeout per attendere che lo store venga aggiornato
-    setTimeout(() => {
-      const balances = this.stockMovementStore.productBalances();
-      if (!balances) return;
-
-      const balance = balances.find(
-        (b) =>
-          b.rawProductId === product.rawProductId &&
-          b.warehouseId === warehouseId
-      );
-
-      if (balance) {
-        const currentProducts = [...this.selectedProducts()];
-        currentProducts[index] = {
-          ...currentProducts[index],
-          availableQty: balance.currentQuantity,
-          exceedsAvailable:
-            currentProducts[index].quantity > balance.currentQuantity,
-        };
-
-        this.selectedProducts.set(currentProducts);
-      }
-    }, 500);
-  }
-  setWarehouse(warehouseId: string | null): void {
-    this.selectedWarehouseId.set(warehouseId);
-
-    // Se è un movimento in uscita e viene selezionato un magazzino, carica i saldi
-    const isOutbound = ['SALE', 'WASTE', 'INTERNAL_USE'].includes(
-      this.movementType()
-    );
-    if (isOutbound && warehouseId) {
-      this.loadWarehouseBalance(warehouseId);
-    }
-  }
-
-  // Aggiungi un metodo per gestire la selezione del magazzino di origine
-  setSourceWarehouse(warehouseId: string | null): void {
-    this.selectedSourceWarehouseId.set(warehouseId);
-
-    // Per i trasferimenti, carica i saldi del magazzino di origine
-    if (this.movementType() === 'TRANSFER' && warehouseId) {
-      this.loadSourceWarehouseBalance(warehouseId);
-    }
+    this.toastService.showInfo('Caricamento disponibilità prodotti...');
+    this.loadWarehouseData(projectId, warehouseId, true);
   }
 
   addFromBalance(balance: ProductBalance): void {
@@ -1191,6 +1236,289 @@ export class StockMovementsComponent implements OnInit, OnDestroy {
 
     // Usa il metodo existente per aggiungere il prodotto
     this.selectProduct(product);
+  }
+
+  /**
+   * Metodo unificato per caricare i dati di magazzino senza effect
+   */
+  private loadWarehouseData(
+    projectId: string,
+    warehouseId: string,
+    isSourceWarehouse: boolean
+  ): void {
+    // Controllo cache
+    const cacheKey = `${projectId}_${warehouseId}`;
+    const cachedData = this.balanceCache.get(cacheKey);
+    const cacheTimestamp = this.balanceCacheTimestamp.get(cacheKey);
+    const isCacheValid = cacheTimestamp && Date.now() - cacheTimestamp < 300000; // 5 min cache
+
+    if (cachedData && isCacheValid) {
+      // Usa dati dalla cache
+      if (isSourceWarehouse) {
+        this.sourceWarehouseProductBalances.set(cachedData);
+      } else {
+        this.warehouseProductBalances.set(cachedData);
+      }
+
+      // Aggiorna disponibilità
+      this.updateProductAvailability();
+
+      return;
+    }
+
+    // Mostra loading
+    const loadingKey = `loading_${warehouseId}`;
+    this.loadingMap.set(loadingKey, true);
+
+    // Carica da API
+    this.stockMovementStore.fetchWarehouseBalance({
+      projectId,
+      warehouseId,
+    });
+
+    // Usa setTimeout invece di effect
+    this.checkBalanceLoading(projectId, warehouseId, isSourceWarehouse);
+  }
+
+  /**
+   * Verifica periodicamente lo stato di caricamento del bilancio
+   */
+  private checkBalanceLoading(
+    projectId: string,
+    warehouseId: string,
+    isSourceWarehouse: boolean,
+    attempts = 0
+  ): void {
+    if (attempts > 30) {
+      // Max 15 secondi di attesa (30 * 500ms)
+      this.toastService.showError('Timeout nel caricamento disponibilità');
+      this.loadingMap.set(`loading_${warehouseId}`, false);
+      return;
+    }
+
+    const isLoading = this.stockMovementStore.loading();
+
+    if (!isLoading) {
+      const balance = this.stockMovementStore.warehouseBalance();
+
+      if (balance && balance.warehouseId === warehouseId) {
+        // Salva in cache
+        const balanceData = balance.balance || [];
+        this.balanceCache.set(`${projectId}_${warehouseId}`, balanceData);
+        this.balanceCacheTimestamp.set(
+          `${projectId}_${warehouseId}`,
+          Date.now()
+        );
+
+        // Aggiorna stato
+        if (isSourceWarehouse) {
+          this.sourceWarehouseProductBalances.set(balanceData);
+        } else {
+          this.warehouseProductBalances.set(balanceData);
+        }
+
+        // Aggiorna disponibilità
+
+        // Notifica completamento
+        this.warehouseBalanceSubject.next({
+          warehouseId,
+          balance: balanceData,
+        });
+
+        // Rimuovi loading
+        this.loadingMap.set(`loading_${warehouseId}`, false);
+      } else {
+        // Riprova dopo un breve delay
+        setTimeout(() => {
+          this.checkBalanceLoading(
+            projectId,
+            warehouseId,
+            isSourceWarehouse,
+            attempts + 1
+          );
+        }, 500);
+      }
+    } else {
+      // Ancora in caricamento, verifica di nuovo dopo un po'
+      setTimeout(() => {
+        this.checkBalanceLoading(
+          projectId,
+          warehouseId,
+          isSourceWarehouse,
+          attempts + 1
+        );
+      }, 500);
+    }
+  }
+
+  // 3. SOSTITUISCI checkAvailabilityForWarehouse con una versione senza effect
+
+  /**
+   * Controlla la disponibilità di un prodotto nel magazzino specifico
+   */
+  checkAvailabilityForWarehouse(
+    productIndex: number,
+    warehouseId: string
+  ): void {
+    const isOutbound = ['SALE', 'WASTE', 'INTERNAL_USE'].includes(
+      this.movementType()
+    );
+    if (!isOutbound) return;
+
+    const currentProducts = [...this.selectedProducts()];
+    if (productIndex >= currentProducts.length) return;
+
+    // Imposta disponibilità a zero temporaneamente
+    currentProducts[productIndex] = {
+      ...currentProducts[productIndex],
+      warehouseId,
+      availableQty: 0,
+      exceedsAvailable: currentProducts[productIndex].quantity > 0,
+    };
+
+    this.selectedProducts.set(currentProducts);
+    this.toastService.showInfo('Controllo disponibilità in corso...');
+
+    const projectId = this.selectedProject()?.id;
+    if (!projectId) return;
+
+    // Controlla se è in cache
+    const cacheKey = `${projectId}_${warehouseId}`;
+    const cachedData = this.balanceCache.get(cacheKey);
+    const cacheTimestamp = this.balanceCacheTimestamp.get(cacheKey);
+    const isCacheValid = cacheTimestamp && Date.now() - cacheTimestamp < 300000;
+
+    if (cachedData && isCacheValid) {
+      // Cerca il prodotto nella cache
+      const rawProductId = currentProducts[productIndex].rawProductId;
+      const productBalance = cachedData.find(
+        (b) => b.rawProductId === rawProductId
+      );
+
+      if (productBalance) {
+        this.updateSpecificProductAvailability(
+          productIndex,
+          productBalance.currentQuantity
+        );
+      } else {
+        this.toastService.showWarn(
+          'Prodotto non disponibile nel magazzino selezionato'
+        );
+      }
+
+      return;
+    }
+
+    // Carica da API
+    this.stockMovementStore.fetchWarehouseBalance({
+      projectId,
+      warehouseId,
+    });
+
+    // Usa setTimeout invece di effect
+    setTimeout(() => {
+      this.checkProductAvailability(productIndex, warehouseId, projectId);
+    }, 500);
+  }
+
+  /**
+   * Controlla periodicamente la disponibilità di un prodotto specifico
+   */
+  private checkProductAvailability(
+    productIndex: number,
+    warehouseId: string,
+    projectId: string,
+    attempts = 0
+  ): void {
+    if (attempts > 20) {
+      this.toastService.showError('Timeout nel controllo disponibilità');
+      return;
+    }
+
+    const isLoading = this.stockMovementStore.loading();
+
+    if (!isLoading) {
+      const balance = this.stockMovementStore.warehouseBalance();
+
+      if (balance && balance.warehouseId === warehouseId) {
+        // Salva in cache
+        const balanceData = balance.balance || [];
+        this.balanceCache.set(`${projectId}_${warehouseId}`, balanceData);
+        this.balanceCacheTimestamp.set(
+          `${projectId}_${warehouseId}`,
+          Date.now()
+        );
+
+        // Cerca il prodotto specifico
+        const products = this.selectedProducts();
+        if (productIndex >= products.length) return;
+
+        const rawProductId = products[productIndex].rawProductId;
+        const productBalance = balanceData.find(
+          (b) => b.rawProductId === rawProductId
+        );
+
+        if (productBalance) {
+          this.updateSpecificProductAvailability(
+            productIndex,
+            productBalance.currentQuantity
+          );
+        } else {
+          this.toastService.showWarn(
+            'Prodotto non disponibile nel magazzino selezionato'
+          );
+        }
+      } else {
+        // Riprova dopo un po'
+        setTimeout(() => {
+          this.checkProductAvailability(
+            productIndex,
+            warehouseId,
+            projectId,
+            attempts + 1
+          );
+        }, 500);
+      }
+    } else {
+      // Ancora in caricamento
+      setTimeout(() => {
+        this.checkProductAvailability(
+          productIndex,
+          warehouseId,
+          projectId,
+          attempts + 1
+        );
+      }, 500);
+    }
+  }
+
+  /**
+   * Aggiorna la disponibilità di un prodotto specifico
+   */
+  private updateSpecificProductAvailability(
+    index: number,
+    availableQty: number
+  ): void {
+    const products = [...this.selectedProducts()];
+    if (index >= products.length) return;
+
+    const exceedsAvailable = products[index].quantity > availableQty;
+
+    products[index] = {
+      ...products[index],
+      availableQty,
+      exceedsAvailable,
+    };
+
+    this.selectedProducts.set(products);
+
+    if (exceedsAvailable) {
+      setTimeout(() => {
+        this.toastService.showWarn(
+          `Attenzione: Quantità richiesta (${products[index].quantity}) supera la disponibilità (${availableQty})`
+        );
+      }, 0);
+    }
   }
 
   // Helper per determinare il colspan nella tabella
@@ -1212,65 +1540,98 @@ export class StockMovementsComponent implements OnInit, OnDestroy {
     return colspan;
   }
 
-  // Metodo per verificare disponibilità quando si cambia magazzino per un prodotto
-  checkAvailabilityForWarehouse(
+  // Nuovo metodo per caricare il saldo del prodotto solo quando necessario
+  private loadProductBalanceFromAPI(
     productIndex: number,
-    warehouseId: string
+    warehouseId: string,
+    rawProductId: string
   ): void {
-    const isOutbound = ['SALE', 'WASTE', 'INTERNAL_USE'].includes(
-      this.movementType()
-    );
-    if (!isOutbound) return;
-
     const projectId = this.selectedProject()?.id;
-    if (!projectId || !warehouseId) return;
+    if (!projectId) return;
 
-    // Ottieni il prodotto corrente
-    const currentProducts = [...this.selectedProducts()];
-    const product = currentProducts[productIndex];
+    // Imposta uno stato di caricamento per questo prodotto specifico
+    const loadingKey = `loading_product_${warehouseId}_${rawProductId}`;
+    if (this.loadingMap.get(loadingKey)) return; // Evita chiamate multiple per lo stesso prodotto
+    this.loadingMap.set(loadingKey, true);
 
-    // Mostra indicatore di caricamento
-    this.toastService.showInfo(`Verifica disponibilità in corso...`);
-
-    // Chiama il servizio per ottenere il saldo del prodotto nel magazzino selezionato
+    // Chiamata API (solo una volta)
     this.stockMovementStore.fetchProductBalance({
       projectId,
       warehouseId,
-      rawProductId: product.rawProductId,
+      rawProductId,
     });
 
-    // Attendi che lo store venga aggiornato
-    setTimeout(() => {
-      const balances = this.stockMovementStore.productBalances();
-      if (!balances) return;
-
-      const balance = balances.find(
-        (b) =>
-          b.rawProductId === product.rawProductId &&
-          b.warehouseId === warehouseId
-      );
-
-      if (balance) {
-        const availableQty = balance.currentQuantity;
-        const exceedsAvailable = product.quantity > availableQty;
-
+    // Usa l'observable già esistente invece di un nuovo effect
+    const subscription = this.productBalancesLoaded$.subscribe((data) => {
+      if (data.productId === rawProductId && data.warehouseId === warehouseId) {
         // Aggiorna il prodotto con la disponibilità
-        currentProducts[productIndex] = {
-          ...product,
-          availableQty,
-          exceedsAvailable,
-        };
+        this.updateProductQuantityWithBalance(
+          productIndex,
+          this.selectedProducts()[productIndex].quantity,
+          data.balance
+        );
 
-        this.selectedProducts.set(currentProducts);
+        // Fine caricamento
+        this.loadingMap.set(loadingKey, false);
 
-        // Mostra avviso se la quantità supera la disponibilità
-        if (exceedsAvailable) {
-          this.toastService.showWarn(
-            `Attenzione: La quantità richiesta (${product.quantity}) supera la disponibilità (${availableQty})`
-          );
-        }
+        // Pulizia
+        subscription.unsubscribe();
       }
-    }, 500);
+    });
+  }
+
+  // Nuovo metodo per gestire il caso in cui il prodotto non è disponibile
+  private handleProductNotAvailable(
+    productIndex: number,
+    warehouseId: string
+  ): void {
+    const currentProducts = [...this.selectedProducts()];
+    if (productIndex >= currentProducts.length) return;
+
+    // Imposta il prodotto come non disponibile con quantità zero
+    currentProducts[productIndex] = {
+      ...currentProducts[productIndex],
+      availableQty: 0,
+      exceedsAvailable: currentProducts[productIndex].quantity > 0,
+    };
+
+    this.selectedProducts.set(currentProducts);
+
+    this.toastService.showWarn(
+      `Prodotto non disponibile nel magazzino selezionato`
+    );
+  }
+
+  private updateProductQuantityWithBalance(
+    index: number,
+    quantity: number,
+    balance: ProductBalance
+  ): void {
+    try {
+      const currentProducts = [...this.selectedProducts()];
+      if (index >= currentProducts.length) return;
+
+      // Proteggiamo contro valori undefined
+      const availableQty = balance?.currentQuantity ?? 0;
+      const exceedsAvailable = quantity > availableQty;
+
+      currentProducts[index] = {
+        ...currentProducts[index],
+        availableQty,
+        exceedsAvailable,
+      };
+
+      this.selectedProducts.set(currentProducts);
+
+      // Mostra avviso se necessario
+      if (exceedsAvailable) {
+        this.toastService.showWarn(
+          `Attenzione: La quantità richiesta (${quantity}) supera la disponibilità (${availableQty})`
+        );
+      }
+    } catch (error) {
+      console.error('Errore in updateProductQuantityWithBalance:', error);
+    }
   }
 
   // Helper per verificare se ci sono problemi di disponibilità

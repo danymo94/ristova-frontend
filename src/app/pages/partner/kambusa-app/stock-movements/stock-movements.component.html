@@ -1080,9 +1080,12 @@
               </td>
               <td>
                 <p-inputNumber
-                  [ngModel]="product.quantity"
+                  [(ngModel)]="product.quantity"
                   (onInput)="
-                    updateProductQuantity(i, $event.value ? +$event.value : 0)
+                    updateProductQuantity(
+                      i,
+                      $event.value !== null ? +$event.value : product.quantity
+                    )
                   "
                   [min]="0"
                   [showButtons]="true"
