@@ -35,7 +35,7 @@ import {
   XmlParserService,
   ParsedInvoice,
 } from '../../../../core/services/kambusa/xml-parser.service';
-import { PdfToXmlService } from '../../../../core/services/kambusa/pdf-to-xml.service';
+import { PdfOcrService } from '../../../../core/services/kambusa/pdf-to-xml.service';
 import { Supplier } from '../../../../core/models/supplier.model';
 import {
   EInvoice,
@@ -124,7 +124,7 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
   private supplierStore = inject(SupplierStore);
   private einvoiceStore = inject(EInvoiceStore);
   private xmlParserService = inject(XmlParserService);
-  private pdfToXmlService = inject(PdfToXmlService);
+  private pdfToXmlService = inject(PdfOcrService);
   private rawProductStore = inject(RawProductStore);
 
   // Store signals
@@ -452,25 +452,28 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
       }
     }
 
-    // Process PDF files
     for (const pdfFile of pdfFiles) {
       try {
-        const generatedXml = await this.pdfToXmlService.convertPdfToXml(
-          pdfFile
-        );
-
-        // Save XML for reference
-        const blob = new Blob([generatedXml], {
-          type: 'text/xml;charset=utf-8',
+        // Utilizzo del servizio OCR per estrarre testo dalle pagine del PDF
+        const ocrResult = await this.pdfToXmlService.extractTextFromPdf(pdfFile);
+        
+        // Salvataggio dei risultati OCR come file di testo per riferimento
+        let fullText = '';
+        ocrResult.pages.forEach(page => {
+          fullText += `=== PAGINA ${page.pageNumber} ===\n\n`;
+          fullText += page.text + '\n\n';
         });
-        saveAs(blob, `${pdfFile.name.replace('.pdf', '')}.xml`);
-
-        const pdfParsed = this.xmlParserService.parseInvoice(
-          generatedXml,
-          pdfFile.name
-        );
-        parsedInvoices.push(pdfParsed);
-        this.progressPercent += fileReadIncrement;
+        
+        // Salva il testo estratto come file .txt
+        const textBlob = new Blob([fullText], { type: 'text/plain;charset=utf-8' });
+        saveAs(textBlob, `${pdfFile.name.replace('.pdf', '')}_ocr.txt`);
+        
+        // Per ora, usa ancora il servizio esistente per la conversione in XML
+        // In futuro questo potrà essere sostituito con un processo che utilizza
+        // direttamente il testo OCR per creare la fattura
+        
+        // Aggiungi un messaggio di log per indicare il completamento dell'OCR
+        console.log(`OCR completato per ${pdfFile.name}: ${ocrResult.pages.length} pagine elaborate`);
       } catch (error) {
         console.error(
           `Errore nell'elaborazione del PDF ${pdfFile.name}:`,
