@@ -229,7 +229,7 @@
 
             <!-- Elimina -->
             <button
-              *ngIf="movement.status !== 'confirmed'"
+              *ngIf="movement.status == 'confirmed'"
               pButton
               icon="pi pi-trash"
               class="p-button-text p-button-rounded p-button-sm p-button-danger"
@@ -356,7 +356,7 @@
 
             <!-- Elimina -->
             <button
-              *ngIf="movement.status !== 'confirmed'"
+              *ngIf="movement.status == 'confirmed'"
               pButton
               icon="pi pi-trash"
               class="p-button-text p-button-sm p-button-danger"
@@ -761,66 +761,68 @@
       </div>
 
       <!-- Per movimento da fattura -->
-<!-- Sostituzione della sezione dei prodotti da fattura (intorno alla riga 740) -->
-<div
-  *ngIf="movementCreationType() === 'fromInvoice' && selectedInvoiceId()"
->
-  <div class="mb-3 flex items-center justify-between">
-    <div>
-      <p-checkbox
-        [binary]="true"
-        inputId="selectAllProducts"
-        (onChange)="toggleAllInvoiceProducts($event.checked)"
-      ></p-checkbox>
-      <label for="selectAllProducts" class="ml-2">Seleziona tutti</label>
-    </div>
-    
-    <button 
-      *ngIf="getSelectedInvoiceProductCount() > 0"
-      pButton 
-      pRipple 
-      label="Aggiungi selezionati" 
-      icon="pi pi-plus"
-      class="p-button-sm p-button-success"
-      (click)="addSelectedInvoiceProducts()"
-    ></button>
-  </div>
-
-  <div
-    *ngIf="!invoiceRawProducts() || invoiceRawProducts()!.length === 0"
-    class="p-3 text-center bg-gray-100 rounded"
-  >
-    <i class="pi pi-info-circle text-blue-500 mr-2"></i>
-    Nessun prodotto trovato nella fattura o caricamento in corso...
-  </div>
-
-  <div class="mb-4 border rounded overflow-auto max-h-60">
-    <div
-      *ngFor="let product of invoiceRawProducts(); let i = index"
-      class="border-b p-2"
-      [class.bg-blue-50]="!!invoiceProductsSelection[product.productId]"
-    >
-      <div class="flex items-center">
-        <p-checkbox
-          [binary]="true"
-          [ngModel]="!!invoiceProductsSelection[product.productId]"
-          (ngModelChange)="toggleInvoiceProduct(product.productId, $event)"
-          [inputId]="'product_' + i"
-        ></p-checkbox>
-        <label [for]="'product_' + i" class="ml-2 flex-1">
-          <div>{{ product.description }}</div>
-          <div class="text-sm text-gray-600">
-            Codice: {{ product.productCode }}
+      <!-- Sostituzione della sezione dei prodotti da fattura (intorno alla riga 740) -->
+      <div
+        *ngIf="movementCreationType() === 'fromInvoice' && selectedInvoiceId()"
+      >
+        <div class="mb-3 flex items-center justify-between">
+          <div>
+            <p-checkbox
+              [binary]="true"
+              inputId="selectAllProducts"
+              (onChange)="toggleAllInvoiceProducts($event.checked)"
+            ></p-checkbox>
+            <label for="selectAllProducts" class="ml-2">Seleziona tutti</label>
           </div>
-        </label>
-        <div class="text-right">
-          <div>Qtà: {{ product.totalQuantity }}</div>
-          <div>{{ product.averageUnitPrice | currency : "EUR" }}</div>
+
+          <button
+            *ngIf="getSelectedInvoiceProductCount() > 0"
+            pButton
+            pRipple
+            label="Aggiungi selezionati"
+            icon="pi pi-plus"
+            class="p-button-sm p-button-success"
+            (click)="addSelectedInvoiceProducts()"
+          ></button>
+        </div>
+
+        <div
+          *ngIf="!invoiceRawProducts() || invoiceRawProducts()!.length === 0"
+          class="p-3 text-center bg-gray-100 rounded"
+        >
+          <i class="pi pi-info-circle text-blue-500 mr-2"></i>
+          Nessun prodotto trovato nella fattura o caricamento in corso...
+        </div>
+
+        <div class="mb-4 border rounded overflow-auto max-h-60">
+          <div
+            *ngFor="let product of invoiceRawProducts(); let i = index"
+            class="border-b p-2"
+            [class.bg-blue-50]="!!invoiceProductsSelection[product.productId]"
+          >
+            <div class="flex items-center">
+              <p-checkbox
+                [binary]="true"
+                [ngModel]="!!invoiceProductsSelection[product.productId]"
+                (ngModelChange)="
+                  toggleInvoiceProduct(product.productId, $event)
+                "
+                [inputId]="'product_' + i"
+              ></p-checkbox>
+              <label [for]="'product_' + i" class="ml-2 flex-1">
+                <div>{{ product.description }}</div>
+                <div class="text-sm text-gray-600">
+                  Codice: {{ product.productCode }}
+                </div>
+              </label>
+              <div class="text-right">
+                <div>Qtà: {{ product.totalQuantity }}</div>
+                <div>{{ product.averageUnitPrice | currency : "EUR" }}</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  </div>
-</div>
 
       <!-- Per assegnazione a centro di costo -->
       <div

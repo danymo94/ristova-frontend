@@ -813,25 +813,25 @@ createMovementFromInvoice(projectId: string): void {
     this.toastService.showSuccess('Fattura assegnata al centro di costo con successo');
   }
 
-  deleteMovement(): void {
-    const projectId = this.selectedProject()?.id;
-    const movement = this.selectedMovement();
+// Metodo per eliminare effettivamente il movimento
+deleteMovement(): void {
+  const projectId = this.selectedProject()?.id;
+  const movement = this.selectedMovement();
 
-    if (!projectId || !movement) {
-      this.toastService.showError(
-        'Dati insufficienti per eliminare il movimento'
-      );
-      return;
-    }
-
-    this.stockMovementStore.deleteMovement({
-      projectId,
-      id: movement.id,
-    });
-
-    this.deleteDialogVisible.set(false);
+  if (!projectId || !movement) {
+    this.toastService.showError('Dati insufficienti per eliminare il movimento');
+    return;
   }
 
+  // Mostra indicatore di caricamento
+  this.deleteDialogVisible.set(false); // Chiudi il dialog di conferma
+
+  // Chiama lo store per eliminare il movimento
+  this.stockMovementStore.deleteMovement({
+    projectId,
+    id: movement.id,
+  });
+}
   updateMovementStatus(movement: StockMovement, status: MovementStatus): void {
     const projectId = this.selectedProject()?.id;
 
