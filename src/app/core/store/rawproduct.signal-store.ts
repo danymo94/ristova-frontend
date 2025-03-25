@@ -7,11 +7,15 @@ import {
   withMethods,
   withState,
 } from '@ngrx/signals';
-import { RawProduct, CreateRawProductDto, InvoiceRawProduct } from '../models/rawproduct.model';
+import {
+  RawProduct,
+  CreateRawProductDto,
+  InvoiceRawProduct,
+} from '../models/rawproduct.model';
 import { RawproductService } from '../services/api/local/rawproduct.service';
 import { Router } from '@angular/router';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
-import { pipe, switchMap, catchError, of, tap, EMPTY } from 'rxjs';
+import { pipe, switchMap, catchError, of, tap, EMPTY, Observable } from 'rxjs';
 import { tapResponse } from '@ngrx/operators';
 import { ToastService } from '../services/toast.service';
 import { AuthService } from '../services/auth.service';
@@ -64,21 +68,30 @@ export const RawProductStore = signalStore(
           tap(() => patchState(store, { loading: true, error: null })),
           switchMap(({ projectId }) => {
             const role = authService.userRole();
-            const request = role === 'admin'
-              ? rawProductService.getAdminProjectRawProducts(projectId)
-              : rawProductService.getPartnerProjectRawProducts(projectId);
+            const request =
+              role === 'admin'
+                ? rawProductService.getAdminProjectRawProducts(projectId)
+                : rawProductService.getPartnerProjectRawProducts(projectId);
 
             return request.pipe(
               tapResponse({
                 next: (rawProducts) => {
-                  patchState(store, { rawProducts, loading: false, error: null });
+                  patchState(store, {
+                    rawProducts,
+                    loading: false,
+                    error: null,
+                  });
                 },
                 error: (error: unknown) => {
                   patchState(store, {
                     loading: false,
-                    error: (error as Error)?.message || 'Failed to fetch raw products',
+                    error:
+                      (error as Error)?.message ||
+                      'Failed to fetch raw products',
                   });
-                  toastService.showError((error as Error)?.message || 'Failed to fetch raw products');
+                  toastService.showError(
+                    (error as Error)?.message || 'Failed to fetch raw products'
+                  );
                 },
               })
             );
@@ -92,7 +105,7 @@ export const RawProductStore = signalStore(
           tap(() => patchState(store, { loading: true, error: null })),
           switchMap(({ projectId, id }) => {
             const role = authService.userRole();
-            
+
             let request: Observable<RawProduct>;
             if (role === 'admin') {
               request = rawProductService.getAdminRawProduct(id);
@@ -122,9 +135,13 @@ export const RawProductStore = signalStore(
                 error: (error: unknown) => {
                   patchState(store, {
                     loading: false,
-                    error: (error as Error)?.message || 'Failed to fetch raw product',
+                    error:
+                      (error as Error)?.message ||
+                      'Failed to fetch raw product',
                   });
-                  toastService.showError((error as Error)?.message || 'Failed to fetch raw product');
+                  toastService.showError(
+                    (error as Error)?.message || 'Failed to fetch raw product'
+                  );
                 },
               })
             );
@@ -133,48 +150,59 @@ export const RawProductStore = signalStore(
       ),
 
       // Create or update raw product
-      createOrUpdateRawProduct: rxMethod<{ projectId: string; rawProduct: CreateRawProductDto }>(
+      createOrUpdateRawProduct: rxMethod<{
+        projectId: string;
+        rawProduct: CreateRawProductDto;
+      }>(
         pipe(
           tap(() => patchState(store, { loading: true, error: null })),
           switchMap(({ projectId, rawProduct }) =>
-            rawProductService.createOrUpdateRawProduct(projectId, rawProduct).pipe(
-              tapResponse({
-                next: (createdRawProduct) => {
-                  toastService.showSuccess('Raw product successfully processed');
+            rawProductService
+              .createOrUpdateRawProduct(projectId, rawProduct)
+              .pipe(
+                tapResponse({
+                  next: (createdRawProduct) => {
+                    toastService.showSuccess(
+                      'Raw product successfully processed'
+                    );
 
-                  // Update raw products array, either adding new or updating existing
-                  const currentRawProducts = store.rawProducts() || [];
-                  const existingIndex = currentRawProducts.findIndex(
-                    (p) => p.productCode === rawProduct.productCode && p.supplierId === rawProduct.supplierId
-                  );
+                    // Update raw products array, either adding new or updating existing
+                    const currentRawProducts = store.rawProducts() || [];
+                    const existingIndex = currentRawProducts.findIndex(
+                      (p) =>
+                        p.productCode === rawProduct.productCode &&
+                        p.supplierId === rawProduct.supplierId
+                    );
 
-                  if (existingIndex >= 0) {
-                    // Update existing
-                    const updatedRawProducts = [...currentRawProducts];
-                    updatedRawProducts[existingIndex] = createdRawProduct;
+                    if (existingIndex >= 0) {
+                      // Update existing
+                      const updatedRawProducts = [...currentRawProducts];
+                      updatedRawProducts[existingIndex] = createdRawProduct;
+                      patchState(store, {
+                        rawProducts: updatedRawProducts,
+                        loading: false,
+                        error: null,
+                      });
+                    } else {
+                      // Add new
+                      patchState(store, {
+                        rawProducts: [...currentRawProducts, createdRawProduct],
+                        loading: false,
+                        error: null,
+                      });
+                    }
+                  },
+                  error: (error: unknown) => {
+                    toastService.showError('Failed to process raw product');
                     patchState(store, {
-                      rawProducts: updatedRawProducts,
                       loading: false,
-                      error: null,
+                      error:
+                        (error as Error)?.message ||
+                        'Failed to process raw product',
                     });
-                  } else {
-                    // Add new
-                    patchState(store, {
-                      rawProducts: [...currentRawProducts, createdRawProduct],
-                      loading: false,
-                      error: null,
-                    });
-                  }
-                },
-                error: (error: unknown) => {
-                  toastService.showError('Failed to process raw product');
-                  patchState(store, {
-                    loading: false,
-                    error: (error as Error)?.message || 'Failed to process raw product',
-                  });
-                },
-              })
-            )
+                  },
+                })
+              )
           )
         )
       ),
@@ -209,7 +237,9 @@ export const RawProductStore = signalStore(
                   toastService.showError('Failed to delete raw product');
                   patchState(store, {
                     loading: false,
-                    error: (error as Error)?.message || 'Failed to delete raw product',
+                    error:
+                      (error as Error)?.message ||
+                      'Failed to delete raw product',
                   });
                 },
               })
@@ -219,29 +249,45 @@ export const RawProductStore = signalStore(
       ),
 
       // Get raw products for a specific invoice
-      fetchInvoiceRawProducts: rxMethod<{ projectId: string; invoiceId: string }>(
+      fetchInvoiceRawProducts: rxMethod<{
+        projectId: string;
+        invoiceId: string;
+      }>(
         pipe(
-          tap(() => patchState(store, { loading: true, error: null, invoiceRawProducts: null })),
+          tap(() =>
+            patchState(store, {
+              loading: true,
+              error: null,
+              invoiceRawProducts: null,
+            })
+          ),
           switchMap(({ projectId, invoiceId }) =>
-            rawProductService.getRawProductsByInvoice(projectId, invoiceId).pipe(
-              tapResponse({
-                next: (invoiceRawProducts) => {
-                  patchState(store, {
-                    invoiceRawProducts,
-                    loading: false,
-                    error: null,
-                  });
-                },
-                error: (error: unknown) => {
-                  patchState(store, {
-                    loading: false,
-                    error: (error as Error)?.message || 'Failed to fetch invoice raw products',
-                    invoiceRawProducts: null,
-                  });
-                  toastService.showError((error as Error)?.message || 'Failed to fetch invoice raw products');
-                },
-              })
-            )
+            rawProductService
+              .getRawProductsByInvoice(projectId, invoiceId)
+              .pipe(
+                tapResponse({
+                  next: (invoiceRawProducts) => {
+                    patchState(store, {
+                      invoiceRawProducts,
+                      loading: false,
+                      error: null,
+                    });
+                  },
+                  error: (error: unknown) => {
+                    patchState(store, {
+                      loading: false,
+                      error:
+                        (error as Error)?.message ||
+                        'Failed to fetch invoice raw products',
+                      invoiceRawProducts: null,
+                    });
+                    toastService.showError(
+                      (error as Error)?.message ||
+                        'Failed to fetch invoice raw products'
+                    );
+                  },
+                })
+              )
           )
         )
       ),
@@ -249,7 +295,9 @@ export const RawProductStore = signalStore(
       // Generate embeddings for raw products
       generateEmbeddings: rxMethod<{ projectId: string }>(
         pipe(
-          tap(() => patchState(store, { processingEmbeddings: true, error: null })),
+          tap(() =>
+            patchState(store, { processingEmbeddings: true, error: null })
+          ),
           switchMap(({ projectId }) =>
             rawProductService.generateEmbeddings(projectId).pipe(
               tapResponse({
@@ -264,7 +312,9 @@ export const RawProductStore = signalStore(
                   toastService.showError('Failed to generate embeddings');
                   patchState(store, {
                     processingEmbeddings: false,
-                    error: (error as Error)?.message || 'Failed to generate embeddings',
+                    error:
+                      (error as Error)?.message ||
+                      'Failed to generate embeddings',
                   });
                 },
               })

@@ -115,11 +115,6 @@ export const partnerRoutes: RouteSection[] = [
     module: 'kambusaApp',
     links: [
       {
-        name: 'Kambusa',
-        routerLink: '/partner/kambusa-app',
-        iconClass: 'pi pi-receipt',
-      },
-      {
         name: 'EInvoices',
         routerLink: '/partner/einvoices',
         iconClass: 'pi pi-receipt',
@@ -127,7 +122,7 @@ export const partnerRoutes: RouteSection[] = [
       {
         name: 'Raw Products',
         routerLink: '/partner/rawproducts',
-        iconClass: 'pi pi-receipt',
+        iconClass: 'pi pi-box',
       },
     ],
   },

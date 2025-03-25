@@ -3,3 +3,9 @@
 @use "tailwindcss/base";
 @use "tailwindcss/components";
 @use "tailwindcss/utilities";
+
+body {
+    font-family: "Red Hat Display", sans-serif;
+    font-weight: 600;
+    font-style: normal;
+}

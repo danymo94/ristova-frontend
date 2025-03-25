@@ -1,1 +1,716 @@
-<p>rawproducts works!</p>
+<div class="container mx-auto p-3 sm:p-4 md:p-5">
+  <!-- Stato vuoto quando non c'è progetto selezionato -->
+  @if (!selectedProject()) {
+  <div class="empty-state">
+    <i class="pi pi-info-circle"></i>
+    <h3>Nessun ristorante selezionato</h3>
+    <p>
+      Seleziona un ristorante dal menu in alto per visualizzare i prodotti
+      grezzi.
+    </p>
+  </div>
+  } @else {
+  <!-- Header con titolo e pulsanti azione -->
+  <div class="flex flex-wrap justify-between items-center mb-4">
+    <h1 class="text-2xl font-bold mb-2 md:mb-0">Prodotti Grezzi</h1>
+    <div class="flex gap-2 w-fit">
+      <div class="p-inputgroup">
+        <input
+          type="text"
+          pInputText
+          placeholder="Cerca prodotti..."
+          (input)="searchRawProducts($event)"
+        />
+      </div>
+      <p-multiSelect
+        [options]="supplierOptions"
+        [(ngModel)]="supplierFilter"
+        placeholder="Filtra per fornitore"
+        optionLabel="name"
+        styleClass="w-full md:!w-64"
+        [filter]="true"
+        (onChange)="filterBySuppliers($event)"
+      ></p-multiSelect>
+      <button
+        pButton
+        pRipple
+        icon="pi pi-refresh"
+        class="p-button-outlined"
+        (click)="refreshData()"
+        [loading]="loading()"
+        pTooltip="Aggiorna prodotti"
+        tooltipPosition="bottom"
+      ></button>
+      <button
+        pButton
+        pRipple
+        icon="pi pi-sitemap"
+        label="Genera Embeddings"
+        class="p-button-outlined p-button-info"
+        [loading]="processingEmbeddings()"
+        [disabled]="
+          processingEmbeddings() || (rawProducts() || []).length === 0
+        "
+        (click)="generateEmbeddings()"
+        pTooltip="Genera embeddings per i prodotti"
+        tooltipPosition="bottom"
+      ></button>
+    </div>
+  </div>
+
+  <!-- Stato di caricamento -->
+  <div *ngIf="loading()" class="flex justify-center my-5">
+    <i class="pi pi-spin pi-spinner text-4xl text-primary"></i>
+  </div>
+
+  <!-- Messaggio stato vuoto -->
+  <div
+    *ngIf="
+      !loading() && (!filteredRawProducts || filteredRawProducts.length === 0)
+    "
+    class="empty-state"
+  >
+    <i class="pi pi-box"></i>
+    <h3>Nessun prodotto grezzo trovato</h3>
+    <p>
+      Non ci sono prodotti grezzi registrati per questo progetto o che
+      corrispondono ai criteri di ricerca.
+    </p>
+    <p class="mt-2 text-sm text-gray-500">
+      I prodotti grezzi vengono generati dai dati delle fatture elettroniche.
+    </p>
+  </div>
+
+  <!-- Tabella dei prodotti -->
+  <p-table
+    #dt
+    *ngIf="!loading() && filteredRawProducts && filteredRawProducts.length > 0"
+    [value]="filteredRawProducts"
+    [exportFilename]="'RawProducts_' + getCurrentDate()"
+    [expandedRowKeys]="expandedRows"
+    dataKey="id"
+    [paginator]="true"
+    [rows]="10"
+    [rowsPerPageOptions]="[10, 25, 50]"
+    [(selection)]="selectedRawProducts"
+    styleClass="p-datatable-sm"
+    [showCurrentPageReport]="true"
+    currentPageReportTemplate="Visualizzati {first} a {last} di {totalRecords} prodotti"
+    [tableStyle]="{ 'min-width': '60rem' }"
+    (onRowExpand)="onRowExpand($event)"
+  >
+    <ng-template pTemplate="caption">
+      <div class="flex flex-wrap justify-between gap-2">
+        <h3 class="text-xl">Prodotti Grezzi</h3>
+        <div>
+          <span *ngIf="selectedRawProducts.length > 0" class="mr-2">
+            {{ selectedRawProducts.length }} prodotti selezionati
+          </span>
+          <button
+            pButton
+            icon="pi pi-file-excel"
+            class="p-button-success p-button-sm mr-2"
+            pTooltip="Esporta in Excel"
+            [disabled]="selectedRawProducts.length === 0"
+            (click)="exportToExcel()"
+          ></button>
+        </div>
+      </div>
+    </ng-template>
+
+    <ng-template pTemplate="header">
+      <tr>
+        <th style="width: 3rem">
+          <p-tableHeaderCheckbox></p-tableHeaderCheckbox>
+        </th>
+        <th style="width: 3rem"></th>
+        <th pSortableColumn="description">
+          Descrizione <p-sortIcon field="description"></p-sortIcon>
+        </th>
+        <th pSortableColumn="supplier">
+          Fornitore <p-sortIcon field="supplier"></p-sortIcon>
+        </th>
+        <th>Codice</th>
+        <th>UdM</th>
+        <th>Prezzo Min.</th>
+        <th>Prezzo Max.</th>
+        <th>% Variazione</th>
+        <th>Embeddings</th>
+        <th style="width: 6rem">Azioni</th>
+      </tr>
+    </ng-template>
+
+    <ng-template pTemplate="body" let-product let-expanded="expanded">
+      <tr>
+        <td>
+          <p-tableCheckbox [value]="product"></p-tableCheckbox>
+        </td>
+        <td>
+          <button
+            type="button"
+            pRowToggler
+            [pRowToggler]="product"
+            class="p-button p-button-text p-button-rounded p-button-plain p-button-sm"
+            [pTooltip]="expanded ? 'Nascondi dettagli' : 'Mostra dettagli'"
+          >
+            <i class="pi" [ngClass]="expanded ? 'pi-minus' : 'pi-plus'"></i>
+          </button>
+        </td>
+        <td>
+          {{ product.description }}
+        </td>
+        <td>
+          {{ product.supplier }}
+        </td>
+        <td>
+          <span class="text-sm">{{ product.productCode }}</span>
+        </td>
+        <td>
+          {{ product.unitOfMeasure }}
+        </td>
+        <td>
+          <span
+            [ngClass]="{ 'text-green-600': product.lowestPrice !== '-' }"
+            class="font-medium"
+          >
+            {{
+              product.lowestPrice !== "-"
+                ? (product.lowestPrice | currency : "EUR")
+                : "-"
+            }}
+          </span>
+        </td>
+        <td>
+          <span
+            [ngClass]="{ 'text-red-600': product.highestPrice !== '-' }"
+            class="font-medium"
+          >
+            {{
+              product.highestPrice !== "-"
+                ? (product.highestPrice | currency : "EUR")
+                : "-"
+            }}
+          </span>
+        </td>
+        <td>
+          <span
+            [ngClass]="{
+              'text-green-600': product.priceVariation > 0,
+              'text-red-600': product.priceVariation < 0
+            }"
+            class="font-medium"
+          >
+            {{ product.priceVariation }}%
+          </span>
+        </td>
+        <td>
+          <p-tag
+            [value]="getEmbeddingStatus(product).label"
+            [severity]="getEmbeddingStatus(product).severity"
+          >
+          </p-tag>
+        </td>
+        <td>
+          <div class="flex gap-1 justify-end">
+            <button
+              pButton
+              pRipple
+              icon="pi pi-search"
+              class="p-button-text p-button-rounded p-button-sm"
+              pTooltip="Visualizza dettagli"
+              tooltipPosition="top"
+              (click)="showDetails(product)"
+            ></button>
+          </div>
+        </td>
+      </tr>
+    </ng-template>
+    <ng-template #expandedrow let-product>
+      <tr>
+        <td colspan="11">
+          <div class="p-4 bg-gray-50 rounded">
+            <!-- Redistribuisci il layout in tre colonne più equilibrate -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <!-- Colonna 1: Grafico andamento prezzi -->
+              <div class="border rounded bg-white p-4">
+                <h4 class="text-lg font-medium mb-3">Andamento dei Prezzi</h4>
+
+                <div
+                  *ngIf="product.purchaseHistory?.length > 1"
+                  style="height: 300px"
+                >
+                  <p-chart
+                    type="line"
+                    [data]="generatePriceChartData(product)"
+                    [options]="generateChartOptions()"
+                  ></p-chart>
+                </div>
+
+                <div
+                  *ngIf="
+                    !product.purchaseHistory ||
+                    product.purchaseHistory.length <= 1
+                  "
+                  class="text-center py-8"
+                >
+                  <i class="pi pi-chart-line text-gray-400 text-4xl mb-3"></i>
+                  <p>Non ci sono sufficienti dati per mostrare un grafico.</p>
+                </div>
+              </div>
+
+              <!-- Colonna 2: Statistiche di acquisto -->
+              <div class="border rounded bg-white p-4">
+                <h4 class="text-lg font-medium mb-3">
+                  Statistiche di Acquisto
+                </h4>
+
+                <!-- Statistiche e dati -->
+                <div class="mb-3">
+                  <h5 class="text-sm text-gray-600 mb-1">Prezzo Medio</h5>
+                  <div class="text-xl font-bold">
+                    {{ getAveragePrice(product) | currency : "EUR" }}
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                  <div class="mb-3">
+                    <h5 class="text-sm text-gray-600 mb-1">Prezzo Minimo</h5>
+                    <div class="text-lg font-bold text-green-600">
+                      {{
+                        getLowestPrice(product) !== "-"
+                          ? (getLowestPrice(product) | currency : "EUR")
+                          : "-"
+                      }}
+                    </div>
+                  </div>
+
+                  <div class="mb-3">
+                    <h5 class="text-sm text-gray-600 mb-1">Prezzo Massimo</h5>
+                    <div class="text-lg font-bold text-red-600">
+                      {{
+                        getHighestPrice(product) !== "-"
+                          ? (getHighestPrice(product) | currency : "EUR")
+                          : "-"
+                      }}
+                    </div>
+                  </div>
+
+                  <div class="mb-3">
+                    <h5 class="text-sm text-gray-600 mb-1">Variazione</h5>
+                    <div
+                      class="text-lg font-bold"
+                      [ngClass]="{
+                        'text-green-600': getPriceVariation(product) > 0,
+                        'text-red-600': getPriceVariation(product) < 0
+                      }"
+                    >
+                      {{ getPriceVariation(product) }}%
+                    </div>
+                  </div>
+
+                  <div class="mb-3">
+                    <h5 class="text-sm text-gray-600 mb-1">Quantità Totale</h5>
+                    <div class="text-lg font-bold">
+                      {{ getTotalQuantity(product) }}
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Ultimo acquisto in formato compatto -->
+                <div class="mt-3 pt-3 border-t">
+                  <h5 class="text-md font-medium mb-2">Ultimo Acquisto</h5>
+                  <div
+                    *ngIf="getLastPurchase(product) as lastPurchase"
+                    class="text-sm"
+                  >
+                    <div class="flex justify-between mb-1">
+                      <span
+                        ><strong>Data:</strong>
+                        {{
+                          lastPurchase.purchaseDate | date : "dd/MM/yyyy"
+                        }}</span
+                      >
+                      <span
+                        ><strong>Quantità:</strong>
+                        {{ lastPurchase.quantity }}</span
+                      >
+                    </div>
+                    <div class="flex justify-between">
+                      <span
+                        ><strong>Prezzo:</strong>
+                        {{ lastPurchase.unitPrice | currency : "EUR" }}</span
+                      >
+                      <span
+                        ><strong>Totale:</strong>
+                        {{ lastPurchase.totalPrice | currency : "EUR" }}</span
+                      >
+                    </div>
+                    <button
+                      pButton
+                      label="Tutti gli acquisti"
+                      icon="pi pi-list"
+                      class="p-button-text p-button-sm mt-2 p-0"
+                      (click)="showDetails(product)"
+                    ></button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Colonna 3: Prodotti simili -->
+              <div class="border rounded bg-white p-4">
+                <div class="flex justify-between items-center mb-3">
+                  <h4 class="text-lg font-medium">Prodotti Simili</h4>
+                  <p-badge
+                    *ngIf="
+                      similarProducts[product.id] &&
+                      similarProducts[product.id].length
+                    "
+                    [value]="similarProducts[product.id].length.toString()"
+                    severity="info"
+                  ></p-badge>
+                </div>
+
+                <!-- Stato caricamento prodotti simili -->
+                <div
+                  *ngIf="!similarProducts[product.id]"
+                  class="text-center py-2"
+                >
+                  <i class="pi pi-spin pi-spinner mr-2"></i>
+                  Ricerca prodotti simili...
+                </div>
+
+                <!-- Messaggio quando non ci sono embeddings -->
+                <div
+                  *ngIf="
+                    similarProducts[product.id] !== undefined &&
+                    !product.additionalData?.embeddings
+                  "
+                  class="text-center py-2 text-amber-600"
+                >
+                  <i class="pi pi-exclamation-triangle mr-2"></i>
+                  Questo prodotto non ha embeddings.
+                </div>
+
+                <!-- Messaggio quando non ci sono prodotti simili -->
+                <div
+                  *ngIf="
+                    similarProducts[product.id]?.length === 0 &&
+                    product.additionalData?.embeddings
+                  "
+                  class="text-center py-2 text-gray-500"
+                >
+                  <i class="pi pi-info-circle mr-2"></i>
+                  Nessun prodotto simile trovato.
+                </div>
+
+                <!-- Tabella dei prodotti simili -->
+                <div
+                  *ngIf="
+                    similarProducts[product.id] &&
+                    similarProducts[product.id].length > 0
+                  "
+                  class="mt-2"
+                >
+                  <p-table
+                    [value]="similarProducts[product.id]"
+                    styleClass="p-datatable-sm p-datatable-hoverable-rows"
+                    [scrollable]="true"
+                    scrollHeight="180px"
+                  >
+                    <ng-template pTemplate="header">
+                      <tr>
+                        <th>Descrizione</th>
+                        <th style="width: 30%">Prezzo</th>
+                        <th style="width: 10%"></th>
+                      </tr>
+                    </ng-template>
+                    <ng-template pTemplate="body" let-similarProduct>
+                      <tr>
+                        <td>
+                          <div>
+                            <span class="font-medium">{{
+                              similarProduct.description
+                            }}</span>
+                            <div class="text-xs text-gray-500">
+                              {{ getSupplierName(similarProduct) }}
+                            </div>
+                          </div>
+                        </td>
+                        <td class="text-right font-medium">
+                          {{
+                            getAveragePrice(similarProduct) | currency : "EUR"
+                          }}
+                        </td>
+                        <td>
+                          <button
+                            pButton
+                            pRipple
+                            icon="pi pi-search"
+                            class="p-button-text p-button-rounded p-button-sm"
+                            pTooltip="Dettagli"
+                            tooltipPosition="left"
+                            (click)="showDetails(similarProduct)"
+                          ></button>
+                        </td>
+                      </tr>
+                    </ng-template>
+                  </p-table>
+
+                  <!-- Indicatore di potenziale risparmio in formato compatto -->
+                  <div
+                    *ngIf="
+                      getSavingsPotential(
+                        product,
+                        similarProducts[product.id]
+                      ) as savings
+                    "
+                    class="mt-2 p-2 rounded-lg text-sm"
+                    [ngClass]="{
+                      'bg-green-50 text-green-700': savings.percentage > 0,
+                      'bg-gray-50 text-gray-500': savings.percentage <= 0
+                    }"
+                  >
+                    <div class="flex items-center">
+                      <i
+                        class="pi"
+                        [ngClass]="{
+                          'pi-money-bill text-green-500':
+                            savings.percentage > 0,
+                          'pi-info-circle': savings.percentage <= 0
+                        }"
+                        style="font-size: 1rem; margin-right: 0.5rem"
+                      ></i>
+                      <div>
+                        <span class="font-medium">{{
+                          savings.percentage > 0
+                            ? "Risparmio potenziale:"
+                            : "Nessun risparmio"
+                        }}</span>
+                        <span *ngIf="savings.percentage > 0" class="ml-1">
+                          <strong>{{
+                            savings.amount | currency : "EUR"
+                          }}</strong>
+                          ({{ savings.percentage.toFixed(1) }}%)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </td>
+      </tr>
+    </ng-template>
+    <ng-template pTemplate="emptymessage">
+      <tr>
+        <td colspan="11" class="text-center p-4">
+          Nessun prodotto grezzo trovato
+        </td>
+      </tr>
+    </ng-template>
+  </p-table>
+  }
+</div>
+
+<!-- Dialog per dettagli prodotto -->
+<p-dialog
+  header="Dettagli Prodotto Grezzo"
+  [(visible)]="detailsVisible"
+  [modal]="true"
+  [style]="{ width: '90%', maxWidth: '1200px' }"
+  [draggable]="false"
+  [resizable]="false"
+>
+  <div *ngIf="currentRawProductDetails" class="p-fluid">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <div class="border rounded p-3">
+        <h3 class="text-md font-medium mb-2">Informazioni Prodotto</h3>
+        <p class="mb-1">
+          <strong>Descrizione:</strong>
+          {{ currentRawProductDetails.description }}
+        </p>
+        <p class="mb-1">
+          <strong>Fornitore:</strong>
+          {{ getSupplierName(currentRawProductDetails) }}
+        </p>
+        <p class="mb-1">
+          <strong>Codice:</strong>
+          {{ currentRawProductDetails.productCode }} ({{
+            currentRawProductDetails.productCodeType
+          }})
+        </p>
+        <p class="mb-1">
+          <strong>Unità di Misura:</strong>
+          {{ currentRawProductDetails.unitOfMeasure }}
+        </p>
+        <p class="mb-1">
+          <strong>IVA:</strong> {{ currentRawProductDetails.vatRate }}%
+        </p>
+      </div>
+
+      <div class="border rounded p-3">
+        <h3 class="text-md font-medium mb-2">Statistiche Prezzo</h3>
+        <p class="mb-1">
+          <strong>Prezzo Min:</strong>
+          {{
+            getLowestPrice(currentRawProductDetails) !== "-"
+              ? (getLowestPrice(currentRawProductDetails) | currency : "EUR")
+              : "-"
+          }}
+        </p>
+        <p class="mb-1">
+          <strong>Prezzo Max:</strong>
+          {{
+            getHighestPrice(currentRawProductDetails) !== "-"
+              ? (getHighestPrice(currentRawProductDetails) | currency : "EUR")
+              : "-"
+          }}
+        </p>
+        <p class="mb-1">
+          <strong>Prezzo Medio:</strong>
+          {{ getAveragePrice(currentRawProductDetails) | currency : "EUR" }}
+        </p>
+        <p class="mb-1">
+          <strong>Variazione Prezzo:</strong>
+          <span
+            [ngClass]="{
+              'text-green-600': getPriceVariation(currentRawProductDetails) > 0,
+              'text-red-600': getPriceVariation(currentRawProductDetails) < 0
+            }"
+          >
+            {{ getPriceVariation(currentRawProductDetails) }}%
+          </span>
+        </p>
+      </div>
+    </div>
+
+    <div class="border rounded p-3 mb-4">
+      <h3 class="text-md font-medium mb-2">Trend dei Prezzi</h3>
+      <div
+        *ngIf="chartData"
+        class="chart-container"
+        style="position: relative; height: 300px; width: 100%"
+      >
+        <p-chart
+          type="line"
+          [data]="chartData"
+          [options]="chartOptions"
+          style="width: 100%; height: 100%"
+        ></p-chart>
+      </div>
+      <div *ngIf="!chartData" class="text-center p-4">
+        <i class="pi pi-exclamation-circle text-amber-500 mb-3 text-3xl"></i>
+        <p>Non ci sono sufficienti dati di acquisto per generare un grafico.</p>
+      </div>
+    </div>
+
+    <div class="border rounded p-3 mb-4">
+      <h3 class="text-md font-medium mb-2">Storico Acquisti</h3>
+      <p-table
+        [value]="currentRawProductDetails.purchaseHistory || []"
+        styleClass="p-datatable-sm"
+        [paginator]="true"
+        [rows]="5"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th>Data</th>
+            <th>Fattura</th>
+            <th style="text-align: right">Quantità</th>
+            <th style="text-align: right">Prezzo Unitario</th>
+            <th style="text-align: right">Totale</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-purchase>
+          <tr>
+            <td>{{ purchase.purchaseDate | date : "dd/MM/yyyy" }}</td>
+            <td>{{ purchase.invoiceId }}</td>
+            <td style="text-align: right">{{ purchase.quantity }}</td>
+            <td style="text-align: right">
+              {{ purchase.unitPrice | currency : "EUR" }}
+            </td>
+            <td style="text-align: right">
+              {{ purchase.totalPrice | currency : "EUR" }}
+            </td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="5" class="text-center">
+              Nessun dato di acquisto disponibile
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </div>
+
+    <!-- Dettagli aggiuntivi se presenti -->
+    <div
+      *ngIf="currentRawProductDetails.additionalData"
+      class="border rounded p-3"
+    >
+      <h3 class="text-md font-medium mb-2">Informazioni Aggiuntive</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div *ngIf="currentRawProductDetails.additionalData.category">
+          <strong>Categoria:</strong>
+          {{ currentRawProductDetails.additionalData.category }}
+        </div>
+        <div *ngIf="currentRawProductDetails.additionalData.note">
+          <strong>Note:</strong>
+          {{ currentRawProductDetails.additionalData.note }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <button
+      pButton
+      label="Chiudi"
+      icon="pi pi-times"
+      class="p-button-text"
+      (click)="closeDetails()"
+    ></button>
+  </ng-template>
+</p-dialog>
+
+<style>
+  .empty-state {
+    padding: 3rem 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .empty-state i {
+    font-size: 3rem;
+    color: #ccc;
+    margin-bottom: 1rem;
+  }
+
+  .empty-state h3 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  ::ng-deep .p-datatable-tbody > tr > td {
+    vertical-align: middle;
+  }
+      /* Stili aggiuntivi per i grafici */
+      .chart-container {
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+    
+    ::ng-deep .p-chart {
+      width: 100% !important;
+      height: 100% !important;
+    }
+    
+    /* Correzione per grafici nei dialog */
+    ::ng-deep .p-dialog-content .chart-container canvas {
+      max-width: 100%;
+    }
+</style>

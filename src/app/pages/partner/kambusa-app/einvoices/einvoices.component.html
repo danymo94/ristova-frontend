@@ -139,7 +139,7 @@
           </p>
           <p class="mb-2">
             <strong>Righe:</strong>
-            {{ invoice.invoiceLines?.length || 0 }}
+            {{ invoice.invoiceLines.length || 0 }}
           </p>
         </div>
 
@@ -165,6 +165,52 @@
           </ul>
         </div>
 
+        <div class="flex gap-2 mb-3">
+          <p-badge
+            [value]="
+              hasRawProductsExtracted(invoice) ? 'Estratti' : 'Da Estrarre'
+            "
+            [severity]="hasRawProductsExtracted(invoice) ? 'success' : 'warn'"
+            [pTooltip]="
+              'Prodotti grezzi ' +
+              (hasRawProductsExtracted(invoice) ? 'estratti' : 'da estrarre')
+            "
+          ></p-badge>
+          <p-badge
+            [value]="
+              isWarehouseValued(invoice) ? 'Valorizzato' : 'Non Valorizzato'
+            "
+            [severity]="isWarehouseValued(invoice) ? 'success' : 'info'"
+            [pTooltip]="
+              'Magazzino ' +
+              (isWarehouseValued(invoice) ? 'valorizzato' : 'da valorizzare')
+            "
+          ></p-badge>
+          <p-badge
+            [value]="
+              hasCostCenterAssigned(invoice) ? 'Assegnato' : 'Non Assegnato'
+            "
+            [severity]="hasCostCenterAssigned(invoice) ? 'success' : 'info'"
+            [pTooltip]="
+              'Centro di costo ' +
+              (hasCostCenterAssigned(invoice) ? 'assegnato' : 'da assegnare')
+            "
+          ></p-badge>
+        </div>
+
+        <div
+          *ngIf="processingRawProducts && processingInvoiceId === invoice.id"
+          class="mt-3"
+        >
+          <p-progressBar
+            [value]="progressPercent"
+            [showValue]="true"
+          ></p-progressBar>
+          <div class="text-center text-sm text-gray-600 mt-1">
+            Elaborazione prodotti grezzi in corso...
+          </div>
+        </div>
+
         <ng-template pTemplate="footer">
           <div class="flex justify-between">
             <button
@@ -179,6 +225,30 @@
               icon="pi pi-pencil"
               label="Modifica"
               class="p-button-text p-button-sm p-button-warning"
+              (click)="editInvoice(invoice)"
+            ></button>
+          </div>
+          <div class="flex gap-1">
+            <button
+              pButton
+              [icon]="
+                hasRawProductsExtracted(invoice) ? 'pi pi-list' : 'pi pi-sync'
+              "
+              [label]="hasRawProductsExtracted(invoice) ? 'Prodotti' : 'Estrai'"
+              class="p-button-sm p-button-outlined"
+              [loading]="
+                processingRawProducts && processingInvoiceId === invoice.id
+              "
+              (click)="
+                hasRawProductsExtracted(invoice)
+                  ? loadInvoiceRawProducts(invoice.id!)
+                  : createRawProducts(invoice)
+              "
+            ></button>
+            <button
+              pButton
+              icon="pi pi-pencil"
+              class="p-button-sm p-button-outlined p-button-warning"
               (click)="editInvoice(invoice)"
             ></button>
           </div>
@@ -212,31 +282,72 @@
             Importo <p-sortIcon field="totalAmount"></p-sortIcon>
           </th>
           <th>Righe</th>
-          <th style="width: 8rem">Azioni</th>
+          <th>Stato</th>
+          <th style="width: 12rem">Azioni</th>
         </tr>
       </ng-template>
 
       <ng-template pTemplate="body" let-invoice>
         <tr>
           <td>
-            <span class="p-column-title">Numero</span>
             {{ invoice.invoiceNumber }}
           </td>
           <td>
-            <span class="p-column-title">Data</span>
             {{ invoice.invoiceDate | date : "dd/MM/yyyy" }}
           </td>
           <td>
-            <span class="p-column-title">Fornitore</span>
             {{ getSupplierName(invoice.supplierId) }}
           </td>
           <td>
-            <span class="p-column-title">Importo</span>
             {{ invoice.totalAmount | currency : "EUR" }}
           </td>
           <td>
-            <span class="p-column-title">Righe</span>
             {{ invoice.invoiceLines?.length || 0 }}
+          </td>
+          <td>
+            <div class="flex flex-col gap-1 w-fit">
+              <p-badge
+                styleClass="p-badge-sm !truncate"
+                [value]="
+                  hasRawProductsExtracted(invoice) ? 'Estratti' : 'Da Estrarre'
+                "
+                [severity]="
+                  hasRawProductsExtracted(invoice) ? 'success' : 'warn'
+                "
+                [pTooltip]="
+                  'Prodotti grezzi ' +
+                  (hasRawProductsExtracted(invoice)
+                    ? 'estratti'
+                    : 'da estrarre')
+                "
+              ></p-badge>
+              <p-badge
+                styleClass="p-badge-sm !truncate"
+                [value]="
+                  isWarehouseValued(invoice) ? 'Valorizzato' : 'Da Valorizzare'
+                "
+                [severity]="isWarehouseValued(invoice) ? 'success' : 'info'"
+                [pTooltip]="
+                  'Magazzino ' +
+                  (isWarehouseValued(invoice)
+                    ? 'valorizzato'
+                    : 'da valorizzare')
+                "
+              ></p-badge>
+              <p-badge
+                styleClass="p-badge-sm"
+                [value]="
+                  hasCostCenterAssigned(invoice) ? 'Assegnato' : 'Da Assegnare'
+                "
+                [severity]="hasCostCenterAssigned(invoice) ? 'success' : 'info'"
+                [pTooltip]="
+                  'Centro di costo ' +
+                  (hasCostCenterAssigned(invoice)
+                    ? 'assegnato'
+                    : 'da assegnare')
+                "
+              ></p-badge>
+            </div>
           </td>
           <td>
             <div class="flex gap-1 justify-end">
@@ -256,6 +367,63 @@
                 tooltipPosition="top"
                 (click)="editInvoice(invoice)"
               ></button>
+              <button
+                pButton
+                [icon]="
+                  hasRawProductsExtracted(invoice) ? 'pi pi-list' : 'pi pi-sync'
+                "
+                class="p-button-text p-button-rounded p-button-sm"
+                [pTooltip]="
+                  hasRawProductsExtracted(invoice)
+                    ? 'Visualizza prodotti grezzi'
+                    : 'Estrai prodotti grezzi'
+                "
+                tooltipPosition="top"
+                [loading]="
+                  processingRawProducts && processingInvoiceId === invoice.id
+                "
+                (click)="
+                  hasRawProductsExtracted(invoice)
+                    ? loadInvoiceRawProducts(invoice.id!)
+                    : createRawProducts(invoice)
+                "
+              ></button>
+              <button
+                pButton
+                icon="pi pi-check-circle"
+                class="p-button-text p-button-rounded p-button-sm"
+                [pTooltip]="
+                  isWarehouseValued(invoice)
+                    ? 'Rimuovi valorizzazione magazzino'
+                    : 'Segna come valorizzato'
+                "
+                tooltipPosition="top"
+                [disabled]="!hasRawProductsExtracted(invoice)"
+                (click)="updateWarehouseValued(invoice)"
+              ></button>
+              <button
+                pButton
+                icon="pi pi-dollar"
+                class="p-button-text p-button-rounded p-button-sm"
+                [pTooltip]="
+                  hasCostCenterAssigned(invoice)
+                    ? 'Rimuovi assegnazione centro di costo'
+                    : 'Segna centro di costo assegnato'
+                "
+                tooltipPosition="top"
+                (click)="updateCostCenterAssigned(invoice)"
+              ></button>
+            </div>
+          </td>
+        </tr>
+        <tr *ngIf="processingRawProducts && processingInvoiceId === invoice.id">
+          <td colspan="7">
+            <p-progressBar
+              [value]="progressPercent"
+              [showValue]="true"
+            ></p-progressBar>
+            <div class="text-center text-sm text-gray-600 mt-1">
+              Elaborazione prodotti grezzi in corso...
             </div>
           </td>
         </tr>
@@ -402,7 +570,7 @@
         </p>
         <p class="mb-1">
           <strong>Totale Prodotti:</strong>
-          {{ selectedInvoice.invoiceLines?.length || 0 }}
+          {{ selectedInvoice.invoiceLines.length || 0 }}
         </p>
         <p class="mb-1">
           <strong>Data Registrazione:</strong>
@@ -468,6 +636,117 @@
       icon="pi pi-pencil"
       class="p-button-warning"
       (click)="editInvoice(selectedInvoice)"
+    ></button>
+  </ng-template>
+</p-dialog>
+
+<!-- Dialog per visualizzazione dei prodotti grezzi -->
+<p-dialog
+  header="Prodotti Grezzi della Fattura"
+  [(visible)]="rawProductsDialogVisible"
+  [modal]="true"
+  [style]="{ width: '80%', maxWidth: '1200px' }"
+  [draggable]="false"
+  [resizable]="false"
+>
+  <div *ngIf="selectedInvoiceForRawProducts" class="p-fluid">
+    <div class="mb-4">
+      <h3 class="text-lg">
+        Fattura: {{ selectedInvoiceForRawProducts.invoiceNumber }} -
+        {{ selectedInvoiceForRawProducts.invoiceDate | date : "dd/MM/yyyy" }}
+      </h3>
+      <p>
+        Fornitore:
+        {{ getSupplierName(selectedInvoiceForRawProducts.supplierId) }}
+      </p>
+    </div>
+
+    <!-- Loading indicator -->
+    <div *ngIf="rawProductLoading()" class="flex justify-center my-4">
+      <i class="pi pi-spin pi-spinner text-3xl text-primary"></i>
+      <span class="ml-2">Caricamento prodotti grezzi...</span>
+    </div>
+
+    <!-- Table of raw products -->
+    <p-table
+      *ngIf="
+        !rawProductLoading() &&
+        invoiceRawProducts() &&
+        invoiceRawProducts()!.length > 0
+      "
+      [value]="invoiceRawProducts()!"
+      [paginator]="true"
+      [rows]="10"
+      [rowsPerPageOptions]="[10, 25, 50]"
+      styleClass="p-datatable-sm"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th>Codice</th>
+          <th>Descrizione</th>
+          <th>U.M.</th>
+          <th>Quantità</th>
+          <th>Prezzo Unitario</th>
+          <th>Totale</th>
+          <th>IVA</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-product>
+        <tr>
+          <td>{{ product.productCode }}</td>
+          <td>{{ product.description }}</td>
+          <td>{{ product.unitOfMeasure }}</td>
+          <td class="text-right">{{ product.totalQuantity }}</td>
+          <td class="text-right">
+            {{ product.averageUnitPrice | currency : "EUR" }}
+          </td>
+          <td class="text-right">
+            {{ product.totalPrice | currency : "EUR" }}
+          </td>
+          <td class="text-right">{{ product.vatRate }}%</td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="7" class="text-center p-4">
+            Nessun prodotto grezzo trovato
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+
+    <div
+      *ngIf="
+        !rawProductLoading() &&
+        (!invoiceRawProducts() || invoiceRawProducts()!.length === 0)
+      "
+      class="text-center p-4"
+    >
+      <i class="pi pi-exclamation-circle text-3xl text-amber-500 mb-3"></i>
+      <p>Nessun prodotto grezzo trovato per questa fattura.</p>
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <button
+      pButton
+      label="Chiudi"
+      icon="pi pi-times"
+      class="p-button-text"
+      (click)="closeRawProductsDialog()"
+    ></button>
+    <button
+      pButton
+      label="Genera Embeddings"
+      icon="pi pi-sitemap"
+      [loading]="processingEmbeddings()"
+      [disabled]="
+        processingEmbeddings() ||
+        rawProductLoading() ||
+        !invoiceRawProducts() ||
+        invoiceRawProducts()!.length === 0
+      "
+      (click)="generateEmbeddings()"
     ></button>
   </ng-template>
 </p-dialog>

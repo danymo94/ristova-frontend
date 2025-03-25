@@ -148,6 +148,14 @@ export const routes: Routes = [
           ),
         pathMatch: 'full',
       },
+      {
+        path: 'rawproducts',
+        loadComponent: () =>
+          import('./pages/partner/kambusa-app/rawproducts/rawproducts.component').then(
+            (m) => m.RawproductsComponent
+          ),
+        pathMatch: 'full',
+      },
 
     ],
   },

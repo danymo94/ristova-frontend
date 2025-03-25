@@ -9,6 +9,7 @@ export interface EInvoice {
   invoiceLines: InvoiceLine[];
   createdAt: string;
   lastUpdatedAt: string;
+  status?:any;
 }
 
 export interface InvoiceLine {
