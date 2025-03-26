@@ -34,10 +34,11 @@
       <button
         pButton
         pRipple
-        [icon]="viewMode === 'grid' ? 'pi pi-list' : 'pi pi-th-large'"
+        icon="pi pi-folder-open"
         class="p-button-outlined"
-        (click)="toggleViewMode()"
-        pTooltip="Cambia visualizzazione"
+        [class.p-button-info]="showWarehouseSection"
+        (click)="toggleWarehouseSection()"
+        pTooltip="Mostra/Nascondi magazzini"
         tooltipPosition="bottom"
       ></button>
 
@@ -76,6 +77,25 @@
     </div>
   </div>
 
+  <!-- Sezione Magazzini e Centri di Costo -->
+  <div *ngIf="showWarehouseSection" class="mb-5 warehouse-section">
+    <div class="flex justify-between items-center mb-2">
+      <h2 class="text-xl font-medium">Magazzini e Centri di Costo</h2>
+      <div class="text-sm text-gray-500" *ngIf="warehouseMode === 'dropTarget'">
+        Trascina le fatture sui magazzini per assegnarle
+      </div>
+    </div>
+
+    <div class="border rounded-lg bg-white">
+      <app-warehouses
+        [projectId]="getSelectedProjectId()!"
+        [mode]="warehouseMode"
+        (onWarehouseSelected)="handleWarehouseSelected($event)"
+        (onInvoiceDropped)="handleInvoiceDropped($event)"
+      ></app-warehouses>
+    </div>
+  </div>
+
   <!-- Stato di caricamento -->
   <div *ngIf="isLoading()" class="flex justify-center my-5">
     <i class="pi pi-spin pi-spinner text-4xl text-primary"></i>
@@ -104,15 +124,11 @@
     </div>
   </div>
 
-  <!-- Vista fatture in grid o tabella -->
+  <!-- Vista fatture in grid - ora è l'unica visualizzazione disponibile -->
   <ng-container
     *ngIf="!isLoading() && filteredInvoices && filteredInvoices.length > 0"
   >
-    <!-- Vista a griglia -->
-    <div
-      *ngIf="viewMode === 'grid'"
-      class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
-    >
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
       <app-einvoice-view
         *ngFor="let invoice of filteredInvoices"
         [invoice]="invoice"
@@ -125,186 +141,13 @@
         [progressPercent]="progressPercent"
         (onDetails)="viewInvoiceDetails($event)"
         (onEdit)="editInvoice($event)"
-        (onDelete)="handleInvoiceDelete($event)" 
+        (onDelete)="handleInvoiceDelete($event)"
         (onExtractRawProducts)="createRawProducts($event)"
         (onShowRawProducts)="loadInvoiceRawProducts($event!)"
         (onUpdatePaymentStatus)="handleUpdatePaymentStatus($event)"
+        (onDrag)="warehouseMode = 'dropTarget'"
       ></app-einvoice-view>
     </div>
-
-    <!-- Vista tabella -->
-    <p-table
-      *ngIf="viewMode === 'list'"
-      [value]="filteredInvoices"
-      [paginator]="true"
-      [rows]="10"
-      [rowsPerPageOptions]="[10, 25, 50]"
-      styleClass="p-datatable-sm"
-      [showCurrentPageReport]="true"
-      currentPageReportTemplate="Visualizzazione {first} a {last} di {totalRecords} fatture"
-      [responsiveLayout]="'stack'"
-      responsiveLayout="stack"
-    >
-      <ng-template pTemplate="header">
-        <tr>
-          <th pSortableColumn="invoiceNumber">
-            Numero <p-sortIcon field="invoiceNumber"></p-sortIcon>
-          </th>
-          <th pSortableColumn="invoiceDate">
-            Data <p-sortIcon field="invoiceDate"></p-sortIcon>
-          </th>
-          <th>Fornitore</th>
-          <th pSortableColumn="totalAmount">
-            Importo <p-sortIcon field="totalAmount"></p-sortIcon>
-          </th>
-          <th>Righe</th>
-          <th>Stato</th>
-          <th style="width: 12rem">Azioni</th>
-        </tr>
-      </ng-template>
-
-      <ng-template pTemplate="body" let-invoice>
-        <tr>
-          <td>
-            {{ invoice.invoiceNumber }}
-          </td>
-          <td>
-            {{ invoice.invoiceDate | date : "dd/MM/yyyy" }}
-          </td>
-          <td>
-            {{ getSupplierName(invoice.supplierId) }}
-          </td>
-          <td>
-            {{ invoice.totalAmount | currency : "EUR" }}
-          </td>
-          <td>
-            {{ invoice.invoiceLines?.length || 0 }}
-          </td>
-          <td>
-            <div class="flex flex-col gap-1 w-fit">
-              <p-badge
-                styleClass="p-badge-sm !truncate"
-                [value]="
-                  invoice.status.rawProductStatus === 'processed'
-                    ? 'Estratti'
-                    : 'Da Estrarre'
-                "
-                [severity]="
-                  invoice.status.rawProductStatus === 'processed'
-                    ? 'success'
-                    : 'warn'
-                "
-                [pTooltip]="
-                  'Prodotti grezzi ' +
-                  (invoice.status.rawProductStatus === 'processed'
-                    ? 'estratti'
-                    : 'da estrarre')
-                "
-              ></p-badge>
-              <p-badge
-                styleClass="p-badge-sm !truncate"
-                [value]="
-                  invoice.status.paymentStatus === 'paid'
-                    ? 'Pagato'
-                    : invoice.status.paymentStatus === 'scheduled'
-                    ? 'Programmato'
-                    : 'In attesa'
-                "
-                [severity]="
-                  invoice.status.paymentStatus === 'paid'
-                    ? 'success'
-                    : invoice.status.paymentStatus === 'scheduled'
-                    ? 'info'
-                    : 'warn'
-                "
-                [pTooltip]="
-                  'Stato pagamento: ' +
-                  (invoice.status.paymentStatus === 'paid'
-                    ? 'Pagato'
-                    : invoice.status.paymentStatus === 'scheduled'
-                    ? 'Programmato'
-                    : 'In attesa')
-                "
-              ></p-badge>
-            </div>
-          </td>
-          <td>
-            <div class="flex gap-1 justify-end">
-              <button
-                pButton
-                icon="pi pi-eye"
-                class="p-button-text p-button-rounded p-button-sm"
-                pTooltip="Visualizza dettagli"
-                tooltipPosition="top"
-                (click)="viewInvoiceDetails(invoice)"
-              ></button>
-              <button
-                pButton
-                icon="pi pi-pencil"
-                class="p-button-text p-button-rounded p-button-sm p-button-warning"
-                pTooltip="Modifica"
-                tooltipPosition="top"
-                (click)="editInvoice(invoice)"
-              ></button>
-              <button
-                pButton
-                [icon]="
-                  invoice.status.rawProductStatus === 'processed'
-                    ? 'pi pi-list'
-                    : 'pi pi-sync'
-                "
-                class="p-button-text p-button-rounded p-button-sm"
-                [pTooltip]="
-                  invoice.status.rawProductStatus === 'processed'
-                    ? 'Visualizza prodotti grezzi'
-                    : 'Estrai prodotti grezzi'
-                "
-                tooltipPosition="top"
-                [loading]="
-                  (processingRawProducts || extractingFromInvoice()) &&
-                  processingInvoiceId === invoice.id
-                "
-                (click)="
-                  invoice.status.rawProductStatus === 'processed'
-                    ? loadInvoiceRawProducts(invoice.id!)
-                    : createRawProducts(invoice)
-                "
-              ></button>
-              <button
-                pButton
-                icon="pi pi-credit-card"
-                class="p-button-text p-button-rounded p-button-sm"
-                pTooltip="Gestisci pagamento"
-                tooltipPosition="top"
-                (click)="viewInvoiceDetails(invoice)"
-              ></button>
-            </div>
-          </td>
-        </tr>
-        <tr
-          *ngIf="
-            (processingRawProducts || extractingFromInvoice()) &&
-            processingInvoiceId === invoice.id
-          "
-        >
-          <td colspan="7">
-            <p-progressBar
-              [value]="progressPercent"
-              [showValue]="true"
-            ></p-progressBar>
-            <div class="text-center text-sm text-gray-600 mt-1">
-              Elaborazione prodotti grezzi in corso...
-            </div>
-          </td>
-        </tr>
-      </ng-template>
-
-      <ng-template pTemplate="emptymessage">
-        <tr>
-          <td colspan="6" class="text-center p-4">Nessuna fattura trovata</td>
-        </tr>
-      </ng-template>
-    </p-table>
   </ng-container>
   }
 </div>
@@ -342,7 +185,7 @@
     [suppliers]="suppliersArray()"
     viewMode="detail"
     (onEdit)="editInvoice($event)"
-    (onDelete)="handleInvoiceDelete($event)" 
+    (onDelete)="handleInvoiceDelete($event)"
     (onUpdatePaymentStatus)="handleUpdatePaymentStatus($event)"
   ></app-einvoice-view>
 
@@ -515,5 +358,13 @@
   .invoice-card:hover {
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
       0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+
+  .warehouse-section {
+    transition: all 0.3s ease;
+  }
+
+  .warehouse-section:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
   }
 </style>

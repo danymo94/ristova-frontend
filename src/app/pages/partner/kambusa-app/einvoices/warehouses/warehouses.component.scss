@@ -1,0 +1,201 @@
+.warehouse-container {
+    margin-bottom: 1.5rem;
+}
+
+.warehouse-flex-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px;
+}
+
+.warehouse-square {
+    width: 250px;
+    height: 150px;
+    flex-shrink: 0;
+    flex-grow: 0;
+    margin-bottom: 10px;
+
+    @media screen and (max-width: 640px) {
+        width: calc(50% - 5px); // 2 per riga con gap di 10px
+        height: 150px;
+    }
+
+    @media screen and (min-width: 641px) and (max-width: 960px) {
+        width: calc(33.333% - 7px); // 3 per riga
+        height: 150px;
+    }
+
+    @media screen and (min-width: 961px) and (max-width: 1200px) {
+        width: calc(25% - 8px); // 4 per riga
+        height: 150px;
+    }
+
+    @media screen and (min-width: 1201px) {
+        width: 150px; // Dimensione fissa su schermi grandi
+        height: 150px;
+    }
+}
+
+.warehouse-grid {
+    margin-top: 1rem;
+}
+
+.warehouse-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    height: 100%;
+    width: 100%;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    padding: 0.75rem;
+    text-align: center;
+    overflow: hidden;
+
+    &:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border-color: var(--primary-color);
+    }
+
+    &.cost-center {
+        background-color: #f0f7ff;
+    }
+
+    &.warehouse-droppable {
+        border: 2px dashed #ced4da;
+    }
+
+    &.warehouse-drag-over {
+        background-color: #e9ecef;
+        border: 2px dashed var(--primary-color);
+        transform: translateY(-3px);
+    }
+}
+
+.warehouse-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background-color: #2a3f54; // Colore più scuro per l'icona
+    border-radius: 50%;
+    color: white;
+    margin-bottom: 0.75rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); // Aggiunge un'ombra per maggiore contrasto
+
+    i {
+        font-size: 1.25rem;
+    }
+}
+
+.warehouse-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+}
+
+.warehouse-info {
+    flex: 1;
+}
+
+.warehouse-name {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.9rem;
+    color: var(--text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+}
+
+.warehouse-description {
+    margin: 0 0 0.75rem 0;
+    color: var(--text-color-secondary);
+    font-size: 0.85rem;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+}
+
+.warehouse-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 0.75rem;
+
+    .stats-item {
+        .stats-label {
+            font-size: 0.8rem;
+            color: var(--text-color-secondary);
+            margin-right: 0.25rem;
+        }
+
+        .stats-value {
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+    }
+}
+
+.warehouse-responsible {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--text-color-secondary);
+    display: flex;
+    align-items: center;
+}
+
+.warehouse-count {
+    font-size: 0.8rem;
+    color: var(--text-color-secondary);
+    margin-bottom: 0.25rem;
+}
+
+.warehouse-value {
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.cost-center-code {
+    font-size: 0.7rem;
+    background-color: var(--primary-color);
+    color: white;
+    padding: 0.15rem 0.35rem;
+    border-radius: 3px;
+    margin: 0.25rem 0;
+}
+
+.cost-center-categories {
+    .badge {
+        font-size: 0.7rem;
+        background-color: var(--surface-200);
+        color: var(--text-color-secondary);
+        padding: 0.15rem 0.35rem;
+        border-radius: 4px;
+    }
+
+    .badge-secondary {
+        background-color: var(--surface-200);
+        color: var(--text-color-secondary);
+    }
+}
+
+.empty-state {
+    padding: 2rem;
+    text-align: center;
+    color: var(--text-color-secondary);
+}
+
+.loading-skeleton {
+    padding: 0.5rem;
+}

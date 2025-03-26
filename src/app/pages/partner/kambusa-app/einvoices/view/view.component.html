@@ -1,6 +1,11 @@
 <!-- Vista Card -->
 <ng-container *ngIf="viewMode === 'card' && invoice">
-  <p-card styleClass="invoice-card">
+  <p-card
+    styleClass="invoice-card"
+    pDraggable
+    (onDragStart)="dragStart($event, invoice)"
+    (onDragEnd)="dragEnd($event)"
+  >
     <ng-template pTemplate="header">
       <div class="p-3 bg-gray-50 flex justify-between items-center">
         <div class="font-bold">Fattura #{{ invoice.invoiceNumber }}</div>
@@ -85,12 +90,12 @@
           (click)="viewDetails()"
         ></button>
         <button
-        pButton
-        icon="pi pi-trash"
-        label="Elimina"
-        class="p-button-text p-button-sm p-button-danger"
-        (click)="confirmDelete()"
-      ></button>
+          pButton
+          icon="pi pi-trash"
+          label="Elimina"
+          class="p-button-text p-button-sm p-button-danger"
+          (click)="confirmDelete()"
+        ></button>
         <button
           pButton
           icon="pi pi-pencil"
@@ -260,7 +265,7 @@
     </div>
 
     <div class="flex gap-2 mt-4 justify-end">
-        <button
+      <button
         pButton
         icon="pi pi-trash"
         label="Elimina"
@@ -381,12 +386,19 @@
     <p class="mb-3">Sei sicuro di voler eliminare questa fattura?</p>
     <div class="p-3 bg-gray-50 border-round mb-3">
       <p class="mb-1"><strong>Fattura:</strong> #{{ invoice.invoiceNumber }}</p>
-      <p class="mb-1"><strong>Fornitore:</strong> {{ getSupplierName(invoice.supplierId) }}</p>
-      <p class="mb-1"><strong>Importo:</strong> {{ invoice.totalAmount | currency:'EUR' }}</p>
-      <p class="mb-0"><strong>Data:</strong> {{ invoice.invoiceDate | date:'dd/MM/yyyy' }}</p>
+      <p class="mb-1">
+        <strong>Fornitore:</strong> {{ getSupplierName(invoice.supplierId) }}
+      </p>
+      <p class="mb-1">
+        <strong>Importo:</strong> {{ invoice.totalAmount | currency : "EUR" }}
+      </p>
+      <p class="mb-0">
+        <strong>Data:</strong> {{ invoice.invoiceDate | date : "dd/MM/yyyy" }}
+      </p>
     </div>
     <p class="text-sm text-red-600">
-      Questa azione è irreversibile. Tutti i dati associati alla fattura verranno eliminati.
+      Questa azione è irreversibile. Tutti i dati associati alla fattura
+      verranno eliminati.
     </p>
   </div>
 

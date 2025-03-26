@@ -1780,3 +1780,61 @@
       ),
     pathMatch: 'full',
   },
+
+
+
+
+  this.rawProductsDialogVisible = true;
+} else {
+  this.toastService.showError('Fattura non trovata');
+}
+}
+
+closeRawProductsDialog(): void {
+this.rawProductsDialogVisible = false;
+this.selectedInvoiceForRawProducts = null;
+this.rawProductStore.clearInvoiceRawProducts();
+}
+
+generateEmbeddings(): void {
+const projectId = this.getSelectedProjectId();
+if (!projectId) {
+  this.toastService.showError('Nessun progetto selezionato');
+  return;
+}
+
+this.rawProductStore.generateEmbeddings({ projectId });
+}
+
+// Gestione dello stato di pagamento
+handleUpdatePaymentStatus(data: {
+invoice: EInvoice;
+paymentData: UpdatePaymentStatusDto;
+}): void {
+const projectId = this.getSelectedProjectId();
+if (!projectId || !data.invoice.id) {
+  this.toastService.showError(
+    'Dati insufficienti per aggiornare la fattura'
+  );
+  return;
+}
+
+this.einvoiceStore.updatePaymentStatus({
+  projectId,
+  invoiceId: data.invoice.id,
+  paymentData: data.paymentData,
+});
+}
+
+deleteInvoice(invoice: EInvoice): void {
+const projectId = this.getSelectedProjectId();
+if (!projectId || !invoice.id) {
+  this.toastService.showError('Impossibile eliminare la fattura');
+  return;
+}
+
+this.einvoiceStore.deleteInvoice({
+  projectId,
+  invoiceId: invoice.id,
+});
+}

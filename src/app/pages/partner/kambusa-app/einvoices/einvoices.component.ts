@@ -1,3 +1,4 @@
+import { TableModule } from 'primeng/table';
 import {
   Component,
   OnInit,
@@ -13,7 +14,6 @@ import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { ToastModule } from 'primeng/toast';
 import { BadgeModule } from 'primeng/badge';
-import { TableModule } from 'primeng/table';
 import { CardModule } from 'primeng/card';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
@@ -26,10 +26,12 @@ import { ProjectStore } from '../../../../core/store/project.signal-store';
 import { SupplierStore } from '../../../../core/store/supplier.signal-store';
 import { EInvoiceStore } from '../../../../core/store/einvoice.signal-store';
 import { RawProductStore } from '../../../../core/store/rawproduct.signal-store';
+import { WarehouseStore } from '../../../../core/store/warehouse.signal-store';
 import {
   EInvoice,
   UpdatePaymentStatusDto,
 } from '../../../../core/models/einvoice.model';
+import { Warehouse } from '../../../../core/models/warehouse.model';
 
 // Componenti scorporati
 import { UploadComponent } from './upload/upload.component';
@@ -39,6 +41,7 @@ import {
   FilterOptions,
   SupplierOption,
 } from './filter/filter.component';
+import { WarehousesComponent } from './warehouses/warehouses.component';
 
 @Component({
   selector: 'app-einvoices',
@@ -49,24 +52,22 @@ import {
     ButtonModule,
     ToastModule,
     BadgeModule,
-    TableModule,
     CardModule,
     DialogModule,
     InputTextModule,
     TooltipModule,
     ProgressBarModule,
+    TableModule,
     // Componenti scorporati
     UploadComponent,
     ViewComponent,
     FilterComponent,
+    WarehousesComponent,
   ],
   templateUrl: './einvoices.component.html',
   styleUrls: ['./einvoices.component.scss'],
 })
 export class EinvoicesComponent implements OnInit, OnDestroy {
-  // View mode
-  viewMode: 'grid' | 'list' = 'list';
-
   // Search and filters
   searchQuery: string = '';
   filters: FilterOptions = {
@@ -77,6 +78,11 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
   };
   filteredInvoices: EInvoice[] = [];
   supplierOptions: SupplierOption[] = [];
+
+  // Warehouse section
+  showWarehouseSection: boolean = true;
+  warehouseMode: 'normal' | 'dropTarget' = 'dropTarget';
+  selectedWarehouse: Warehouse | null = null;
 
   // Dialog control
   uploadDialogVisible: boolean = false;
@@ -90,6 +96,7 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
   processingRawProducts: boolean = false;
   processingInvoiceId: string | null = null;
   progressPercent: number = 0;
+  assigningToWarehouse: boolean = false;
 
   // Services
   private toastService = inject(ToastService);
@@ -97,6 +104,7 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
   private supplierStore = inject(SupplierStore);
   private einvoiceStore = inject(EInvoiceStore);
   private rawProductStore = inject(RawProductStore);
+  private warehouseStore = inject(WarehouseStore);
 
   // Store signals
   suppliers = this.supplierStore.suppliers;
@@ -104,6 +112,7 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
   selectedProject = this.projectStore.selectedProject;
   supplierLoading = this.supplierStore.loading;
   einvoiceLoading = this.einvoiceStore.loading;
+  warehouseLoading = this.warehouseStore.loading;
   rawProductLoading = this.rawProductStore.loading;
   processingEmbeddings = this.rawProductStore.processingEmbeddings;
   invoiceRawProducts = this.rawProductStore.invoiceRawProducts;
@@ -113,11 +122,17 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
     () =>
       this.supplierStore.error() ||
       this.einvoiceStore.error() ||
-      this.projectStore.error()
+      this.projectStore.error() ||
+      this.warehouseStore.error()
   );
 
   // Computed signals for template
-  isLoading = computed(() => this.supplierLoading() || this.einvoiceLoading());
+  isLoading = computed(
+    () =>
+      this.supplierLoading() ||
+      this.einvoiceLoading() ||
+      this.warehouseLoading()
+  );
   suppliersArray = computed(() => this.suppliers() || []);
   invoicesArray = computed(() => this.einvoices() || []);
   projectName = computed(
@@ -175,9 +190,47 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
     return this.selectedProject()?.id || null;
   }
 
-  // View mode controls
-  toggleViewMode(): void {
-    this.viewMode = this.viewMode === 'grid' ? 'list' : 'grid';
+  // Warehouse section controls
+  toggleWarehouseSection(): void {
+    this.showWarehouseSection = !this.showWarehouseSection;
+  }
+
+  handleWarehouseSelected(warehouse: Warehouse): void {
+    this.selectedWarehouse = warehouse;
+    this.toastService.showInfo(`Magazzino selezionato: ${warehouse.name}`);
+    // Qui puoi implementare la logica per filtrare le fatture per questo magazzino
+  }
+
+  handleInvoiceDropped(event: {
+    invoiceId: string;
+    warehouseId: string;
+  }): void {
+    const { invoiceId, warehouseId } = event;
+    if (!invoiceId || !warehouseId) {
+      this.toastService.showError("Dati incompleti per l'assegnazione");
+      return;
+    }
+
+    const projectId = this.getSelectedProjectId();
+    if (!projectId) {
+      this.toastService.showError('Nessun progetto selezionato');
+      return;
+    }
+
+    // Implementa qui la chiamata per assegnare la fattura al magazzino
+    this.assigningToWarehouse = true;
+    setTimeout(() => {
+      // Simuliamo una chiamata API
+      this.assigningToWarehouse = false;
+      let string =
+        'Fattura assegnata al magazzino con successo! ' +
+        invoiceId +
+        ' ' +
+        warehouseId;
+      this.toastService.showSuccess(string);
+      // Refresh dei dati
+      this.refreshInvoices();
+    }, 1000);
   }
 
   // Upload dialog
@@ -379,10 +432,24 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
     if (invoice) {
       this.selectedInvoiceForRawProducts = invoice;
       this.rawProductStore.fetchInvoiceRawProducts({ projectId, invoiceId });
-      this.rawProductsDialogVisible = true;
-    } else {
-      this.toastService.showError('Fattura non trovata');
     }
+
+    // Chiudiamo il dialog dei dettagli se è aperto
+    if (this.detailsDialogVisible) {
+      this.closeDetailsDialog();
+    }
+  }
+
+  handleInvoiceDelete(invoice: EInvoice): void {
+    this.deleteInvoice(invoice);
+  }
+
+  /**
+   * Ottiene una fattura specifica dall'array delle fatture
+   */
+  private getInvoiceById(id: string): EInvoice | undefined {
+    const invoicesArray = this.invoicesArray();
+    return invoicesArray.find((invoice) => invoice.id === id);
   }
 
   closeRawProductsDialog(): void {
@@ -432,22 +499,5 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
       projectId,
       invoiceId: invoice.id,
     });
-
-    // Chiudiamo il dialog dei dettagli se è aperto
-    if (this.detailsDialogVisible) {
-      this.closeDetailsDialog();
-    }
-  }
-
-  handleInvoiceDelete(invoice: EInvoice): void {
-    this.deleteInvoice(invoice);
-  }
-
-  /**
-   * Ottiene una fattura specifica dall'array delle fatture
-   */
-  private getInvoiceById(id: string): EInvoice | undefined {
-    const invoicesArray = this.invoicesArray();
-    return invoicesArray.find((invoice) => invoice.id === id);
   }
 }

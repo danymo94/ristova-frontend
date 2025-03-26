@@ -11,6 +11,7 @@ import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { CalendarModule } from 'primeng/calendar';
 import { DropdownModule } from 'primeng/dropdown';
+import { DragDropModule } from 'primeng/dragdrop';
 
 import {
   EInvoice,
@@ -41,6 +42,7 @@ interface PaymentStatusOption {
     InputTextModule,
     CalendarModule,
     DropdownModule,
+    DragDropModule,
   ],
   templateUrl: './view.component.html',
   styleUrl: './view.component.scss',
@@ -62,6 +64,7 @@ export class ViewComponent {
     invoice: EInvoice;
     paymentData: UpdatePaymentStatusDto;
   }>();
+  @Output() onDrag = new EventEmitter<{ invoice: EInvoice; event: any }>();
 
   // Opzioni per il dropdown dello stato pagamento
   paymentStatusOptions: PaymentStatusOption[] = [
@@ -128,7 +131,9 @@ export class ViewComponent {
     }
   }
 
-  getPaymentStatusSeverity(invoice: EInvoice | null): 'info' | 'warn' | 'success' | 'danger' {
+  getPaymentStatusSeverity(
+    invoice: EInvoice | null
+  ): 'info' | 'warn' | 'success' | 'danger' {
     if (!invoice) return 'info';
 
     const status = invoice.status?.paymentStatus;
@@ -272,5 +277,26 @@ export class ViewComponent {
     }
 
     return true;
+  }
+
+  // Metodi per la gestione del drag and drop
+  dragStart(event: any, invoice: EInvoice): void {
+    if (event.target) {
+      // Imposta gli stili per indicare che l'elemento è in fase di trascinamento
+      event.target.style.opacity = '0.7';
+
+      // Salva i dati della fattura nell'evento di trascinamento
+      event.dataTransfer.setData('invoiceId', invoice.id);
+
+      // Emetti evento di drag start
+      this.onDrag.emit({ invoice, event });
+    }
+  }
+
+  dragEnd(event: any): void {
+    if (event.target) {
+      // Ripristina l'opacità dell'elemento quando il drag termina
+      event.target.style.opacity = '1';
+    }
   }
 }
