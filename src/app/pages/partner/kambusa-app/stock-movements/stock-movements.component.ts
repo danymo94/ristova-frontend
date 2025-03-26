@@ -598,12 +598,6 @@ export class StockMovementsComponent implements OnInit, OnDestroy {
         return;
       }
 
-      // Se la quantità non è cambiata, usciamo subito
-      if (currentProducts[index].quantity === quantity) {
-        console.log('⚠️ updateProductQuantity - Quantità invariata, esco');
-        return;
-      }
-
       const product = currentProducts[index];
 
       // Determina il tipo di movimento

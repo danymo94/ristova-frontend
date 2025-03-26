@@ -7,6 +7,7 @@ import {
   RawProduct,
   CreateRawProductDto,
   InvoiceRawProduct,
+  ExtractInvoiceResponse,
 } from '../../../models/rawproduct.model';
 
 @Injectable({
@@ -78,6 +79,21 @@ export class RawproductService {
       );
   }
 
+  extractRawProductsFromInvoice(
+    projectId: string,
+    invoiceId: string
+  ): Observable<ExtractInvoiceResponse> {
+    return this.http
+      .post<any>(
+        `${this.apiUrl}/partner/projects/${projectId}/rawproducts/extract-from-invoice/${invoiceId}`,
+        {}
+      )
+      .pipe(
+        map((response) => response.data),
+        catchError(this.handleError)
+      );
+  }
+
   generateEmbeddings(projectId: string): Observable<void> {
     return this.http
       .post<any>(
@@ -91,6 +107,13 @@ export class RawproductService {
   }
 
   // Admin endpoints
+  getAllAdminRawProducts(): Observable<RawProduct[]> {
+    return this.http.get<any>(`${this.apiUrl}/admin/rawproducts`).pipe(
+      map((response) => response.data || []),
+      catchError(this.handleError)
+    );
+  }
+
   getAdminProjectRawProducts(projectId: string): Observable<RawProduct[]> {
     return this.http
       .get<any>(`${this.apiUrl}/admin/projects/${projectId}/rawproducts`)

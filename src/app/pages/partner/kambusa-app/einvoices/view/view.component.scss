@@ -1,0 +1,41 @@
+:host {
+    display: block;
+    width: 100%;
+}
+
+.invoice-card {
+    transition: all 0.3s ease;
+
+    &:hover {
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+            0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    }
+}
+
+::ng-deep {
+    .p-badge-sm {
+        font-size: 0.7rem;
+        min-width: 1.5rem;
+        height: 1.5rem;
+        line-height: 1.5rem;
+    }
+}
+
+// Stili per le tabelle
+::ng-deep .p-datatable.p-datatable-sm {
+    .p-datatable-thead>tr>th {
+        padding: 0.5rem 0.5rem;
+    }
+
+    .p-datatable-tbody>tr>td {
+        padding: 0.3rem 0.5rem;
+    }
+}
+
+// Status badges
+.badge-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 1rem 0;
+}

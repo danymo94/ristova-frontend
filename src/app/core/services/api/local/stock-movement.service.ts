@@ -14,6 +14,7 @@ import {
   InventoryCheckDto,
   TransferMovementDto,
   UpdateMovementStatusDto,
+  AssignInvoiceToCostCenterResponse,
 } from '../../../models/stock-movement.model';
 
 @Injectable({
@@ -25,6 +26,25 @@ export class StockMovementService {
   constructor(private http: HttpClient) {}
 
   // 1. Operazioni con Fatture
+
+  /**
+   * Assegna una fattura a un centro di costo
+   */
+  assignInvoiceToCostCenter(
+    projectId: string,
+    invoiceId: string,
+    costCenterId: string
+  ): Observable<AssignInvoiceToCostCenterResponse> {
+    return this.http
+      .post<any>(
+        `${this.apiUrl}/partner/projects/${projectId}/invoices/${invoiceId}/costcenter/${costCenterId}`,
+        {}
+      )
+      .pipe(
+        map((response) => response.data),
+        catchError(this.handleError)
+      );
+  }
 
   /**
    * Crea un movimento di stock associando una fattura a un magazzino
@@ -157,24 +177,6 @@ export class StockMovementService {
       );
   }
 
-  /**
-   * Recupera il saldo attuale di un prodotto specifico in un magazzino fisico
-   */
-  getProductBalance(
-    projectId: string,
-    warehouseId: string,
-    rawProductId: string
-  ): Observable<ProductBalance> {
-    return this.http
-      .get<any>(
-        `${this.apiUrl}/partner/projects/${projectId}/warehouses/${warehouseId}/products/${rawProductId}/balance`
-      )
-      .pipe(
-        map((response) => response.data),
-        catchError(this.handleError)
-      );
-  }
-
   // 3. Operazioni Generali
 
   /**
@@ -263,34 +265,6 @@ export class StockMovementService {
       .patch<any>(
         `${this.apiUrl}/partner/projects/${projectId}/stockmovements/${id}/status`,
         data
-      )
-      .pipe(
-        map((response) => response.data),
-        catchError(this.handleError)
-      );
-  }
-
-  // Admin endpoints
-
-  /**
-   * Admin: Recupera tutti i movimenti di stock associati al progetto
-   */
-  getAdminProjectMovements(projectId: string): Observable<StockMovement[]> {
-    return this.http
-      .get<any>(`${this.apiUrl}/admin/projects/${projectId}/stockmovements`)
-      .pipe(
-        map((response) => response.data || []),
-        catchError(this.handleError)
-      );
-  }
-
-  /**
-   * Admin: Recupera i dettagli di un movimento specifico
-   */
-  getAdminMovement(projectId: string, id: string): Observable<StockMovement> {
-    return this.http
-      .get<any>(
-        `${this.apiUrl}/admin/projects/${projectId}/stockmovements/${id}`
       )
       .pipe(
         map((response) => response.data),

@@ -11,6 +11,7 @@ import {
   RawProduct,
   CreateRawProductDto,
   InvoiceRawProduct,
+  ExtractInvoiceResponse,
 } from '../models/rawproduct.model';
 import { RawproductService } from '../services/api/local/rawproduct.service';
 import { Router } from '@angular/router';
@@ -25,8 +26,10 @@ export interface RawProductState {
   rawProducts: RawProduct[] | null;
   selectedRawProduct: RawProduct | null;
   invoiceRawProducts: InvoiceRawProduct[] | null;
+  extractionResult: ExtractInvoiceResponse | null;
   loading: boolean;
   processingEmbeddings: boolean;
+  extractingFromInvoice: boolean;
   error: string | null;
 }
 
@@ -34,8 +37,10 @@ const initialState: RawProductState = {
   rawProducts: null,
   selectedRawProduct: null,
   invoiceRawProducts: null,
+  extractionResult: null,
   loading: false,
   processingEmbeddings: false,
+  extractingFromInvoice: false,
   error: null,
 };
 
@@ -74,6 +79,37 @@ export const RawProductStore = signalStore(
                 : rawProductService.getPartnerProjectRawProducts(projectId);
 
             return request.pipe(
+              tapResponse({
+                next: (rawProducts) => {
+                  patchState(store, {
+                    rawProducts,
+                    loading: false,
+                    error: null,
+                  });
+                },
+                error: (error: unknown) => {
+                  patchState(store, {
+                    loading: false,
+                    error:
+                      (error as Error)?.message ||
+                      'Failed to fetch raw products',
+                  });
+                  toastService.showError(
+                    (error as Error)?.message || 'Failed to fetch raw products'
+                  );
+                },
+              })
+            );
+          })
+        )
+      ),
+
+      // Fetch all admin raw products
+      fetchAllAdminRawProducts: rxMethod<void>(
+        pipe(
+          tap(() => patchState(store, { loading: true, error: null })),
+          switchMap(() => {
+            return rawProductService.getAllAdminRawProducts().pipe(
               tapResponse({
                 next: (rawProducts) => {
                   patchState(store, {
@@ -292,6 +328,59 @@ export const RawProductStore = signalStore(
         )
       ),
 
+      // Extract raw products from an invoice using batch operation
+      extractRawProductsFromInvoice: rxMethod<{
+        projectId: string;
+        invoiceId: string;
+      }>(
+        pipe(
+          tap(() =>
+            patchState(store, {
+              extractingFromInvoice: true,
+              extractionResult: null,
+              error: null,
+            })
+          ),
+          switchMap(({ projectId, invoiceId }) =>
+            rawProductService
+              .extractRawProductsFromInvoice(projectId, invoiceId)
+              .pipe(
+                tapResponse({
+                  next: (extractionResult) => {
+                    if (extractionResult.successful) {
+                      toastService.showSuccess(
+                        `Extracted ${extractionResult.processedLines} products successfully`
+                      );
+                    } else {
+                      toastService.showWarn(
+                        `Extraction completed with ${extractionResult.errors.length} errors`
+                      );
+                    }
+
+                    patchState(store, {
+                      extractionResult,
+                      extractingFromInvoice: false,
+                      error: null,
+                    });
+                  },
+                  error: (error: unknown) => {
+                    toastService.showError(
+                      (error as Error)?.message ||
+                        'Failed to extract raw products from invoice'
+                    );
+                    patchState(store, {
+                      extractingFromInvoice: false,
+                      error:
+                        (error as Error)?.message ||
+                        'Failed to extract raw products from invoice',
+                    });
+                  },
+                })
+              )
+          )
+        )
+      ),
+
       // Generate embeddings for raw products
       generateEmbeddings: rxMethod<{ projectId: string }>(
         pipe(
@@ -338,6 +427,11 @@ export const RawProductStore = signalStore(
         patchState(store, { invoiceRawProducts: null });
       },
 
+      // Clear extraction result
+      clearExtractionResult: () => {
+        patchState(store, { extractionResult: null });
+      },
+
       // Clear errors
       clearRawProductErrors: () => {
         patchState(store, { error: null });
@@ -348,7 +442,6 @@ export const RawProductStore = signalStore(
   withHooks({
     onInit(store) {
       // Non carichiamo i prodotti grezzi automaticamente all'inizializzazione
-      // perché potrebbero essere richiesti in contesti diversi (per progetto, per fattura, ecc.)
     },
   })
 );

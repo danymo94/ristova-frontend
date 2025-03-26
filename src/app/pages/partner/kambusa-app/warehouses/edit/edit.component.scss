@@ -1,0 +1,155 @@
+// Stili generali per la dialog
+::ng-deep .warehouse-dialog {
+    .p-dialog-header {
+        border-bottom: 1px solid var(--surface-200);
+        padding: 1rem 1.5rem;
+        background-color: #ffffff;
+        border-top-left-radius: 0.5rem;
+        border-top-right-radius: 0.5rem;
+    }
+
+    .p-dialog-content {
+        padding: 0;
+        background-color: #ffffff;
+    }
+
+    .p-dialog-footer {
+        border-top: 1px solid var(--surface-200);
+        padding: 1rem 1.5rem;
+        background-color: var(--surface-50);
+        border-bottom-left-radius: 0.5rem;
+        border-bottom-right-radius: 0.5rem;
+    }
+}
+
+// Contenuto principale
+.content-wrapper {
+    padding: 1.25rem;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+// Header con info tipo e stato
+.warehouse-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 1rem;
+    border-bottom: 1px dashed var(--surface-300);
+
+    .type-info {
+        .type-label {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            font-weight: 600;
+            font-size: 0.875rem;
+
+            &.physical {
+                background-color: rgba(59, 130, 246, 0.15);
+                color: var(--blue-700);
+            }
+
+            &.cost-center {
+                background-color: rgba(16, 185, 129, 0.15);
+                color: var(--green-700);
+            }
+        }
+    }
+
+    .status-toggle {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+}
+
+// Stile per le sezioni
+.section-header {
+    display: flex;
+    align-items: center;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--surface-200);
+
+    .section-icon {
+        width: 28px;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: var(--surface-100);
+        border-radius: 50%;
+        margin-right: 0.75rem;
+        color: var(--primary-color);
+    }
+
+    h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        margin: 0;
+        color: var(--text-color-secondary);
+    }
+}
+
+// Stile per i campi del form
+.form-grid {
+    margin: 0 -0.5rem;
+
+    .field {
+        padding: 0 0.5rem;
+        margin-bottom: 1rem;
+
+        label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.375rem;
+            color: var(--text-color);
+        }
+
+        input,
+        textarea,
+        .p-dropdown {
+            font-size: 0.875rem;
+        }
+
+        small.text-muted {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--text-color-secondary);
+            margin-top: 0.25rem;
+        }
+    }
+}
+
+// Stile per il footer
+.dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+
+    .p-button {
+        transition: all 0.2s ease;
+
+        &:not(.p-button-text):hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+    }
+}
+
+// Responsive per dispositivi mobili
+@media (max-width: 768px) {
+    .warehouse-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+
+        .status-toggle {
+            align-self: flex-end;
+        }
+    }
+}

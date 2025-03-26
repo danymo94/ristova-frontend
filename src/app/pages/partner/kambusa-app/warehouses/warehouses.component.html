@@ -1,33 +1,31 @@
 <div class="container mx-auto p-3 sm:p-4 md:p-5">
   <!-- Stato vuoto quando non c'è progetto selezionato -->
   @if (!selectedProject()) {
-  <div class="empty-state">
-    <i class="pi pi-info-circle"></i>
-    <h3>Nessun ristorante selezionato</h3>
-    <p>
+  <div class="empty-state shadow-md rounded-lg p-8 text-center bg-white">
+    <i class="pi pi-info-circle text-5xl text-blue-500 mb-4"></i>
+    <h3 class="text-xl font-semibold mb-2">Nessun ristorante selezionato</h3>
+    <p class="text-gray-600">
       Seleziona un ristorante dal menu in alto per visualizzare i magazzini.
     </p>
   </div>
   } @else {
-  <!-- Header con titolo e pulsanti azione -->
-  <div class="flex flex-wrap justify-between items-center mb-4">
+  <!-- Header con titolo e pulsanti azione - Rivisitato con stile simile a Einvoices -->
+  <div class="flex flex-wrap justify-between items-center mb-5 gap-3">
     <h1 class="text-2xl font-bold mb-2 md:mb-0">Magazzini e Centri di Costo</h1>
-    <div class="flex gap-2">
-      <!-- Ricerca -->
-      <div class="p-inputgroup">
-        <span class="p-inputgroup-addon">
-          <i class="pi pi-search"></i>
-        </span>
+    <div class="flex flex-wrap gap-2">
+      <!-- Ricerca con stile migliorato -->
+      <div class="p-inputgroup shadow-sm">
         <input
           type="text"
           pInputText
           placeholder="Cerca magazzini..."
           (input)="onSearch($event)"
+          class="border-l-0"
         />
       </div>
 
-      <!-- Filtri per tipo di magazzino -->
-      <div class="flex">
+      <!-- Filtri per tipo di magazzino in stile moderno -->
+      <div class="flex shadow-sm rounded-md overflow-hidden gap-2">
         <button
           pButton
           pRipple
@@ -54,7 +52,7 @@
         ></button>
       </div>
 
-      <!-- Toggle visualizzazione -->
+      <!-- Toggle visualizzazione con tooltip migliorato -->
       <button
         pButton
         pRipple
@@ -62,6 +60,17 @@
         class="p-button-outlined"
         (click)="viewMode = viewMode === 'grid' ? 'list' : 'grid'"
         pTooltip="Cambia visualizzazione"
+        tooltipPosition="bottom"
+      ></button>
+
+      <button
+        pButton
+        pRipple
+        icon="pi pi-refresh"
+        class="p-button-outlined"
+        [loading]="loading()"
+        (click)="refreshWarehouses()"
+        pTooltip="Aggiorna magazzini"
         tooltipPosition="bottom"
       ></button>
 
@@ -81,29 +90,31 @@
 
   <!-- Stato di caricamento -->
   <div *ngIf="loading()" class="flex justify-center my-5">
-    <i class="pi pi-spin pi-spinner text-4xl text-primary"></i>
+    <div class="flex flex-col items-center">
+      <i class="pi pi-spin pi-spinner text-4xl text-primary mb-3"></i>
+      <span class="text-gray-600">Caricamento in corso...</span>
+    </div>
   </div>
 
-  <!-- Messaggio stato vuoto -->
+  <!-- Messaggio stato vuoto migliorato -->
   <div
     *ngIf="
       !loading() &&
       (!filteredWarehouses() || filteredWarehouses()!.length === 0)
     "
-    class="empty-state"
+    class="empty-state rounded-lg p-8 text-center"
   >
-    <i class="pi pi-box"></i>
-    <h3>Nessun magazzino trovato</h3>
-    <p>
+    <h3 class="text-xl font-semibold mb-2">Nessun magazzino trovato</h3>
+    <p class="text-gray-600 mb-4">
       Non ci sono magazzini o centri di costo registrati per questo progetto.
     </p>
-    <div class="flex gap-2 justify-center mt-4">
+    <div class="flex gap-2 justify-center">
       <button
         pButton
         pRipple
         icon="pi pi-plus"
         label="Nuovo Magazzino"
-        class="p-button-primary"
+        class="p-button-primary shadow-sm"
         (click)="openCreateDialog()"
       ></button>
     </div>
@@ -119,130 +130,16 @@
     "
     class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
   >
-    <p-card
+    <app-warehouse-view
       *ngFor="let warehouse of filteredWarehouses()"
-      [header]="warehouse.name"
-      [subheader]="warehouse.description"
-      styleClass="warehouse-card"
-    >
-      <ng-template pTemplate="header">
-        <div
-          class="p-3 flex justify-between items-center"
-          [ngClass]="{
-            'bg-blue-50': warehouse.type === 'PHYSICAL',
-            'bg-green-50': warehouse.type === 'COST_CENTER'
-          }"
-        >
-          <div class="flex items-center">
-            <i [class]="getWarehouseTypeIcon(warehouse.type)" class="mr-2"></i>
-            <span class="font-bold">{{ warehouse.name }}</span>
-          </div>
-          <p-tag
-            [value]="getWarehouseTypeLabel(warehouse.type)"
-            [severity]="getWarehouseTypeSeverity(warehouse.type)"
-          ></p-tag>
-        </div>
-      </ng-template>
-
-      <div class="p-2">
-        <p class="mb-2 text-sm">{{ warehouse.description }}</p>
-
-        <div class="mb-3 flex justify-between">
-          <p-tag
-            [value]="getStatusLabel(warehouse.isActive)"
-            [severity]="getStatusSeverity(warehouse.isActive)"
-            styleClass="p-tag-sm"
-          ></p-tag>
-
-          <p-badge
-            *ngIf="warehouse.statistics?.productCount"
-            [value]="warehouse.statistics?.productCount + ' prodotti' || ''"
-            severity="info"
-          ></p-badge>
-        </div>
-
-        <div *ngIf="warehouse.type === 'PHYSICAL'" class="mb-3 text-sm">
-          <p>
-            <i class="pi pi-map-marker mr-2"></i
-            >{{ getLocationText(warehouse) }}
-          </p>
-        </div>
-
-        <div
-          *ngIf="warehouse.type === 'COST_CENTER' && warehouse.costCenterCode"
-          class="mb-3 text-sm"
-        >
-          <p>
-            <i class="pi pi-hashtag mr-2"></i>Codice:
-            {{ warehouse.costCenterCode }}
-          </p>
-        </div>
-      </div>
-
-      <ng-template pTemplate="footer">
-        <div class="flex justify-between">
-          <button
-            pButton
-            icon="pi pi-eye"
-            label="Dettagli"
-            class="p-button-text p-button-sm"
-            (click)="openDetailsDialog(warehouse)"
-          ></button>
-          <div>
-            <button
-              pButton
-              icon="pi pi-pencil"
-              class="p-button-text p-button-sm p-button-warning mr-2"
-              pTooltip="Modifica"
-              tooltipPosition="top"
-              (click)="openEditDialog(warehouse)"
-            ></button>
-            <button
-              pButton
-              [icon]="warehouse.isActive ? 'pi pi-times' : 'pi pi-check'"
-              class="p-button-text p-button-sm mr-2"
-              [ngClass]="{
-                'p-button-danger': warehouse.isActive,
-                'p-button-success': !warehouse.isActive
-              }"
-              [pTooltip]="warehouse.isActive ? 'Disattiva' : 'Attiva'"
-              tooltipPosition="top"
-              (click)="toggleWarehouseStatus(warehouse)"
-            ></button>
-            <button
-              pButton
-              icon="pi pi-trash"
-              class="p-button-text p-button-sm p-button-danger"
-              pTooltip="Elimina"
-              tooltipPosition="top"
-              (click)="openDeleteDialog(warehouse)"
-            ></button>
-          </div>
-        </div>
-
-        <!-- Quando è un centro di costo mostra il pulsante per l'assegnazione fatture -->
-        <div *ngIf="warehouse.type === 'COST_CENTER'" class="mt-2">
-          <button
-            pButton
-            icon="pi pi-file-invoice"
-            label="Assegna Fatture"
-            class="p-button-outlined p-button-sm w-full"
-            (click)="openAssignDialog(warehouse)"
-          ></button>
-        </div>
-
-        <!-- Quando è un magazzino fisico mostra il pulsante per la valorizzazione magazzino -->
-        <div *ngIf="warehouse.type === 'PHYSICAL'" class="mt-2">
-          <button
-            pButton
-            icon="pi pi-arrow-right-arrow-left"
-            label="Movimenti"
-            class="p-button-outlined p-button-sm w-full"
-            (click)="openAssignDialog(warehouse)"
-          ></button>
-        </div>
-      </ng-template>
-    </p-card>
+      [warehouse]="warehouse"
+      viewMode="card"
+      (onDetails)="handleWarehouseDetails($event)"
+      (onEdit)="handleWarehouseEdit($event)"
+      (onDelete)="handleWarehouseDelete($event)"
+      (onToggleStatus)="handleToggleStatus($event)"
+      (onAssignInvoices)="handleAssignInvoices($event)"
+    ></app-warehouse-view>
   </div>
 
   <!-- Vista a tabella -->
@@ -259,7 +156,9 @@
     [rowsPerPageOptions]="[10, 25, 50]"
     [showCurrentPageReport]="true"
     currentPageReportTemplate="Mostrando {first} a {last} di {totalRecords} magazzini"
-    styleClass="p-datatable-sm"
+    styleClass="p-datatable-sm shadow-sm"
+    [rowHover]="true"
+    [responsiveLayout]="'stack'"
   >
     <ng-template pTemplate="header">
       <tr>
@@ -298,7 +197,9 @@
         </td>
         <td>
           <div *ngIf="warehouse.type === 'PHYSICAL'">
-            <span class="text-sm">{{ getLocationText(warehouse) }}</span>
+            <span class="text-sm line-clamp-1">{{
+              getLocationText(warehouse)
+            }}</span>
           </div>
           <div *ngIf="warehouse.type === 'COST_CENTER'">
             <span *ngIf="warehouse.costCenterCode" class="text-sm"
@@ -307,59 +208,25 @@
           </div>
         </td>
         <td>
-          <div class="flex gap-1 justify-end">
-            <button
-              pButton
-              icon="pi pi-eye"
-              class="p-button-text p-button-rounded p-button-sm"
-              pTooltip="Visualizza dettagli"
-              tooltipPosition="top"
-              (click)="openDetailsDialog(warehouse)"
-            ></button>
-            <button
-              pButton
-              icon="pi pi-pencil"
-              class="p-button-text p-button-rounded p-button-sm p-button-warning"
-              pTooltip="Modifica"
-              tooltipPosition="top"
-              (click)="openEditDialog(warehouse)"
-            ></button>
-            <button
-              pButton
-              [icon]="warehouse.isActive ? 'pi pi-times' : 'pi pi-check'"
-              class="p-button-text p-button-rounded p-button-sm"
-              [ngClass]="{
-                'p-button-danger': warehouse.isActive,
-                'p-button-success': !warehouse.isActive
-              }"
-              [pTooltip]="warehouse.isActive ? 'Disattiva' : 'Attiva'"
-              tooltipPosition="top"
-              (click)="toggleWarehouseStatus(warehouse)"
-            ></button>
-            <button
-              pButton
-              icon="pi pi-trash"
-              class="p-button-text p-button-rounded p-button-sm p-button-danger"
-              pTooltip="Elimina"
-              tooltipPosition="top"
-              (click)="openDeleteDialog(warehouse)"
-            ></button>
-            <button
-              pButton
-              [icon]="
-                warehouse.type === 'COST_CENTER'
-                  ? 'pi pi-file-invoice'
-                  : 'pi pi-arrow-right-arrow-left'
-              "
-              class="p-button-text p-button-rounded p-button-sm p-button-info"
-              [pTooltip]="
-                warehouse.type === 'COST_CENTER'
-                  ? 'Assegna Fatture'
-                  : 'Movimenti'
-              "
-              tooltipPosition="top"
-              (click)="openAssignDialog(warehouse)"
-            ></button>
+          <app-warehouse-view
+            [warehouse]="warehouse"
+            viewMode="list-item"
+            (onDetails)="handleWarehouseDetails($event)"
+            (onEdit)="handleWarehouseEdit($event)"
+            (onDelete)="handleWarehouseDelete($event)"
+            (onToggleStatus)="handleToggleStatus($event)"
+            (onAssignInvoices)="handleAssignInvoices($event)"
+          ></app-warehouse-view>
+        </td>
+      </tr>
+    </ng-template>
+
+    <ng-template pTemplate="emptymessage">
+      <tr>
+        <td colspan="6" class="text-center py-4">
+          <div class="flex flex-col items-center text-gray-500">
+            <i class="pi pi-box mb-2 text-2xl"></i>
+            <span>Nessun magazzino trovato</span>
           </div>
         </td>
       </tr>
@@ -368,604 +235,40 @@
   }
 </div>
 
-<!-- Dialog per creare un nuovo magazzino -->
-<p-dialog
-  header="Nuovo Magazzino/Centro di Costo"
+<!-- Utilizziamo il componente NewComponent per la creazione di magazzini -->
+<app-warehouse-new
   [(visible)]="createDialogVisible"
-  [modal]="true"
-  [draggable]="false"
-  [resizable]="false"
-  [style]="{ width: '500px' }"
-  styleClass="create-dialog"
->
-  <div class="p-fluid">
-    <div class="field mb-4">
-      <label for="type" class="block font-medium mb-2">Tipo*</label>
-      <div class="p-inputgroup">
-        <button
-          pButton
-          label="Magazzino Fisico"
-          icon="pi pi-box"
-          [class.p-button-outlined]="newWarehouse.type !== 'PHYSICAL'"
-          [class.p-button-info]="newWarehouse.type === 'PHYSICAL'"
-          (click)="newWarehouse.type = 'PHYSICAL'"
-        ></button>
-        <button
-          pButton
-          label="Centro di Costo"
-          icon="pi pi-euro"
-          [class.p-button-outlined]="newWarehouse.type !== 'COST_CENTER'"
-          [class.p-button-success]="newWarehouse.type === 'COST_CENTER'"
-          (click)="newWarehouse.type = 'COST_CENTER'"
-        ></button>
-      </div>
-    </div>
+  (visibleChange)="handleCreateDialogVisibilityChange($event)"
+  (warehouseCreated)="handleWarehouseCreated()"
+></app-warehouse-new>
 
-    <div class="field mb-4">
-      <label for="name" class="block font-medium mb-2">Nome*</label>
-      <input
-        id="name"
-        type="text"
-        pInputText
-        [(ngModel)]="newWarehouse.name"
-        required
-        placeholder="Inserisci il nome del magazzino"
-      />
-    </div>
-
-    <div class="field mb-4">
-      <label for="description" class="block font-medium mb-2"
-        >Descrizione</label
-      >
-      <textarea
-        id="description"
-        pInputTextarea
-        [(ngModel)]="newWarehouse.description"
-        rows="3"
-        placeholder="Inserisci una descrizione"
-      ></textarea>
-    </div>
-
-    <div class="field mb-4">
-      <div class="flex align-items-center">
-        <p-inputSwitch [(ngModel)]="newWarehouse.isActive"></p-inputSwitch>
-        <label class="ml-2">{{
-          newWarehouse.isActive ? "Attivo" : "Inattivo"
-        }}</label>
-      </div>
-    </div>
-
-    <!-- Campi specifici per Magazzino Fisico -->
-    <div *ngIf="newWarehouse.type === 'PHYSICAL'">
-      <h3 class="text-lg font-medium mb-3">Ubicazione</h3>
-
-      <div class="field mb-4">
-        <label for="address" class="block font-medium mb-2">Indirizzo</label>
-        <input
-          id="address"
-          type="text"
-          pInputText
-          [(ngModel)]="newWarehouse.location!.address"
-          placeholder="Via/Piazza e numero civico"
-        />
-      </div>
-
-      <div class="grid grid-cols-2 gap-4">
-        <div class="field mb-4">
-          <label for="city" class="block font-medium mb-2">Città</label>
-          <input
-            id="city"
-            type="text"
-            pInputText
-            [(ngModel)]="newWarehouse.location!.city"
-            placeholder="Città"
-          />
-        </div>
-
-        <div class="field mb-4">
-          <label for="postalCode" class="block font-medium mb-2">CAP</label>
-          <input
-            id="postalCode"
-            type="text"
-            pInputText
-            [(ngModel)]="newWarehouse.location!.postalCode"
-            placeholder="Codice Postale"
-          />
-        </div>
-      </div>
-
-      <div class="field mb-4">
-        <label for="country" class="block font-medium mb-2">Paese</label>
-        <input
-          id="country"
-          type="text"
-          pInputText
-          [(ngModel)]="newWarehouse.location!.country"
-          placeholder="Paese"
-        />
-      </div>
-
-      <h3 class="text-lg font-medium mb-3">Responsabile</h3>
-
-      <div class="field mb-4">
-        <label for="responsibleName" class="block font-medium mb-2">Nome</label>
-        <input
-          id="responsibleName"
-          type="text"
-          pInputText
-          [(ngModel)]="newWarehouse.responsible!.name"
-          (ngModelChange)="ensureNewResponsibleExists()"
-          placeholder="Nome del responsabile"
-        />
-      </div>
-      
-      <div class="grid grid-cols-2 gap-4">
-        <div class="field mb-4">
-          <label for="responsiblePhone" class="block font-medium mb-2"
-            >Telefono</label
-          >
-          <input
-            id="responsiblePhone"
-            type="tel"
-            pInputText
-            [(ngModel)]="newWarehouse.responsible!.phone"
-            placeholder="Numero di telefono"
-          />
-        </div>
-
-        <div class="field mb-4">
-          <label for="responsibleEmail" class="block font-medium mb-2"
-            >Email</label
-          >
-          <input
-            id="responsibleEmail"
-            type="email"
-            pInputText
-            [(ngModel)]="newWarehouse.responsible!.email"
-            placeholder="Indirizzo email"
-          />
-        </div>
-      </div>
-    </div>
-
-    <!-- Campi specifici per Centro di Costo -->
-    <div *ngIf="newWarehouse.type === 'COST_CENTER'">
-      <h3 class="text-lg font-medium mb-3">Informazioni Centro di Costo</h3>
-
-      <div class="field mb-4">
-        <label for="costCenterCode" class="block font-medium mb-2"
-          >Codice Centro di Costo</label
-        >
-        <input
-          id="costCenterCode"
-          type="text"
-          pInputText
-          [(ngModel)]="newWarehouse.costCenterCode"
-          placeholder="Es. CC001"
-        />
-      </div>
-
-      <div class="field mb-4">
-        <label for="categories" class="block font-medium mb-2">Categorie</label>
-        <p-chips
-          [(ngModel)]="newWarehouse.costCenterCategories"
-          placeholder="Aggiungi categoria (premi Enter)"
-          separator=","
-        ></p-chips>
-      </div>
-    </div>
-
-    <div class="field mb-4">
-      <label for="notes" class="block font-medium mb-2">Note</label>
-      <textarea
-        id="notes"
-        pInputTextarea
-        [(ngModel)]="newWarehouse.notes"
-        rows="2"
-        placeholder="Note aggiuntive"
-      ></textarea>
-    </div>
-  </div>
-
-  <ng-template pTemplate="footer">
-    <button
-      pButton
-      pRipple
-      label="Annulla"
-      icon="pi pi-times"
-      class="p-button-text"
-      (click)="createDialogVisible = false"
-    ></button>
-    <button
-      pButton
-      pRipple
-      label="Crea"
-      icon="pi pi-plus"
-      class="p-button-primary"
-      (click)="createWarehouse()"
-      [disabled]="!newWarehouse.name || !newWarehouse.type"
-    ></button>
-  </ng-template>
-</p-dialog>
-
-<!-- Dialog per modificare un magazzino -->
-<p-dialog
-  header="Modifica Magazzino/Centro di Costo"
+<!-- Utilizziamo il componente EditComponent per la modifica dei magazzini -->
+<app-warehouse-edit
+  [warehouse]="selectedWarehouse()"
   [(visible)]="editDialogVisible"
-  [modal]="true"
-  [draggable]="false"
-  [resizable]="false"
-  [style]="{ width: '500px' }"
-  styleClass="edit-dialog"
->
-  <div *ngIf="selectedWarehouse() && editingWarehouse" class="p-fluid">
-    <div class="field mb-4">
-      <label for="editName" class="block font-medium mb-2">Nome*</label>
-      <input
-        id="editName"
-        type="text"
-        pInputText
-        [(ngModel)]="editingWarehouse.name"
-        required
-        placeholder="Nome del magazzino"
-      />
-    </div>
+  (visibleChange)="handleEditDialogVisibilityChange($event)"
+  (warehouseUpdated)="handleWarehouseUpdated()"
+></app-warehouse-edit>
 
-    <div class="field mb-4">
-      <label for="editDescription" class="block font-medium mb-2"
-        >Descrizione</label
-      >
-      <textarea
-        id="editDescription"
-        pInputTextarea
-        [(ngModel)]="editingWarehouse.description"
-        rows="3"
-        placeholder="Descrizione"
-      ></textarea>
-    </div>
-
-    <div class="field mb-4">
-      <div class="flex align-items-center">
-        <p-inputSwitch [(ngModel)]="editingWarehouse.isActive"></p-inputSwitch>
-        <label class="ml-2">{{
-          editingWarehouse.isActive ? "Attivo" : "Inattivo"
-        }}</label>
-      </div>
-    </div>
-
-    <!-- Campi specifici per Magazzino Fisico -->
-    <div *ngIf="selectedWarehouse()!.type === 'PHYSICAL'">
-      <h3 class="text-lg font-medium mb-3">Ubicazione</h3>
-
-      <div class="field mb-4">
-        <label for="editAddress" class="block font-medium mb-2">Indirizzo</label>
-        <input
-          id="editAddress"
-          type="text"
-          pInputText
-          [ngModel]="getLocationAddress()"
-          (ngModelChange)="setLocationAddress($event)"
-          placeholder="Via/Piazza e numero civico"
-        />
-      </div>
-
-      <div class="grid grid-cols-2 gap-4">
-        <div class="field mb-4">
-          <label for="editCity" class="block font-medium mb-2">Città</label>
-          <input
-            id="editCity"
-            type="text"
-            pInputText
-            [(ngModel)]="editingWarehouse.location!.city"
-            placeholder="Città"
-          />
-        </div>
-
-        <div class="field mb-4">
-          <label for="editPostalCode" class="block font-medium mb-2">CAP</label>
-          <input
-            id="editPostalCode"
-            type="text"
-            pInputText
-            [(ngModel)]="editingWarehouse.location!.postalCode"
-            placeholder="Codice Postale"
-          />
-        </div>
-      </div>
-
-      <div class="field mb-4">
-        <label for="editCountry" class="block font-medium mb-2">Paese</label>
-        <input
-          id="editCountry"
-          type="text"
-          pInputText
-          [(ngModel)]="editingWarehouse.location!.country"
-          placeholder="Paese"
-        />
-      </div>
-
-      <h3 class="text-lg font-medium mb-3">Responsabile</h3>
-
-      <div class="field mb-4">
-        <label for="editResponsibleName" class="block font-medium mb-2">Nome</label>
-        <input
-          id="editResponsibleName"
-          type="text"
-          pInputText
-          [ngModel]="getResponsibleName()"
-          (ngModelChange)="setResponsibleName($event)"
-          placeholder="Nome del responsabile"
-        />
-      </div>
-
-      <div class="grid grid-cols-2 gap-4">
-        <div class="field mb-4">
-          <label for="editResponsiblePhone" class="block font-medium mb-2"
-            >Telefono</label
-          >
-          <input
-            id="editResponsiblePhone"
-            type="tel"
-            pInputText
-            [(ngModel)]="editingWarehouse.responsible!.phone"
-            placeholder="Numero di telefono"
-          />
-        </div>
-
-        <div class="field mb-4">
-          <label for="editResponsibleEmail" class="block font-medium mb-2"
-            >Email</label
-          >
-          <input
-            id="editResponsibleEmail"
-            type="email"
-            pInputText
-            [(ngModel)]="editingWarehouse.responsible!.email"
-            placeholder="Indirizzo email"
-          />
-        </div>
-      </div>
-    </div>
-
-    <!-- Campi specifici per Centro di Costo -->
-    <div *ngIf="selectedWarehouse()!.type === 'COST_CENTER'">
-      <h3 class="text-lg font-medium mb-3">Informazioni Centro di Costo</h3>
-
-      <div class="field mb-4">
-        <label for="editCostCenterCode" class="block font-medium mb-2"
-          >Codice Centro di Costo</label
-        >
-        <input
-          id="editCostCenterCode"
-          type="text"
-          pInputText
-          [(ngModel)]="editingWarehouse.costCenterCode"
-          placeholder="Es. CC001"
-        />
-      </div>
-
-      <div class="field mb-4">
-        <label for="editCategories" class="block font-medium mb-2"
-          >Categorie</label
-        >
-        <p-chips
-          [(ngModel)]="editingWarehouse.costCenterCategories"
-          placeholder="Aggiungi categoria (premi Enter)"
-          separator=","
-        ></p-chips>
-      </div>
-    </div>
-
-    <div class="field mb-4">
-      <label for="editNotes" class="block font-medium mb-2">Note</label>
-      <textarea
-        id="editNotes"
-        pInputTextarea
-        [(ngModel)]="editingWarehouse.notes"
-        rows="2"
-        placeholder="Note aggiuntive"
-      ></textarea>
-    </div>
-  </div>
-
-  <ng-template pTemplate="footer">
-    <button
-      pButton
-      pRipple
-      label="Annulla"
-      icon="pi pi-times"
-      class="p-button-text"
-      (click)="editDialogVisible = false"
-    ></button>
-    <button
-      pButton
-      pRipple
-      label="Salva"
-      icon="pi pi-check"
-      class="p-button-primary"
-      (click)="updateWarehouse()"
-      [disabled]="!editingWarehouse?.name"
-    ></button>
-  </ng-template>
-</p-dialog>
-
-<!-- Dialog per i dettagli del magazzino -->
-<p-dialog
-  header="Dettagli Magazzino"
+<!-- Utilizziamo il componente DetailsComponent per i dettagli del magazzino -->
+<app-warehouse-details
+  [warehouse]="selectedWarehouse()"
   [(visible)]="detailsDialogVisible"
-  [modal]="true"
-  [draggable]="false"
-  [resizable]="false"
-  [style]="{ width: '600px' }"
-  styleClass="details-dialog"
->
-  <div *ngIf="selectedWarehouse()" class="p-fluid">
-    <div class="mb-4 pb-3 border-bottom">
-      <h2 class="text-xl font-bold mb-1">{{ selectedWarehouse()!.name }}</h2>
-      <div class="flex items-center gap-2">
-        <p-tag
-          [value]="getWarehouseTypeLabel(selectedWarehouse()!.type)"
-          [severity]="getWarehouseTypeSeverity(selectedWarehouse()!.type)"
-        ></p-tag>
-        <p-tag
-          [value]="getStatusLabel(selectedWarehouse()!.isActive)"
-          [severity]="getStatusSeverity(selectedWarehouse()!.isActive)"
-        ></p-tag>
-      </div>
-    </div>
+  (visibleChange)="handleDetailsDialogVisibilityChange($event)"
+  (onEdit)="handleEditFromDetails($event)"
+></app-warehouse-details>
 
-    <div class="mb-4">
-      <h3 class="text-lg font-medium mb-2">Informazioni generali</h3>
-      <p class="mb-2">{{ selectedWarehouse()!.description }}</p>
+<!-- Utilizziamo il componente AssignmentComponent per l'assegnazione fatture -->
+<app-warehouse-assignment
+  [warehouse]="selectedWarehouse()"
+  [(visible)]="assignInvoicesDialogVisible"
+  [unassignedInvoices]="unassignedInvoices"
+  [loading]="loading()"
+  (visibleChange)="handleAssignDialogVisibilityChange($event)"
+  (invoicesAssigned)="handleInvoicesAssigned()"
+></app-warehouse-assignment>
 
-      <div class="text-sm">
-        <p class="mb-1">
-          <strong>Data creazione:</strong>
-          {{ selectedWarehouse()!.createdAt | date : "dd/MM/yyyy HH:mm" }}
-        </p>
-        <p>
-          <strong>Ultimo aggiornamento:</strong>
-          {{ selectedWarehouse()!.lastUpdatedAt | date : "dd/MM/yyyy HH:mm" }}
-        </p>
-      </div>
-    </div>
-
-    <!-- Informazioni specifiche per Magazzino Fisico -->
-    <div *ngIf="selectedWarehouse()!.type === 'PHYSICAL'" class="mb-4">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <h3 class="text-lg font-medium mb-2">Ubicazione</h3>
-          <div *ngIf="selectedWarehouse()!.location" class="text-sm">
-            <p class="mb-1">
-              <strong>Indirizzo:</strong>
-              {{ selectedWarehouse()!.location?.address || '-' }}
-            </p>
-            <p class="mb-1">
-                <strong>Città:</strong> {{ selectedWarehouse()!.location?.city || '-' }}
-            </p>
-            <p class="mb-1">
-              <strong>CAP:</strong>
-              {{ selectedWarehouse()!.location?.postalCode || '-' }}
-            </p>
-            <p>
-              <strong>Paese:</strong>
-              {{ selectedWarehouse()!.location?.country || '-' }}
-            </p>
-          </div>
-        </div>
-
-        <div>
-          <h3 class="text-lg font-medium mb-2">Responsabile</h3>
-          <div *ngIf="selectedWarehouse()!.responsible" class="text-sm">
-            <p class="mb-1">
-              <strong>Nome:</strong>
-              {{ selectedWarehouse()!.responsible?.name || "Non specificato" }}
-            </p>
-            <p class="mb-1">
-              <strong>Telefono:</strong>
-              {{ selectedWarehouse()!.responsible?.phone || "Non specificato" }}
-            </p>
-            <p>
-              <strong>Email:</strong>
-              {{ selectedWarehouse()!.responsible?.email || "Non specificato" }}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Statistiche magazzino se presenti -->
-      <div
-        *ngIf="selectedWarehouse()!.statistics"
-        class="mt-4 p-3 bg-blue-50 rounded"
-      >
-        <h3 class="text-lg font-medium mb-2">Statistiche Magazzino</h3>
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
-          <div class="p-2 bg-white rounded shadow-sm">
-            <span class="block text-gray-600 text-sm">Prodotti</span>
-            <span class="block text-lg font-bold">{{
-          selectedWarehouse()!.statistics?.productCount || 0
-        }}</span>
-          </div>
-          <div class="p-2 bg-white rounded shadow-sm">
-            <span class="block text-gray-600 text-sm">Stock Totale</span>
-            <span class="block text-lg font-bold">{{
-          selectedWarehouse()!.statistics?.totalStock || 0
-        }}</span>
-          </div>
-          <div class="p-2 bg-white rounded shadow-sm">
-            <span class="block text-gray-600 text-sm">Valore</span>
-            <span class="block text-lg font-bold">{{
-          (selectedWarehouse()!.statistics?.stockValue || 0) | currency : "EUR"
-        }}</span>
-          </div>
-        </div>
-        <div class="mt-2 text-sm text-gray-600">
-          <p>
-            Ultimo movimento:
-            {{
-                selectedWarehouse()!.statistics?.lastMovementDate 
-                  ? (selectedWarehouse()!.statistics?.lastMovementDate | date : "dd/MM/yyyy") 
-                  : 'N/A'
-              }}
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Informazioni specifiche per Centro di Costo -->
-    <div *ngIf="selectedWarehouse()!.type === 'COST_CENTER'" class="mb-4">
-      <h3 class="text-lg font-medium mb-2">Informazioni Centro di Costo</h3>
-      <p class="mb-1">
-        <strong>Codice:</strong>
-        {{ selectedWarehouse()!.costCenterCode || "Non specificato" }}
-      </p>
-
-      <div
-        *ngIf="
-          selectedWarehouse()!.costCenterCategories
-        "
-        class="mt-2"
-      >
-        <p><strong>Categorie:</strong></p>
-        <div class="flex flex-wrap gap-1 mt-1">
-          <p-tag
-            *ngFor="let category of selectedWarehouse()!.costCenterCategories"
-            [value]="category"
-          ></p-tag>
-        </div>
-      </div>
-    </div>
-
-    <!-- Note -->
-    <div *ngIf="selectedWarehouse()!.notes" class="mb-4">
-      <h3 class="text-lg font-medium mb-2">Note</h3>
-      <p>{{ selectedWarehouse()!.notes }}</p>
-    </div>
-  </div>
-
-  <ng-template pTemplate="footer">
-    <button
-      pButton
-      pRipple
-      label="Chiudi"
-      icon="pi pi-times"
-      class="p-button-text"
-      (click)="detailsDialogVisible = false"
-    ></button>
-    <button
-      pButton
-      pRipple
-      label="Modifica"
-      icon="pi pi-pencil"
-      class="p-button-warning"
-      (click)="
-        openEditDialog(selectedWarehouse()!); detailsDialogVisible = false
-      "
-    ></button>
-  </ng-template>
-</p-dialog>
-
-<!-- Dialog di conferma eliminazione -->
+<!-- Dialog di conferma eliminazione migliorata visivamente -->
 <p-dialog
   header="Conferma Eliminazione"
   [(visible)]="deleteDialogVisible"
@@ -973,214 +276,67 @@
   [draggable]="false"
   [resizable]="false"
   [style]="{ width: '450px' }"
-  styleClass="delete-dialog"
+  styleClass="delete-dialog rounded-dialog"
+  [closeOnEscape]="true"
+  [dismissableMask]="true"
 >
-  <div *ngIf="selectedWarehouse()" class="p-fluid">
-    <p>
-      Sei sicuro di voler eliminare il
+  <div *ngIf="selectedWarehouse()" class="p-fluid text-center">
+    <div class="flex justify-center mb-4">
+      <div class="bg-red-100 p-4 rounded-full">
+        <i class="pi pi-exclamation-triangle text-4xl text-red-500"></i>
+      </div>
+    </div>
+
+    <h2 class="text-xl font-semibold mb-3">Sei sicuro?</h2>
+
+    <p class="text-gray-600 mb-2">
+      Stai per eliminare il
       {{
         selectedWarehouse()!.type === "PHYSICAL"
           ? "magazzino"
           : "centro di costo"
       }}:
     </p>
-    <p class="font-bold mt-2 mb-3">{{ selectedWarehouse()!.name }}?</p>
-    <p class="text-red-600">Questa azione è irreversibile!</p>
-  </div>
+    <p class="font-bold text-lg mb-4 text-gray-800">
+      "{{ selectedWarehouse()!.name }}"
+    </p>
 
-  <ng-template pTemplate="footer">
-    <button
-      pButton
-      pRipple
-      label="Annulla"
-      icon="pi pi-times"
-      class="p-button-text"
-      (click)="deleteDialogVisible = false"
-    ></button>
-    <button
-      pButton
-      pRipple
-      label="Elimina"
-      icon="pi pi-trash"
-      class="p-button-danger"
-      (click)="deleteWarehouse()"
-    ></button>
-  </ng-template>
-</p-dialog>
-
-<!-- Dialog per assegnare fatture al centro di costo o movimenti al magazzino -->
-<p-dialog
-  header="Assegna Fatture"
-  [(visible)]="assignInvoicesDialogVisible"
-  [modal]="true"
-  [draggable]="false"
-  [resizable]="false"
-  [style]="{ width: '800px' }"
-  styleClass="assign-dialog"
->
-  <div *ngIf="selectedWarehouse()" class="p-fluid">
-    <h3 class="text-lg font-medium mb-3">
-      Assegna fatture al
-      {{
-        selectedWarehouse()!.type === "PHYSICAL"
-          ? "magazzino"
-          : "centro di costo"
-      }}:
-      <span class="font-bold">{{ selectedWarehouse()!.name }}</span>
-    </h3>
-
-    <!-- Stato di caricamento -->
-    <div *ngIf="loading()" class="flex justify-center my-5">
-      <i class="pi pi-spin pi-spinner text-4xl text-primary"></i>
-    </div>
-
-    <!-- Messaggio quando non ci sono fatture da assegnare -->
     <div
-      *ngIf="!loading() && unassignedInvoices.length === 0"
-      class="text-center p-4 my-4 bg-gray-50 rounded"
+      class="bg-red-50 p-4 rounded-md border-left-3 border-red-500 mb-3 text-left"
     >
-      <i class="pi pi-info-circle text-3xl text-blue-500 mb-3"></i>
-      <p>Non ci sono fatture da assegnare.</p>
-      <p class="text-sm text-gray-600">
-        Tutte le fatture sono già state valorizzate o assegnate a centri di
-        costo.
+      <p class="text-red-700 mb-0 flex items-start">
+        <i class="pi pi-info-circle mt-0.5 mr-2"></i>
+        <span>
+          Questa azione è irreversibile. Tutti i dati associati a questo
+          {{
+            selectedWarehouse()!.type === "PHYSICAL"
+              ? "magazzino"
+              : "centro di costo"
+          }}
+          verranno eliminati.
+        </span>
       </p>
     </div>
-
-    <!-- Tabella delle fatture da assegnare -->
-    <p-table
-      *ngIf="!loading() && unassignedInvoices.length > 0"
-      [value]="unassignedInvoices"
-      [paginator]="true"
-      [rows]="5"
-      styleClass="p-datatable-sm"
-      selectionMode="multiple"
-      [(selection)]="selectedInvoiceIds"
-      dataKey="id"
-    >
-      <ng-template pTemplate="header">
-        <tr>
-          <th style="width: 3em">
-            <p-tableHeaderCheckbox></p-tableHeaderCheckbox>
-          </th>
-          <th>Numero</th>
-          <th>Data</th>
-          <th>Fornitore</th>
-          <th class="text-right">Importo</th>
-          <th class="text-right">Stato</th>
-        </tr>
-      </ng-template>
-      <ng-template pTemplate="body" let-invoice>
-        <tr>
-          <td>
-            <p-tableCheckbox [value]="invoice"></p-tableCheckbox>
-          </td>
-          <td>{{ invoice.invoiceNumber }}</td>
-          <td>{{ invoice.invoiceDate | date : "dd/MM/yyyy" }}</td>
-          <td>Fornitore ID: {{ invoice.supplierId }}</td>
-          <td class="text-right">
-            {{ invoice.totalAmount | currency : "EUR" }}
-          </td>
-          <td class="text-right">
-            <div class="flex flex-col items-end">
-              <p-tag
-                [value]="
-                  invoice.status?.warehouseValued
-                    ? 'Valorizzato'
-                    : 'Non Valorizzato'
-                "
-                [severity]="
-                  invoice.status?.warehouseValued ? 'success' : 'info'
-                "
-                styleClass="p-tag-sm mb-1"
-              ></p-tag>
-              <p-tag
-                [value]="
-                  invoice.status?.costCenterAssigned
-                    ? 'Assegnato'
-                    : 'Non Assegnato'
-                "
-                [severity]="
-                  invoice.status?.costCenterAssigned ? 'success' : 'info'
-                "
-                styleClass="p-tag-sm"
-              ></p-tag>
-            </div>
-          </td>
-        </tr>
-      </ng-template>
-      <ng-template pTemplate="emptymessage">
-        <tr>
-          <td colspan="6" class="text-center">Nessuna fattura da assegnare</td>
-        </tr>
-      </ng-template>
-      <ng-template pTemplate="summary">
-        <div>
-          <strong>{{ selectedInvoiceIds.length }}</strong> fatture selezionate
-          di {{ unassignedInvoices.length }} totali
-        </div>
-      </ng-template>
-    </p-table>
   </div>
 
   <ng-template pTemplate="footer">
-    <button
-      pButton
-      pRipple
-      label="Annulla"
-      icon="pi pi-times"
-      class="p-button-text"
-      (click)="assignInvoicesDialogVisible = false"
-    ></button>
-    <button
-      pButton
-      pRipple
-      label="Assegna"
-      icon="pi pi-check"
-      class="p-button-primary"
-      [disabled]="selectedInvoiceIds.length === 0"
-      (click)="assignInvoicesToWarehouse()"
-    ></button>
+    <div class="flex justify-end gap-2">
+      <button
+        pButton
+        pRipple
+        label="Annulla"
+        icon="pi pi-times"
+        class="p-button-text"
+        (click)="deleteDialogVisible = false"
+      ></button>
+      <button
+        pButton
+        pRipple
+        label="Elimina"
+        icon="pi pi-trash"
+        class="p-button-danger"
+        (click)="deleteWarehouse()"
+      ></button>
+    </div>
   </ng-template>
 </p-dialog>
-
-<style>
-  .empty-state {
-    padding: 3rem 1rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .empty-state i {
-    font-size: 3rem;
-    color: #ccc;
-    margin-bottom: 1rem;
-  }
-
-  .empty-state h3 {
-    font-size: 1.5rem;
-    margin-bottom: 0.5rem;
-  }
-
-  .warehouse-card {
-    transition: all 0.3s ease;
-    height: 100%;
-  }
-
-  .warehouse-card:hover {
-    box-shadow: 0 8px 15px -3px rgba(0, 0, 0, 0.1),
-      0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  }
-
-  /* Stili per tag sui componenti PrimeNG */
-  ::ng-deep .p-tag-sm {
-    font-size: 0.75rem;
-    padding: 0.15rem 0.4rem;
-  }
-
-  .border-bottom {
-    border-bottom: 1px solid #e9e9e9;
-  }
-</style>

@@ -1,0 +1,409 @@
+<!-- Vista Card -->
+<ng-container *ngIf="viewMode === 'card' && invoice">
+  <p-card styleClass="invoice-card">
+    <ng-template pTemplate="header">
+      <div class="p-3 bg-gray-50 flex justify-between items-center">
+        <div class="font-bold">Fattura #{{ invoice.invoiceNumber }}</div>
+        <p-badge
+          [value]="getFormattedDate(invoice.invoiceDate)"
+          severity="info"
+          styleClass="p-badge-info"
+        ></p-badge>
+      </div>
+    </ng-template>
+
+    <div>
+      <p class="mb-2">
+        <strong>Fornitore:</strong>
+        {{ getSupplierName(invoice.supplierId) }}
+      </p>
+      <p class="mb-2">
+        <strong>Importo:</strong>
+        {{ invoice.totalAmount | currency : "EUR" }}
+      </p>
+      <p class="mb-2">
+        <strong>Righe:</strong>
+        {{ invoice.invoiceLines.length || 0 }}
+      </p>
+    </div>
+
+    <div
+      *ngIf="invoice.invoiceLines && invoice.invoiceLines.length > 0"
+      class="mt-3 border-t pt-2"
+    >
+      <p class="text-sm font-medium mb-1">Primi 3 articoli:</p>
+      <ul class="text-sm">
+        <li *ngFor="let line of invoice.invoiceLines.slice(0, 3)" class="mb-1">
+          {{ line.quantity }}x {{ line.description | slice : 0 : 30
+          }}{{ line.description.length > 30 ? "..." : "" }}
+        </li>
+        <li
+          *ngIf="invoice.invoiceLines.length > 3"
+          class="text-gray-500 italic"
+        >
+          + altri {{ invoice.invoiceLines.length - 3 }} articoli...
+        </li>
+      </ul>
+    </div>
+
+    <div class="flex gap-2 mb-3">
+      <p-badge
+        [value]="hasRawProductsExtracted(invoice) ? 'Estratti' : 'Da Estrarre'"
+        [severity]="hasRawProductsExtracted(invoice) ? 'success' : 'warn'"
+        [pTooltip]="
+          'Prodotti grezzi ' +
+          (hasRawProductsExtracted(invoice) ? 'estratti' : 'da estrarre')
+        "
+      ></p-badge>
+      <p-badge
+        [value]="getPaymentStatusLabel(invoice)"
+        [severity]="getPaymentStatusSeverity(invoice)"
+        [pTooltip]="'Stato pagamento: ' + getPaymentStatusLabel(invoice)"
+      ></p-badge>
+    </div>
+
+    <div
+      *ngIf="processingRawProducts && processingInvoiceId === invoice.id"
+      class="mt-3"
+    >
+      <p-progressBar
+        [value]="progressPercent"
+        [showValue]="true"
+      ></p-progressBar>
+      <div class="text-center text-sm text-gray-600 mt-1">
+        Elaborazione prodotti grezzi in corso...
+      </div>
+    </div>
+
+    <ng-template pTemplate="footer">
+      <div class="flex justify-between">
+        <button
+          pButton
+          icon="pi pi-eye"
+          label="Dettagli"
+          class="p-button-text p-button-sm"
+          (click)="viewDetails()"
+        ></button>
+        <button
+        pButton
+        icon="pi pi-trash"
+        label="Elimina"
+        class="p-button-text p-button-sm p-button-danger"
+        (click)="confirmDelete()"
+      ></button>
+        <button
+          pButton
+          icon="pi pi-pencil"
+          label="Modifica"
+          class="p-button-text p-button-sm p-button-warning"
+          (click)="editInvoice()"
+        ></button>
+      </div>
+      <div class="flex gap-1">
+        <button
+          pButton
+          [icon]="
+            hasRawProductsExtracted(invoice) ? 'pi pi-list' : 'pi pi-sync'
+          "
+          [label]="hasRawProductsExtracted(invoice) ? 'Prodotti' : 'Estrai'"
+          class="p-button-sm p-button-outlined"
+          [loading]="
+            processingRawProducts && processingInvoiceId === invoice.id
+          "
+          (click)="handleRawProductsAction()"
+        ></button>
+        <button
+          pButton
+          icon="pi pi-credit-card"
+          class="p-button-sm p-button-outlined"
+          [pTooltip]="'Gestisci pagamento'"
+          (click)="openPaymentDialog()"
+        ></button>
+      </div>
+    </ng-template>
+  </p-card>
+</ng-container>
+
+<!-- Vista dettaglio -->
+<ng-container *ngIf="viewMode === 'detail' && invoice">
+  <div class="p-2">
+    <div class="flex justify-between mb-4">
+      <div>
+        <h2 class="text-xl font-semibold">
+          Fattura #{{ invoice.invoiceNumber }}
+        </h2>
+        <p class="text-gray-600">
+          Data: {{ invoice.invoiceDate | date : "dd/MM/yyyy" }}
+        </p>
+      </div>
+      <div class="text-right">
+        <p class="text-lg font-bold">
+          {{ invoice.totalAmount | currency : "EUR" }}
+        </p>
+        <p class="text-sm text-gray-500">Importo totale</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <div class="border rounded p-3">
+        <h3 class="text-md font-medium mb-2">Informazioni Fornitore</h3>
+        <p class="mb-1">
+          <strong>Nome:</strong>
+          {{ getSupplierName(invoice.supplierId) }}
+        </p>
+        <p class="mb-1">
+          <strong>Partita IVA:</strong>
+          {{ getSupplierInfo(invoice.supplierId, "taxCode") }}
+        </p>
+        <p class="mb-1">
+          <strong>Indirizzo:</strong>
+          {{ getSupplierInfo(invoice.supplierId, "address") }}
+        </p>
+        <p class="mb-1">
+          <strong>Città:</strong>
+          {{ getSupplierInfo(invoice.supplierId, "city") }},
+          {{ getSupplierInfo(invoice.supplierId, "province") }}
+        </p>
+      </div>
+
+      <div class="border rounded p-3">
+        <h3 class="text-md font-medium mb-2">Informazioni Fattura</h3>
+        <p class="mb-1">
+          <strong>Numero Fattura:</strong> {{ invoice.invoiceNumber }}
+        </p>
+        <p class="mb-1">
+          <strong>Data:</strong>
+          {{ invoice.invoiceDate | date : "dd/MM/yyyy" }}
+        </p>
+        <p class="mb-1">
+          <strong>Totale Prodotti:</strong>
+          {{ invoice.invoiceLines.length || 0 }}
+        </p>
+        <p class="mb-1">
+          <strong>Data Registrazione:</strong>
+          {{ invoice.createdAt | date : "dd/MM/yyyy HH:mm" }}
+        </p>
+        <p class="mb-1">
+          <strong>Stato Pagamento:</strong>
+          <span class="p-ml-2">
+            <p-badge
+              [value]="getPaymentStatusLabel(invoice)"
+              [severity]="getPaymentStatusSeverity(invoice)"
+            ></p-badge>
+          </span>
+        </p>
+        <p *ngIf="invoice.status?.scheduledPaymentDate" class="mb-1">
+          <strong>Data Programmata:</strong>
+          {{ invoice.status.scheduledPaymentDate | date : "dd/MM/yyyy" }}
+        </p>
+        <p *ngIf="invoice.status?.paymentDate" class="mb-1">
+          <strong>Data Pagamento:</strong>
+          {{ invoice.status.paymentDate | date : "dd/MM/yyyy" }}
+        </p>
+      </div>
+    </div>
+
+    <div class="border rounded p-3 mb-4">
+      <h3 class="text-md font-medium mb-2">Righe Fattura</h3>
+      <p-table
+        [value]="invoice.invoiceLines || []"
+        styleClass="p-datatable-sm"
+        [scrollable]="true"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th>Codice</th>
+            <th>Descrizione</th>
+            <th class="text-right">Qtà</th>
+            <th class="text-right">U.M.</th>
+            <th class="text-right">Prezzo Unitario</th>
+            <th class="text-right">IVA</th>
+            <th class="text-right">Totale</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-line>
+          <tr>
+            <td>{{ line.articleCode }}</td>
+            <td>{{ line.description }}</td>
+            <td class="text-right">{{ line.quantity }}</td>
+            <td class="text-right">{{ line.unitOfMeasure }}</td>
+            <td class="text-right">{{ line.unitPrice | currency : "EUR" }}</td>
+            <td class="text-right">{{ line.vatRate }}%</td>
+            <td class="text-right">{{ line.totalPrice | currency : "EUR" }}</td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="footer">
+          <tr>
+            <td colspan="6" class="text-right font-bold">Totale Fattura</td>
+            <td class="text-right font-bold">
+              {{ invoice.totalAmount | currency : "EUR" }}
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </div>
+
+    <div class="flex gap-2 mb-3 mt-4">
+      <p-badge
+        [value]="hasRawProductsExtracted(invoice) ? 'Estratti' : 'Da Estrarre'"
+        [severity]="hasRawProductsExtracted(invoice) ? 'success' : 'warn'"
+        [pTooltip]="
+          'Prodotti grezzi ' +
+          (hasRawProductsExtracted(invoice) ? 'estratti' : 'da estrarre')
+        "
+      ></p-badge>
+      <p-badge
+        [value]="getPaymentStatusLabel(invoice)"
+        [severity]="getPaymentStatusSeverity(invoice)"
+        [pTooltip]="'Stato pagamento: ' + getPaymentStatusLabel(invoice)"
+      ></p-badge>
+    </div>
+
+    <div class="flex gap-2 mt-4 justify-end">
+        <button
+        pButton
+        icon="pi pi-trash"
+        label="Elimina"
+        class="p-button-danger"
+        (click)="confirmDelete()"
+      ></button>
+      <button
+        pButton
+        icon="pi pi-credit-card"
+        label="Gestisci Pagamento"
+        class="p-button-info"
+        (click)="openPaymentDialog()"
+      ></button>
+      <button
+        pButton
+        icon="pi pi-pencil"
+        label="Modifica"
+        class="p-button-warning"
+        (click)="editInvoice()"
+      ></button>
+    </div>
+  </div>
+</ng-container>
+
+<!-- Dialog per la gestione del pagamento -->
+<p-dialog
+  header="Gestione Pagamento"
+  [(visible)]="paymentDialogVisible"
+  [modal]="true"
+  [style]="{ width: '450px', minHeight: '400px', height: 'auto' }"
+  [draggable]="false"
+  [resizable]="false"
+>
+  <div class="p-fluid">
+    <div class="field mb-4">
+      <label for="paymentStatus" class="block text-sm font-medium mb-2"
+        >Stato del pagamento</label
+      >
+      <p-dropdown
+        id="paymentStatus"
+        [options]="paymentStatusOptions"
+        [(ngModel)]="selectedPaymentStatus"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="Seleziona lo stato di pagamento"
+        styleClass="w-full"
+      ></p-dropdown>
+    </div>
+
+    <div *ngIf="selectedPaymentStatus === 'scheduled'" class="field mb-4">
+      <label for="scheduledDate" class="block text-sm font-medium mb-2"
+        >Data programmata</label
+      >
+      <p-calendar
+        id="scheduledDate"
+        [(ngModel)]="scheduledPaymentDate"
+        dateFormat="dd/mm/yy"
+        [showIcon]="true"
+        placeholder="Seleziona data programmata"
+        styleClass="w-full"
+      ></p-calendar>
+      <small
+        *ngIf="selectedPaymentStatus === 'scheduled' && !scheduledPaymentDate"
+        class="p-error"
+      >
+        La data programmata è obbligatoria
+      </small>
+    </div>
+
+    <div *ngIf="selectedPaymentStatus === 'paid'" class="field mb-4">
+      <label for="paymentDate" class="block text-sm font-medium mb-2"
+        >Data di pagamento</label
+      >
+      <p-calendar
+        id="paymentDate"
+        [(ngModel)]="paymentDate"
+        dateFormat="dd/mm/yy"
+        [showIcon]="true"
+        placeholder="Seleziona data di pagamento"
+        styleClass="w-full"
+      ></p-calendar>
+      <small
+        *ngIf="selectedPaymentStatus === 'paid' && !paymentDate"
+        class="p-error"
+      >
+        La data di pagamento è obbligatoria
+      </small>
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <button
+      pButton
+      label="Annulla"
+      icon="pi pi-times"
+      class="p-button-text"
+      (click)="closePaymentDialog()"
+    ></button>
+    <button
+      pButton
+      label="Salva"
+      icon="pi pi-check"
+      [disabled]="!isPaymentFormValid()"
+      (click)="savePaymentStatus()"
+    ></button>
+  </ng-template>
+</p-dialog>
+
+<p-dialog
+  header="Conferma Eliminazione"
+  [(visible)]="deleteDialogVisible"
+  [modal]="true"
+  [style]="{ width: '450px' }"
+  [draggable]="false"
+  [resizable]="false"
+>
+  <div *ngIf="invoice" class="p-fluid">
+    <p class="mb-3">Sei sicuro di voler eliminare questa fattura?</p>
+    <div class="p-3 bg-gray-50 border-round mb-3">
+      <p class="mb-1"><strong>Fattura:</strong> #{{ invoice.invoiceNumber }}</p>
+      <p class="mb-1"><strong>Fornitore:</strong> {{ getSupplierName(invoice.supplierId) }}</p>
+      <p class="mb-1"><strong>Importo:</strong> {{ invoice.totalAmount | currency:'EUR' }}</p>
+      <p class="mb-0"><strong>Data:</strong> {{ invoice.invoiceDate | date:'dd/MM/yyyy' }}</p>
+    </div>
+    <p class="text-sm text-red-600">
+      Questa azione è irreversibile. Tutti i dati associati alla fattura verranno eliminati.
+    </p>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <button
+      pButton
+      label="Annulla"
+      icon="pi pi-times"
+      class="p-button-text"
+      (click)="deleteDialogVisible = false"
+    ></button>
+    <button
+      pButton
+      label="Elimina"
+      icon="pi pi-trash"
+      class="p-button-danger"
+      (click)="deleteInvoice()"
+    ></button>
+  </ng-template>
+</p-dialog>

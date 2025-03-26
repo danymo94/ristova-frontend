@@ -18,11 +18,14 @@ import {
   InventoryCheckDto,
   TransferMovementDto,
   UpdateMovementStatusDto,
+  StockMovementType,
+  MovementStatus,
+  AssignInvoiceToCostCenterResponse,
 } from '../models/stock-movement.model';
 import { StockMovementService } from '../services/api/local/stock-movement.service';
 import { Router } from '@angular/router';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
-import { pipe, switchMap, catchError, tap, Observable, EMPTY } from 'rxjs';
+import { pipe, switchMap, tap, Observable, EMPTY } from 'rxjs';
 import { tapResponse } from '@ngrx/operators';
 import { ToastService } from '../services/toast.service';
 import { AuthService } from '../services/auth.service';
@@ -33,8 +36,8 @@ export interface StockMovementState {
   selectedMovement: StockMovement | null;
   movementDetails: StockMovementDetail[] | null;
   warehouseBalance: WarehouseBalance | null;
-  productBalances: ProductBalance[] | null;
   loading: boolean;
+  processing: boolean;
   error: string | null;
 }
 
@@ -43,8 +46,8 @@ const initialState: StockMovementState = {
   selectedMovement: null,
   movementDetails: null,
   warehouseBalance: null,
-  productBalances: null,
   loading: false,
+  processing: false,
   error: null,
 };
 
@@ -69,6 +72,22 @@ export const StockMovementStore = signalStore(
       }, {} as Record<string, StockMovement[]>);
     }),
 
+    // Computed property per filtrare i movimenti per stato
+    movementsByStatus: computed(() => {
+      const allMovements = movements();
+      if (!allMovements) return {};
+
+      // Raggruppa i movimenti per stato
+      return allMovements.reduce((acc, movement) => {
+        const status = movement.status || 'draft';
+        if (!acc[status]) {
+          acc[status] = [];
+        }
+        acc[status].push(movement);
+        return acc;
+      }, {} as Record<string, StockMovement[]>);
+    }),
+
     // Computed property che indica se il movimento selezionato può essere modificato
     canEditSelected: computed(() => {
       const movement = selectedMovement();
@@ -79,6 +98,42 @@ export const StockMovementStore = signalStore(
     canDeleteSelected: computed(() => {
       const movement = selectedMovement();
       return movement ? movement.status !== 'confirmed' : false;
+    }),
+
+    // Computed property per i totali di valore in entrata
+    totalValueIn: computed(() => {
+      const allMovements = movements();
+      if (!allMovements) return 0;
+
+      return allMovements
+        .filter(
+          (m) =>
+            [
+              StockMovementType.PURCHASE,
+              StockMovementType.INVENTORY,
+              StockMovementType.TRANSFER,
+              StockMovementType.RETURN,
+            ].includes(m.movementType) && m.status !== 'cancelled'
+        )
+        .reduce((total, movement) => total + movement.totalAmount, 0);
+    }),
+
+    // Computed property per i totali di valore in uscita
+    totalValueOut: computed(() => {
+      const allMovements = movements();
+      if (!allMovements) return 0;
+
+      return allMovements
+        .filter(
+          (m) =>
+            [
+              StockMovementType.SALE,
+              StockMovementType.WASTE,
+              StockMovementType.INTERNAL_USE,
+              StockMovementType.EXPENSE,
+            ].includes(m.movementType) && m.status !== 'cancelled'
+        )
+        .reduce((total, movement) => total + movement.totalAmount, 0);
     }),
   })),
 
@@ -94,39 +149,60 @@ export const StockMovementStore = signalStore(
       // Create a variable to store the instance reference for use inside rxMethods
       const instance = {
         // Utility method for finding a movement by ID
-        getMovementById(id: string) {
+        getMovementById(id: string): StockMovement | null {
           const movements = store.movements();
-          return movements ? movements.find((m) => m.id === id) : null;
+          return movements ? movements.find((m) => m.id === id) || null : null;
         },
 
-        // Fetch warehouse balance method (referenced from other methods)
-        fetchWarehouseBalance: rxMethod<{
+        // Utility method to check if movement is in draft status
+        isMovementDraft(movement: StockMovement): boolean {
+          return movement.status === 'draft';
+        },
+
+        // 1. Operazioni con Fatture
+
+        // Trova l'rxMethod assignInvoiceToCostCenter e assicurati che sia definito così:
+
+        // Assign invoice to cost center
+        assignInvoiceToCostCenter: rxMethod<{
           projectId: string;
-          warehouseId: string;
+          invoiceId: string;
+          costCenterId: string;
         }>(
           pipe(
             tap(() => patchState(store, { loading: true, error: null })),
-            switchMap(({ projectId, warehouseId }) =>
+            switchMap(({ projectId, invoiceId, costCenterId }) =>
               stockMovementService
-                .getWarehouseBalance(projectId, warehouseId)
+                .assignInvoiceToCostCenter(projectId, invoiceId, costCenterId)
                 .pipe(
                   tapResponse({
-                    next: (balance: WarehouseBalance) => {
+                    next: (response: AssignInvoiceToCostCenterResponse) => {
+                      // Create a StockMovement object from the response
+                      const movement: StockMovement = {
+                        ...response,
+                      };
+
+                      // Add to movements array
+                      const currentMovements = store.movements() || [];
                       patchState(store, {
-                        warehouseBalance: balance,
+                        movements: [...currentMovements, movement],
                         loading: false,
                         error: null,
                       });
+
+                      toastService.showSuccess(
+                        'Fattura assegnata al centro di costo con successo'
+                      );
                     },
                     error: (error: unknown) => {
                       toastService.showError(
-                        'Errore nel recupero del saldo magazzino'
+                        "Errore nell'assegnazione della fattura al centro di costo"
                       );
                       patchState(store, {
                         loading: false,
                         error:
                           (error as Error)?.message ||
-                          'Errore nel recupero del saldo magazzino',
+                          "Errore nell'assegnazione della fattura al centro di costo",
                       });
                     },
                   })
@@ -135,7 +211,7 @@ export const StockMovementStore = signalStore(
           )
         ),
 
-        // Create movement from invoice with correct reference to fetchWarehouseBalance
+        // Create movement from invoice
         createMovementFromInvoice: rxMethod<{
           projectId: string;
           invoiceId: string;
@@ -189,7 +265,7 @@ export const StockMovementStore = signalStore(
           )
         ),
 
-        // Recupera movimenti per fattura
+        // Fetch invoice movements
         fetchInvoiceMovements: rxMethod<{
           projectId: string;
           invoiceId: string;
@@ -203,7 +279,7 @@ export const StockMovementStore = signalStore(
                   tapResponse({
                     next: (movements: StockMovement[]) => {
                       patchState(store, {
-                        movements: movements,
+                        movements,
                         loading: false,
                         error: null,
                       });
@@ -225,14 +301,52 @@ export const StockMovementStore = signalStore(
           )
         ),
 
-        // Registra l'ingresso di prodotti in magazzino
+        // 2. Operazioni Magazzino (fisico)
+
+        // Fetch warehouse balance
+        fetchWarehouseBalance: rxMethod<{
+          projectId: string;
+          warehouseId: string;
+        }>(
+          pipe(
+            tap(() => patchState(store, { loading: true, error: null })),
+            switchMap(({ projectId, warehouseId }) =>
+              stockMovementService
+                .getWarehouseBalance(projectId, warehouseId)
+                .pipe(
+                  tapResponse({
+                    next: (balance: WarehouseBalance) => {
+                      patchState(store, {
+                        warehouseBalance: balance,
+                        loading: false,
+                        error: null,
+                      });
+                    },
+                    error: (error: unknown) => {
+                      toastService.showError(
+                        'Errore nel recupero del saldo magazzino'
+                      );
+                      patchState(store, {
+                        loading: false,
+                        error:
+                          (error as Error)?.message ||
+                          'Errore nel recupero del saldo magazzino',
+                      });
+                    },
+                  })
+                )
+            )
+          )
+        ),
+
+        // Create inbound movement
         createInboundMovement: rxMethod<{
           projectId: string;
           warehouseId: string;
           data: InboundMovementDto;
         }>(
           pipe(
-            tap(() => patchState(store, { loading: true, error: null })),
+            tap(() => patchState(store, { processing: true, error: null })),
             switchMap(({ projectId, warehouseId, data }) =>
               stockMovementService
                 .createInboundMovement(projectId, warehouseId, data)
@@ -244,7 +358,7 @@ export const StockMovementStore = signalStore(
                       patchState(store, {
                         movements: [...currentMovements, movement],
                         selectedMovement: movement,
-                        loading: false,
+                        processing: false,
                         error: null,
                       });
 
@@ -263,7 +377,7 @@ export const StockMovementStore = signalStore(
                         'Errore nella creazione del movimento di carico'
                       );
                       patchState(store, {
-                        loading: false,
+                        processing: false,
                         error:
                           (error as Error)?.message ||
                           'Errore nella creazione del movimento di carico',
@@ -275,14 +389,14 @@ export const StockMovementStore = signalStore(
           )
         ),
 
-        // Registra l'uscita di prodotti dal magazzino
+        // Create outbound movement
         createOutboundMovement: rxMethod<{
           projectId: string;
           warehouseId: string;
           data: OutboundMovementDto;
         }>(
           pipe(
-            tap(() => patchState(store, { loading: true, error: null })),
+            tap(() => patchState(store, { processing: true, error: null })),
             switchMap(({ projectId, warehouseId, data }) =>
               stockMovementService
                 .createOutboundMovement(projectId, warehouseId, data)
@@ -294,7 +408,7 @@ export const StockMovementStore = signalStore(
                       patchState(store, {
                         movements: [...currentMovements, movement],
                         selectedMovement: movement,
-                        loading: false,
+                        processing: false,
                         error: null,
                       });
 
@@ -313,7 +427,7 @@ export const StockMovementStore = signalStore(
                         'Errore nella creazione del movimento di scarico'
                       );
                       patchState(store, {
-                        loading: false,
+                        processing: false,
                         error:
                           (error as Error)?.message ||
                           'Errore nella creazione del movimento di scarico',
@@ -325,14 +439,14 @@ export const StockMovementStore = signalStore(
           )
         ),
 
-        // Crea un movimento di rettifica inventario
+        // Create inventory check
         createInventoryCheck: rxMethod<{
           projectId: string;
           warehouseId: string;
           data: InventoryCheckDto;
         }>(
           pipe(
-            tap(() => patchState(store, { loading: true, error: null })),
+            tap(() => patchState(store, { processing: true, error: null })),
             switchMap(({ projectId, warehouseId, data }) =>
               stockMovementService
                 .createInventoryCheck(projectId, warehouseId, data)
@@ -344,7 +458,7 @@ export const StockMovementStore = signalStore(
                       patchState(store, {
                         movements: [...currentMovements, movement],
                         selectedMovement: movement,
-                        loading: false,
+                        processing: false,
                         error: null,
                       });
 
@@ -363,7 +477,7 @@ export const StockMovementStore = signalStore(
                         'Errore nella registrazione della rettifica inventario'
                       );
                       patchState(store, {
-                        loading: false,
+                        processing: false,
                         error:
                           (error as Error)?.message ||
                           'Errore nella registrazione della rettifica inventario',
@@ -375,13 +489,13 @@ export const StockMovementStore = signalStore(
           )
         ),
 
-        // Trasferisce prodotti da un magazzino a un altro
+        // Create transfer movement
         createTransferMovement: rxMethod<{
           projectId: string;
           data: TransferMovementDto;
         }>(
           pipe(
-            tap(() => patchState(store, { loading: true, error: null })),
+            tap(() => patchState(store, { processing: true, error: null })),
             switchMap(({ projectId, data }) =>
               stockMovementService.createTransferMovement(projectId, data).pipe(
                 tapResponse({
@@ -391,7 +505,7 @@ export const StockMovementStore = signalStore(
                     patchState(store, {
                       movements: [...currentMovements, movement],
                       selectedMovement: movement,
-                      loading: false,
+                      processing: false,
                       error: null,
                     });
 
@@ -400,21 +514,26 @@ export const StockMovementStore = signalStore(
                     );
 
                     // Aggiorna automaticamente i saldi di entrambi i magazzini
-                    instance.fetchWarehouseBalance({
-                      projectId,
-                      warehouseId: data.sourceWarehouseId,
-                    });
-                    instance.fetchWarehouseBalance({
-                      projectId,
-                      warehouseId: data.targetWarehouseId,
-                    });
+                    if (data.sourceWarehouseId) {
+                      instance.fetchWarehouseBalance({
+                        projectId,
+                        warehouseId: data.sourceWarehouseId,
+                      });
+                    }
+
+                    if (data.targetWarehouseId) {
+                      instance.fetchWarehouseBalance({
+                        projectId,
+                        warehouseId: data.targetWarehouseId,
+                      });
+                    }
                   },
                   error: (error: unknown) => {
                     toastService.showError(
                       'Errore nella registrazione del trasferimento'
                     );
                     patchState(store, {
-                      loading: false,
+                      processing: false,
                       error:
                         (error as Error)?.message ||
                         'Errore nella registrazione del trasferimento',
@@ -426,79 +545,20 @@ export const StockMovementStore = signalStore(
           )
         ),
 
+        // 3. Operazioni Generali
 
-
-        // Recupera il saldo di un prodotto specifico
-        fetchProductBalance: rxMethod<{
-          projectId: string;
-          warehouseId: string;
-          rawProductId: string;
-        }>(
-          pipe(
-            tap(() => patchState(store, { loading: true, error: null })),
-            switchMap(({ projectId, warehouseId, rawProductId }) =>
-              stockMovementService
-                .getProductBalance(projectId, warehouseId, rawProductId)
-                .pipe(
-                  tapResponse({
-                    next: (balance: ProductBalance) => {
-                      // Aggiungi il nuovo saldo prodotto alla lista esistente
-                      const currentBalances = store.productBalances() || [];
-                      const balanceIndex = currentBalances.findIndex(
-                        (b) =>
-                          b.warehouseId === warehouseId &&
-                          b.rawProductId === rawProductId
-                      );
-
-                      let updatedBalances = [...currentBalances];
-
-                      if (balanceIndex >= 0) {
-                        updatedBalances[balanceIndex] = balance;
-                      } else {
-                        updatedBalances.push(balance);
-                      }
-
-                      patchState(store, {
-                        productBalances: updatedBalances,
-                        loading: false,
-                        error: null,
-                      });
-                    },
-                    error: (error: unknown) => {
-                      toastService.showError(
-                        'Errore nel recupero del saldo prodotto'
-                      );
-                      patchState(store, {
-                        loading: false,
-                        error:
-                          (error as Error)?.message ||
-                          'Errore nel recupero del saldo prodotto',
-                      });
-                    },
-                  })
-                )
-            )
-          )
-        ),
-
-        // Recupera tutti i movimenti del progetto
+        // Fetch project movements
         fetchProjectMovements: rxMethod<{
           projectId: string;
         }>(
           pipe(
             tap(() => patchState(store, { loading: true, error: null })),
             switchMap(({ projectId }) => {
-              const role = authService.userRole();
-              const request =
-                role === 'admin'
-                  ? stockMovementService.getAdminProjectMovements(projectId)
-                  : stockMovementService.getProjectMovements(projectId);
-
-              return request.pipe(
+              return stockMovementService.getProjectMovements(projectId).pipe(
                 tapResponse({
                   next: (movements: StockMovement[]) => {
                     patchState(store, {
-                      movements: movements,
+                      movements,
                       loading: false,
                       error: null,
                     });
@@ -518,7 +578,7 @@ export const StockMovementStore = signalStore(
           )
         ),
 
-        // Recupera i movimenti di un magazzino specifico
+        // Fetch warehouse movements
         fetchWarehouseMovements: rxMethod<{
           projectId: string;
           warehouseId: string;
@@ -532,7 +592,7 @@ export const StockMovementStore = signalStore(
                   tapResponse({
                     next: (movements: StockMovement[]) => {
                       patchState(store, {
-                        movements: movements,
+                        movements,
                         loading: false,
                         error: null,
                       });
@@ -554,7 +614,7 @@ export const StockMovementStore = signalStore(
           )
         ),
 
-        // Recupera un movimento specifico
+        // Fetch movement
         fetchMovement: rxMethod<{
           projectId: string;
           id: string;
@@ -562,13 +622,7 @@ export const StockMovementStore = signalStore(
           pipe(
             tap(() => patchState(store, { loading: true, error: null })),
             switchMap(({ projectId, id }) => {
-              const role = authService.userRole();
-              const request =
-                role === 'admin'
-                  ? stockMovementService.getAdminMovement(projectId, id)
-                  : stockMovementService.getMovement(projectId, id);
-
-              return request.pipe(
+              return stockMovementService.getMovement(projectId, id).pipe(
                 tapResponse({
                   next: (movement: StockMovement) => {
                     patchState(store, {
@@ -605,7 +659,7 @@ export const StockMovementStore = signalStore(
           )
         ),
 
-        // Recupera i dettagli di un movimento
+        // Fetch movement details
         fetchMovementDetails: rxMethod<{
           projectId: string;
           id: string;
@@ -639,15 +693,19 @@ export const StockMovementStore = signalStore(
           )
         ),
 
-        // Elimina un movimento
+        // Delete movement
         deleteMovement: rxMethod<{
           projectId: string;
           id: string;
         }>(
           pipe(
-            tap(() => patchState(store, { loading: true, error: null })),
-            switchMap(({ projectId, id }) =>
-              stockMovementService.deleteMovement(projectId, id).pipe(
+            tap(() => patchState(store, { processing: true, error: null })),
+            switchMap(({ projectId, id }) => {
+              // Recupera il movimento prima di eliminarlo per aggiornare il saldo del magazzino
+              const movement = instance.getMovementById(id);
+              const warehouseId = movement?.warehouseId;
+
+              return stockMovementService.deleteMovement(projectId, id).pipe(
                 tapResponse({
                   next: () => {
                     toastService.showSuccess(
@@ -672,37 +730,49 @@ export const StockMovementStore = signalStore(
                     }
 
                     patchState(store, {
-                      loading: false,
+                      processing: false,
                       error: null,
                     });
+
+                    // Aggiorna il saldo del magazzino se necessario
+                    if (warehouseId && projectId) {
+                      instance.fetchWarehouseBalance({
+                        projectId,
+                        warehouseId,
+                      });
+                    }
                   },
                   error: (error: unknown) => {
                     toastService.showError(
                       "Errore nell'eliminazione del movimento"
                     );
                     patchState(store, {
-                      loading: false,
+                      processing: false,
                       error:
                         (error as Error)?.message ||
                         "Errore nell'eliminazione del movimento",
                     });
                   },
                 })
-              )
-            )
+              );
+            })
           )
         ),
 
-        // Aggiorna lo stato di un movimento
+        // Update movement status
         updateMovementStatus: rxMethod<{
           projectId: string;
           id: string;
-          status: 'draft' | 'confirmed' | 'cancelled';
+          status: MovementStatus;
         }>(
           pipe(
-            tap(() => patchState(store, { loading: true, error: null })),
-            switchMap(({ projectId, id, status }) =>
-              stockMovementService
+            tap(() => patchState(store, { processing: true, error: null })),
+            switchMap(({ projectId, id, status }) => {
+              // Recupera il movimento prima di aggiornare lo stato
+              const movement = instance.getMovementById(id);
+              const warehouseId = movement?.warehouseId;
+
+              return stockMovementService
                 .updateMovementStatus(projectId, id, { status })
                 .pipe(
                   tapResponse({
@@ -730,33 +800,71 @@ export const StockMovementStore = signalStore(
                       }
 
                       patchState(store, {
-                        loading: false,
+                        processing: false,
                         error: null,
                       });
+
+                      // Aggiorna il saldo del magazzino se necessario
+                      if (warehouseId && projectId) {
+                        instance.fetchWarehouseBalance({
+                          projectId,
+                          warehouseId,
+                        });
+                      }
                     },
                     error: (error: unknown) => {
                       toastService.showError(
                         "Errore nell'aggiornamento dello stato del movimento"
                       );
                       patchState(store, {
-                        loading: false,
+                        processing: false,
                         error:
                           (error as Error)?.message ||
                           "Errore nell'aggiornamento dello stato del movimento",
                       });
                     },
                   })
-                )
-            )
+                );
+            })
           )
         ),
 
-        // Seleziona un movimento specifico
+        // Filter movements by type
+        filterMovementsByType(
+          type: StockMovementType | StockMovementType[] | null
+        ): StockMovement[] {
+          const allMovements = store.movements();
+          if (!allMovements) return [];
+
+          if (!type) return allMovements;
+
+          const types = Array.isArray(type) ? type : [type];
+          return allMovements.filter((movement) =>
+            types.includes(movement.movementType)
+          );
+        },
+
+        // Filter movements by status
+        filterMovementsByStatus(
+          status: MovementStatus | MovementStatus[] | null
+        ): StockMovement[] {
+          const allMovements = store.movements();
+          if (!allMovements) return [];
+
+          if (!status) return allMovements;
+
+          const statuses = Array.isArray(status) ? status : [status];
+          return allMovements.filter((movement) =>
+            statuses.includes(movement.status as MovementStatus)
+          );
+        },
+
+        // Select movement
         selectMovement(movement: StockMovement | null) {
           patchState(store, { selectedMovement: movement });
 
           // Se è stato selezionato un movimento, carica anche i suoi dettagli
-          if (movement) {
+          if (movement && movement.id && movement.projectId) {
             const projectId = movement.projectId;
             instance.fetchMovementDetails({ projectId, id: movement.id });
           } else {
@@ -764,26 +872,17 @@ export const StockMovementStore = signalStore(
           }
         },
 
-        // Pulisci gli errori
+        // Clear errors
         clearErrors() {
           patchState(store, { error: null });
         },
 
-        // Reset completo dello stato
+        // Reset state
         resetState() {
-          patchState(store, {
-            movements: null,
-            selectedMovement: null,
-            movementDetails: null,
-            warehouseBalance: null,
-            productBalances: null,
-            loading: false,
-            error: null,
-          });
+          patchState(store, initialState);
         },
       };
 
-      // Return the instance containing all methods
       return instance;
     }
   ),
@@ -791,7 +890,6 @@ export const StockMovementStore = signalStore(
   withHooks({
     onInit(store) {
       // Non carichiamo automaticamente i dati all'inizializzazione
-      // perché saranno richiesti in contesti diversi (per progetto, per magazzino, ecc.)
     },
   })
 );

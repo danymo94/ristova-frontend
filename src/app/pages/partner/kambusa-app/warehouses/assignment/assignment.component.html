@@ -1,0 +1,164 @@
+<p-dialog
+  header="Assegna Fatture"
+  [(visible)]="visible"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{ width: '800px' }"
+  styleClass="assign-dialog rounded-dialog"
+  [closeOnEscape]="true"
+  [dismissableMask]="true"
+  (onHide)="closeDialog()"
+>
+  <div *ngIf="warehouse" class="p-fluid">
+    <div class="bg-gray-50 p-3 rounded-md mb-4">
+      <h3 class="text-lg font-medium mb-1 flex items-center">
+        <i [class]="getWarehouseTypeIcon(warehouse.type) + ' mr-2'"></i>
+        <span>
+          {{
+            warehouse.type === "COST_CENTER"
+              ? "Assegna fatture al centro di costo:"
+              : "Informazioni"
+          }}
+        </span>
+      </h3>
+      <p class="text-lg font-bold">{{ warehouse.name }}</p>
+    </div>
+
+    <!-- Messaggio quando non è un centro di costo -->
+    <div
+      *ngIf="!showAssignment"
+      class="text-center p-5 my-4 bg-blue-50 rounded-md"
+    >
+      <i class="pi pi-info-circle text-3xl text-blue-500 mb-3"></i>
+      <p class="font-medium">
+        Questa funzionalità è disponibile solo per i centri di costo
+      </p>
+      <p class="text-sm text-gray-600 mt-2">
+        Per i magazzini fisici, utilizza le funzioni di movimento magazzino per
+        processare le fatture.
+      </p>
+    </div>
+
+    <div *ngIf="showAssignment">
+      <!-- Stato di caricamento -->
+      <div *ngIf="loading" class="flex justify-center my-5">
+        <div class="flex flex-col items-center">
+          <i class="pi pi-spin pi-spinner text-4xl text-primary mb-3"></i>
+          <span class="text-gray-600">Caricamento fatture in corso...</span>
+        </div>
+      </div>
+
+      <!-- Messaggio quando non ci sono fatture da assegnare -->
+      <div
+        *ngIf="!loading && filteredInvoices.length === 0"
+        class="text-center p-4 my-4 bg-gray-50 rounded-md"
+      >
+        <i class="pi pi-info-circle text-3xl text-blue-500 mb-3"></i>
+        <p class="font-medium">Non ci sono fatture da assegnare.</p>
+        <p class="text-sm text-gray-600">
+          Tutte le fatture sono già state assegnate oppure hanno i
+          prodotti grezzi già elaborati.
+        </p>
+      </div>
+
+      <!-- Tabella delle fatture da assegnare -->
+      <p-table
+        *ngIf="!loading && filteredInvoices.length > 0"
+        [value]="filteredInvoices"
+        [paginator]="true"
+        [rows]="5"
+        styleClass="p-datatable-sm"
+        selectionMode="multiple"
+        [(selection)]="selectedInvoiceIds"
+        dataKey="id"
+        [rowHover]="true"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th style="width: 3em">
+              <p-tableHeaderCheckbox></p-tableHeaderCheckbox>
+            </th>
+            <th>Numero</th>
+            <th>Data</th>
+            <th>Fornitore</th>
+            <th class="text-right">Importo</th>
+            <th class="text-right">Stato Prodotti</th>
+          </tr>
+        </ng-template>
+
+        <ng-template pTemplate="body" let-invoice>
+          <tr>
+            <td>
+              <p-tableCheckbox [value]="invoice.id"></p-tableCheckbox>
+            </td>
+            <td>{{ invoice.invoiceNumber }}</td>
+            <td>{{ invoice.invoiceDate | date : "dd/MM/yyyy" }}</td>
+            <td>Fornitore ID: {{ invoice.supplierId }}</td>
+            <td class="text-right">
+              {{ invoice.totalAmount | currency : "EUR" }}
+            </td>
+            <td class="text-right">
+              <div class="flex flex-col items-end">
+                <p-tag
+                  [value]="
+                    invoice.status?.rawProductStatus === 'processed'
+                      ? 'Prodotti Elaborati'
+                      : 'Da Elaborare'
+                  "
+                  [severity]="
+                    invoice.status?.rawProductStatus === 'processed'
+                      ? 'success'
+                      : 'warn'
+                  "
+                  styleClass="p-tag-sm"
+                ></p-tag>
+              </div>
+            </td>
+          </tr>
+        </ng-template>
+
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="6" class="text-center py-4">
+              <div class="flex flex-col items-center text-gray-500">
+                <i class="pi pi-file-invoice mb-2 text-2xl"></i>
+                <span>Nessuna fattura da assegnare</span>
+              </div>
+            </td>
+          </tr>
+        </ng-template>
+
+        <ng-template pTemplate="summary">
+          <div class="flex items-center">
+            <i class="pi pi-check-square mr-2 text-primary"></i>
+            <strong>{{ selectedInvoiceIds.length }}</strong> fatture selezionate
+            di {{ filteredInvoices.length }} totali
+          </div>
+        </ng-template>
+      </p-table>
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div class="flex justify-end gap-2">
+      <button
+        pButton
+        pRipple
+        label="Annulla"
+        icon="pi pi-times"
+        class="p-button-text"
+        (click)="closeDialog()"
+      ></button>
+      <button
+        pButton
+        pRipple
+        label="Assegna"
+        icon="pi pi-check"
+        class="p-button-primary"
+        [disabled]="!showAssignment || selectedInvoiceIds.length === 0"
+        (click)="assignInvoicesToWarehouse()"
+      ></button>
+    </div>
+  </ng-template>
+</p-dialog>

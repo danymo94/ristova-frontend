@@ -7,6 +7,9 @@ import {
   EInvoice,
   CreateEInvoiceDto,
   UpdateEInvoiceDto,
+  UpdatePaymentStatusDto,
+  AssignCostCenterDto,
+  ProcessInventoryDto,
 } from '../../../models/einvoice.model';
 
 @Injectable({
@@ -79,7 +82,89 @@ export class EinvoiceService {
       );
   }
 
+  deleteInvoice(projectId: string, invoiceId: string): Observable<any> {
+    return this.http
+      .delete<any>(
+        `${this.apiUrl}/partner/projects/${projectId}/einvoices/${invoiceId}`
+      )
+      .pipe(
+        map((response) => response.data),
+        catchError(this.handleError)
+      );
+  }
+
+  // Invoice status management endpoints
+  updatePaymentStatus(
+    projectId: string,
+    invoiceId: string,
+    paymentStatusData: UpdatePaymentStatusDto
+  ): Observable<EInvoice> {
+    return this.http
+      .put<any>(
+        `${this.apiUrl}/partner/projects/${projectId}/einvoices/${invoiceId}/payment-status`,
+        paymentStatusData
+      )
+      .pipe(
+        map((response) => response.data),
+        catchError(this.handleError)
+      );
+  }
+
+  assignToCostCenter(
+    projectId: string,
+    invoiceId: string,
+    costCenterData: AssignCostCenterDto
+  ): Observable<EInvoice> {
+    return this.http
+      .put<any>(
+        `${this.apiUrl}/partner/projects/${projectId}/einvoices/${invoiceId}/cost-center`,
+        costCenterData
+      )
+      .pipe(
+        map((response) => response.data),
+        catchError(this.handleError)
+      );
+  }
+
+  processToInventory(
+    projectId: string,
+    invoiceId: string,
+    inventoryData: ProcessInventoryDto
+  ): Observable<EInvoice> {
+    return this.http
+      .put<any>(
+        `${this.apiUrl}/partner/projects/${projectId}/einvoices/${invoiceId}/inventory`,
+        inventoryData
+      )
+      .pipe(
+        map((response) => response.data),
+        catchError(this.handleError)
+      );
+  }
+
+  processAsRawProducts(
+    projectId: string,
+    invoiceId: string
+  ): Observable<EInvoice> {
+    return this.http
+      .put<any>(
+        `${this.apiUrl}/partner/projects/${projectId}/einvoices/${invoiceId}/raw-products`,
+        {}
+      )
+      .pipe(
+        map((response) => response.data),
+        catchError(this.handleError)
+      );
+  }
+
   // Admin endpoints
+  getAllAdminInvoices(): Observable<EInvoice[]> {
+    return this.http.get<any>(`${this.apiUrl}/admin/einvoices`).pipe(
+      map((response) => response.data || []),
+      catchError(this.handleError)
+    );
+  }
+
   getAdminProjectInvoices(projectId: string): Observable<EInvoice[]> {
     return this.http
       .get<any>(`${this.apiUrl}/admin/projects/${projectId}/einvoices`)

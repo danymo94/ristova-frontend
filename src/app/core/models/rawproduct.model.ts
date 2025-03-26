@@ -23,10 +23,10 @@ export interface PurchaseHistory {
 }
 
 export interface RawProductAdditionalData {
-  category?: string;
+  embeddings?: string;
   note?: string;
   raw?: string;
-  embeddings?: string;
+  category?: string;
   [key: string]: any; // Per eventuali campi aggiuntivi
 }
 
@@ -50,4 +50,10 @@ export interface InvoiceRawProduct {
   totalQuantity: number;
   averageUnitPrice: number;
   totalPrice: number;
+}
+
+export interface ExtractInvoiceResponse {
+  successful: boolean;
+  processedLines: number;
+  errors: string[];
 }

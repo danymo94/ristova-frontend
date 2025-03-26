@@ -27,9 +27,9 @@ export interface WarehouseStatistics {
 }
 
 export interface Warehouse {
-  id: string;
-  projectId: string;
-  partnerId: string;
+  id?: string;
+  projectId?: string;
+  partnerId?: string;
   name: string;
   description: string;
   type: WarehouseType;
@@ -39,8 +39,8 @@ export interface Warehouse {
   notes?: string;
   costCenterCode?: string;
   costCenterCategories?: string[];
-  createdAt: string;
-  lastUpdatedAt: string;
+  createdAt?: string;
+  lastUpdatedAt?: string;
   statistics?: WarehouseStatistics;
 }
 

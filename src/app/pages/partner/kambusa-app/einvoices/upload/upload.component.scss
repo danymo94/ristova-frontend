@@ -1,0 +1,352 @@
+/* Stili container principale - ottimizzato per dialog */
+.upload-container {
+    max-width: 850px;
+    margin: 0 auto;
+    padding: 0.5rem;
+  }
+  
+  /* Card principale semplificata per dialog */
+  .upload-card {
+    background: transparent; // Sfondo trasparente
+    transition: all 0.3s ease;
+    border: none; // Nessun bordo
+    position: relative;
+    
+    &:hover {
+      transform: none; // Nessun effetto hover
+      box-shadow: none !important; // Nessuna ombra
+    }
+  }
+  
+  /* Header e icone con stili avanzati */
+  .icon-container {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--primary-color-lightest, #f0f7ff);
+    color: var(--primary-color, #3B82F6);
+    border-radius: 10px;
+    
+    i {
+      font-size: 1.3rem;
+    }
+  }
+  
+  .info-icon {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(59, 130, 246, 0.15);
+    color: var(--blue-500);
+    border-radius: 50%;
+    margin-right: 12px;
+    flex-shrink: 0;
+  }
+  
+  /* Lista caratteristiche con icone */
+  .feature-list {
+    list-style: none;
+    
+    li {
+      display: flex;
+      align-items: center;
+      padding: 4px 0;
+      
+      i {
+        color: var(--blue-500);
+      }
+    }
+  }
+  
+  /* Area drop personalizzata */
+  .upload-placeholder {
+    transition: all 0.3s ease;
+    min-height: 180px; // Altezza ridotta per dialog
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1.5rem;
+    border: 2px dashed #e0e7ff;
+    border-radius: 0.75rem;
+    background-color: rgba(240, 247, 255, 0.5);
+    cursor: pointer;
+    
+    &:hover {
+      border-color: var(--primary-color);
+      background-color: rgba(240, 247, 255, 0.8);
+      
+      .upload-icon i {
+        transform: translateY(-5px);
+      }
+    }
+    
+    .upload-icon {
+      width: 65px;
+      height: 65px;
+      background: linear-gradient(135deg, #f0f7ff 0%, #e1effe 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1rem;
+      
+      i {
+        font-size: 2.2rem;
+        color: var(--primary-color);
+        transition: transform 0.3s ease;
+      }
+    }
+    
+    .upload-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--gray-800);
+      margin: 0 0 0.3rem;
+    }
+    
+    .upload-subtitle {
+      font-size: 0.95rem;
+      color: var(--gray-600);
+      margin: 0 0 0.75rem;
+    }
+    
+    .upload-formats {
+      font-size: 0.85rem;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background-color: rgba(59, 130, 246, 0.1);
+      color: var(--blue-600);
+    }
+  }
+  
+  /* Contatore file con badge */
+  .file-summary {
+    margin-top: 1.25rem;
+    padding: 1rem;
+    border-radius: 10px;
+    background: linear-gradient(145deg, #f8faff 0%, #f0f7ff 100%);
+    
+    .file-counter {
+      width: 45px;
+      height: 45px;
+      background: var(--primary-color);
+      color: rgb(128, 128, 128);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      font-weight: bold;
+    }
+    
+    .counter-title {
+      font-weight: 600;
+      color: var(--gray-700);
+    }
+    
+    .counter-subtitle {
+      font-size: 0.85rem;
+      color: var(--gray-500);
+      margin-top: 2px;
+    }
+  }
+  
+  /* Progress bar con animazione avanzata */
+  .progress-container {
+    margin-top: 1.25rem;
+    padding: 1rem;
+    border-radius: 10px;
+    background: white;
+    border: none;
+    animation: pulse-subtle 2s infinite, slide-in 0.5s ease-out;
+    
+    .progress-text {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--gray-700);
+    }
+    
+    .progress-percentage {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--primary-color);
+      background: rgba(59, 130, 246, 0.1);
+      padding: 3px 10px;
+      border-radius: 20px;
+    }
+    
+    .progress-status {
+      font-size: 0.85rem;
+      color: var(--gray-500);
+      text-align: center;
+      margin-top: 8px;
+      animation: fadeInOut 2s infinite;
+    }
+  }
+  
+  /* Personalizzazione progress bar */
+  :host ::ng-deep .custom-progress .p-progressbar {
+    height: 8px;
+    border-radius: 4px;
+    background: #edf2f7;
+    overflow: hidden;
+  }
+  
+  :host ::ng-deep .custom-progress .p-progressbar-value {
+    background: linear-gradient(90deg, var(--primary-color) 0%, var(--primary-color-light) 100%);
+    transition: width 0.3s ease;
+  }
+  
+  /* Badge personalizzato */
+  :host ::ng-deep .size-badge {
+    font-size: 0.75rem;
+    padding: 0.35rem 0.8rem;
+    background: var(--primary-color);
+    border-radius: 20px;
+    font-weight: 500;
+  }
+  
+  /* Personalizzazione file upload */
+  :host ::ng-deep .p-fileupload {
+    .p-fileupload-buttonbar {
+      background: #f8fafc;
+      border-color: #e1effe;
+      border-radius: 8px 8px 0 0;
+      padding: 1rem;
+      border-bottom: none;
+    }
+    
+    .p-fileupload-content {
+      border-radius: 0 0 8px 8px;
+      border-color: #e1effe;
+      padding: 1.25rem;
+    }
+    
+    .p-button {
+      border-radius: 20px;
+      padding: 0.5rem 1.1rem;
+      transition: all 0.3s ease;
+      
+      &:hover {
+        box-shadow: none; // Rimuovi ombra su hover
+      }
+      
+      .p-button-icon {
+        font-size: 1rem;
+      }
+    }
+    
+    .p-fileupload-row {
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
+    }
+  }
+  
+  /* Pulsanti azione personalizzati */
+  .action-buttons {
+    padding: 0;
+    margin-top: 0.75rem;
+    
+    .cancel-button {
+      transition: all 0.2s ease;
+      
+      &:not(:disabled):hover {
+        background-color: rgba(220, 38, 38, 0.05) !important;
+        color: var(--red-500) !important;
+      }
+    }
+    
+    .upload-button {
+      padding: 0.6rem 1.25rem;
+      transition: all 0.2s ease;
+      
+      &:not(:disabled):hover {
+        transform: none; // Rimuovi transform su hover
+        box-shadow: none; // Rimuovi ombra su hover
+        filter: brightness(1.05); // Aggiungi leggero effetto brightness invece
+      }
+    }
+  }
+  
+  /* Animazioni */
+  @keyframes pulse-subtle {
+    0% {
+      background-color: rgba(240, 247, 255, 0.4);
+    }
+    50% {
+      background-color: rgba(240, 247, 255, 0.7);
+    }
+    100% {
+      background-color: rgba(240, 247, 255, 0.4);
+    }
+  }
+  
+  @keyframes slide-in {
+    0% {
+      opacity: 0;
+      transform: translateY(5px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes fadeInOut {
+    0%, 100% {
+      opacity: 0.7;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+  
+  /* Responsive design */
+  @media (max-width: 768px) {
+    .upload-card {
+      padding: 0;
+    }
+    
+    .upload-placeholder {
+      min-height: 140px;
+      padding: 1.25rem 0.75rem;
+      
+      .upload-icon {
+        width: 55px;
+        height: 55px;
+        margin-bottom: 0.75rem;
+        
+        i {
+          font-size: 1.8rem;
+        }
+      }
+      
+      .upload-title {
+        font-size: 1rem;
+      }
+      
+      .upload-subtitle {
+        font-size: 0.85rem;
+        margin-bottom: 0.5rem;
+      }
+    }
+    
+    .file-summary {
+      padding: 0.75rem;
+      
+      .file-counter {
+        width: 40px;
+        height: 40px;
+        font-size: 1.2rem;
+      }
+    }
+    
+    .progress-container {
+      padding: 0.75rem;
+    }
+  }

@@ -1,0 +1,89 @@
+<div class="p-fluid">
+  <div class="field mb-4">
+    <label for="supplier" class="block text-sm font-medium text-gray-700 mb-1"
+      >Fornitore</label
+    >
+    <p-dropdown
+      id="supplier"
+      [options]="supplierOptions"
+      [(ngModel)]="localFilters.supplierId"
+      optionLabel="name"
+      optionValue="id"
+      placeholder="Seleziona un fornitore"
+      [showClear]="true"
+      styleClass="w-full"
+    ></p-dropdown>
+  </div>
+
+  <div class="field mb-4">
+    <label for="dateRange" class="block text-sm font-medium text-gray-700 mb-1"
+      >Intervallo di date</label
+    >
+    <p-calendar
+      id="dateRange"
+      [(ngModel)]="localFilters.dateRange"
+      selectionMode="range"
+      [readonlyInput]="true"
+      [showIcon]="true"
+      [showButtonBar]="true"
+      placeholder="Seleziona un intervallo di date"
+      styleClass="w-full"
+    ></p-calendar>
+  </div>
+
+  <div class="field mb-4">
+    <label for="totalMin" class="block text-sm font-medium text-gray-700 mb-1"
+      >Importo minimo</label
+    >
+    <p-inputNumber
+      id="totalMin"
+      [(ngModel)]="localFilters.minAmount"
+      mode="currency"
+      currency="EUR"
+      locale="it-IT"
+      placeholder="Importo minimo"
+      styleClass="w-full"
+    ></p-inputNumber>
+  </div>
+
+  <div class="field mb-4">
+    <label for="totalMax" class="block text-sm font-medium text-gray-700 mb-1"
+      >Importo massimo</label
+    >
+    <p-inputNumber
+      id="totalMax"
+      [(ngModel)]="localFilters.maxAmount"
+      mode="currency"
+      currency="EUR"
+      locale="it-IT"
+      placeholder="Importo massimo"
+      styleClass="w-full"
+    ></p-inputNumber>
+  </div>
+</div>
+
+<div class="flex justify-end gap-2 mt-4">
+  <button
+    pButton
+    pRipple
+    label="Annulla"
+    icon="pi pi-times"
+    class="p-button-text"
+    (click)="cancel()"
+  ></button>
+  <button
+    pButton
+    pRipple
+    label="Reimposta"
+    icon="pi pi-refresh"
+    class="p-button-outlined"
+    (click)="resetFilters()"
+  ></button>
+  <button
+    pButton
+    pRipple
+    label="Applica"
+    icon="pi pi-check"
+    (click)="applyFilters()"
+  ></button>
+</div>

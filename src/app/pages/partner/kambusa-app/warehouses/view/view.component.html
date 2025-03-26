@@ -1,0 +1,243 @@
+<!-- Vista Card -->
+<ng-container *ngIf="viewMode === 'card' && warehouse">
+  <p-card
+    [header]="warehouse.name"
+    [subheader]="warehouse.description"
+    styleClass="warehouse-card shadow-sm hover:shadow-md transition-shadow duration-300"
+  >
+    <ng-template pTemplate="header">
+      <div
+        class="p-3 flex justify-between items-center"
+        [ngClass]="{
+          'bg-blue-50': warehouse.type === 'PHYSICAL',
+          'bg-green-50': warehouse.type === 'COST_CENTER'
+        }"
+      >
+        <div class="flex items-center">
+          <i [class]="getWarehouseTypeIcon(warehouse.type) + ' mr-2'"></i>
+          <span class="font-bold line-clamp-1">{{ warehouse.name }}</span>
+        </div>
+        <p-tag
+          [value]="getWarehouseTypeLabel(warehouse.type)"
+          [severity]="getWarehouseTypeSeverity(warehouse.type)"
+        >
+        </p-tag>
+      </div>
+    </ng-template>
+
+    <div class="p-2">
+      <p class="mb-2 text-sm line-clamp-2">{{ warehouse.description }}</p>
+
+      <div class="mb-3 flex justify-between">
+        <p-tag
+          [value]="getStatusLabel(warehouse.isActive)"
+          [severity]="getStatusSeverity(warehouse.isActive)"
+          styleClass="p-tag-sm"
+        >
+        </p-tag>
+
+        <p-badge
+          *ngIf="warehouse.statistics?.productCount"
+          [value]="warehouse.statistics?.productCount + ' prodotti' || ''"
+          severity="info"
+        >
+        </p-badge>
+      </div>
+
+      <div *ngIf="warehouse.type === 'PHYSICAL'" class="mb-3 text-sm">
+        <p class="flex items-start">
+          <i class="pi pi-map-marker mr-2 mt-1"></i>
+          <span class="line-clamp-2">{{ getLocationText(warehouse) }}</span>
+        </p>
+      </div>
+
+      <div
+        *ngIf="warehouse.type === 'COST_CENTER' && warehouse.costCenterCode"
+        class="mb-3 text-sm"
+      >
+        <p class="flex items-start">
+          <i class="pi pi-hashtag mr-2 mt-1"></i>
+          <span>Codice: {{ warehouse.costCenterCode }}</span>
+        </p>
+      </div>
+    </div>
+
+    <ng-template pTemplate="footer">
+      <div class="flex flex-col gap-2">
+        <div class="flex justify-between">
+          <button
+            pButton
+            icon="pi pi-eye"
+            label="Dettagli"
+            class="p-button-text p-button-sm"
+            (click)="viewDetails()"
+          ></button>
+          <div class="flex gap-1">
+            <button
+              pButton
+              icon="pi pi-pencil"
+              class="p-button-text p-button-sm p-button-warning"
+              pTooltip="Modifica"
+              tooltipPosition="top"
+              (click)="editWarehouse()"
+            ></button>
+            <button
+              pButton
+              [icon]="warehouse.isActive ? 'pi pi-times' : 'pi pi-check'"
+              class="p-button-text p-button-sm"
+              [ngClass]="{
+                'p-button-danger': warehouse.isActive,
+                'p-button-success': !warehouse.isActive
+              }"
+              [pTooltip]="warehouse.isActive ? 'Disattiva' : 'Attiva'"
+              tooltipPosition="top"
+              (click)="toggleStatus()"
+            ></button>
+            <button
+              pButton
+              icon="pi pi-trash"
+              class="p-button-text p-button-sm p-button-danger"
+              pTooltip="Elimina"
+              tooltipPosition="top"
+              (click)="deleteWarehouse()"
+            ></button>
+          </div>
+        </div>
+
+        <!-- Quando è un centro di costo mostra il pulsante per l'assegnazione fatture -->
+        <div *ngIf="warehouse.type === 'COST_CENTER'">
+          <button
+            pButton
+            icon="pi pi-file-invoice"
+            label="Assegna Fatture"
+            class="p-button-outlined p-button-sm w-full hover:shadow-sm transition-shadow"
+            (click)="assignInvoices()"
+          ></button>
+        </div>
+
+        <!-- Quando è un magazzino fisico mostra il pulsante per la valorizzazione magazzino -->
+        <div *ngIf="warehouse.type === 'PHYSICAL'">
+          <button
+            pButton
+            icon="pi pi-arrow-right-arrow-left"
+            label="Movimenti"
+            class="p-button-outlined p-button-sm w-full hover:shadow-sm transition-shadow"
+            (click)="assignInvoices()"
+          ></button>
+        </div>
+      </div>
+    </ng-template>
+  </p-card>
+</ng-container>
+
+<!-- Vista list-item per tabelle -->
+<ng-container *ngIf="viewMode === 'list-item' && warehouse">
+  <!-- Questo contenuto verrà riutilizzato nella vista tabella -->
+  <div class="flex gap-1 justify-end">
+    <button
+      pButton
+      icon="pi pi-eye"
+      class="p-button-text p-button-rounded p-button-sm"
+      pTooltip="Visualizza dettagli"
+      tooltipPosition="top"
+      (click)="viewDetails()"
+    ></button>
+    <button
+      pButton
+      icon="pi pi-pencil"
+      class="p-button-text p-button-rounded p-button-sm p-button-warning"
+      pTooltip="Modifica"
+      tooltipPosition="top"
+      (click)="editWarehouse()"
+    ></button>
+    <button
+      pButton
+      [icon]="warehouse.isActive ? 'pi pi-times' : 'pi pi-check'"
+      class="p-button-text p-button-rounded p-button-sm"
+      [ngClass]="{
+        'p-button-danger': warehouse.isActive,
+        'p-button-success': !warehouse.isActive
+      }"
+      [pTooltip]="warehouse.isActive ? 'Disattiva' : 'Attiva'"
+      tooltipPosition="top"
+      (click)="toggleStatus()"
+    ></button>
+    <button
+      pButton
+      icon="pi pi-trash"
+      class="p-button-text p-button-rounded p-button-sm p-button-danger"
+      pTooltip="Elimina"
+      tooltipPosition="top"
+      (click)="deleteWarehouse()"
+    ></button>
+    <button
+      pButton
+      [icon]="
+        warehouse.type === 'COST_CENTER'
+          ? 'pi pi-file-invoice'
+          : 'pi pi-arrow-right-arrow-left'
+      "
+      class="p-button-text p-button-rounded p-button-sm p-button-info"
+      [pTooltip]="
+        warehouse.type === 'COST_CENTER' ? 'Assegna Fatture' : 'Movimenti'
+      "
+      tooltipPosition="top"
+      (click)="assignInvoices()"
+    ></button>
+  </div>
+</ng-container>
+
+<!-- Vista dettaglio (futura implementazione) -->
+<ng-container *ngIf="viewMode === 'detail' && warehouse">
+  <div class="p-3 bg-white rounded-lg shadow-sm">
+    <div class="mb-4 pb-3 border-bottom-1 border-gray-200">
+      <div class="flex items-center gap-2 mb-1">
+        <i [class]="getWarehouseTypeIcon(warehouse.type) + ' text-lg'"></i>
+        <h2 class="text-xl font-bold">{{ warehouse.name }}</h2>
+      </div>
+      <div class="flex items-center gap-2">
+        <p-tag
+          [value]="getWarehouseTypeLabel(warehouse.type)"
+          [severity]="getWarehouseTypeSeverity(warehouse.type)"
+        ></p-tag>
+        <p-tag
+          [value]="getStatusLabel(warehouse.isActive)"
+          [severity]="getStatusSeverity(warehouse.isActive)"
+        ></p-tag>
+      </div>
+    </div>
+
+    <p class="mb-2 text-gray-700">{{ warehouse.description }}</p>
+
+    <!-- Bottom buttons -->
+    <div class="flex justify-end gap-2 mt-4">
+      <button
+        pButton
+        icon="pi pi-pencil"
+        label="Modifica"
+        class="p-button-warning"
+        (click)="editWarehouse()"
+      ></button>
+      <button
+        pButton
+        [icon]="warehouse.isActive ? 'pi pi-times' : 'pi pi-check'"
+        [label]="warehouse.isActive ? 'Disattiva' : 'Attiva'"
+        [class]="warehouse.isActive ? 'p-button-danger' : 'p-button-success'"
+        (click)="toggleStatus()"
+      ></button>
+      <button
+        pButton
+        [icon]="
+          warehouse.type === 'COST_CENTER'
+            ? 'pi pi-file-invoice'
+            : 'pi pi-arrow-right-arrow-left'
+        "
+        [label]="
+          warehouse.type === 'COST_CENTER' ? 'Assegna Fatture' : 'Movimenti'
+        "
+        class="p-button-info"
+        (click)="assignInvoices()"
+      ></button>
+    </div>
+  </div>
+</ng-container>

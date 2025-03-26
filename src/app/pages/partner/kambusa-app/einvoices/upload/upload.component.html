@@ -1,0 +1,128 @@
+<div class="upload-container">
+    <!-- Card principale con ombreggiatura migliorata -->
+    <div class="upload-card p-5 mb-5  border-round-2xl">
+      <!-- Header informativo con icona e stile migliorato -->
+      <div class="flex align-items-center mb-4 pb-3 border-bottom-1 border-300">
+        <div class="icon-container">
+          <i class="pi pi-file-excel text-xl"></i>
+        </div>
+        <h2 class="m-0 font-semibold ml-2">Caricamento fatture elettroniche</h2>
+      </div>
+    
+      <!-- Descrizione informativa con icone e design migliorato -->
+      <div class="info-box p-4 bg-blue-50 border-round-lg mb-4">
+        <div class="flex">
+          <div class="info-icon">
+            <i class="pi pi-info-circle"></i>
+          </div>
+          <div>
+            <p class="m-0 text-gray-800 font-medium">
+              Carica i tuoi file di fatture elettroniche per elaborarli automaticamente.
+            </p>
+            <ul class="feature-list pl-0 mt-3 mb-0 text-sm text-gray-700">
+              <li class="mb-2">
+                <i class="pi pi-file mr-2"></i>
+                File supportati: <span class="font-medium">.XML</span> e <span class="font-medium">.PDF</span>
+              </li>
+              <li class="mb-2">
+                <i class="pi pi-arrow-up mr-2"></i>
+                Dimensione massima: <span class="font-medium">10MB</span>
+              </li>
+              <li>
+                <i class="pi pi-sync mr-2"></i>
+                I file PDF verranno automaticamente convertiti in formato XML
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    
+      <!-- File upload con design moderno e animazioni -->
+      <p-fileUpload
+        #fileUpload
+        mode="advanced"
+        [multiple]="true"
+        [showUploadButton]="false"
+        accept=".xml,.pdf"
+        chooseLabel="Seleziona File"
+        [maxFileSize]="10000000"
+        [customUpload]="true"
+        styleClass="custom-upload"
+        (onSelect)="onSelectedFiles($event)"
+        (onClear)="onClearFiles()"
+        (onRemove)="onRemoveFile($event)"
+      >
+        <ng-template pTemplate="content">
+          <!-- Area di drag and drop personalizzata con animazioni -->
+          <div *ngIf="files.length === 0" class="upload-placeholder">
+            <div class="upload-icon">
+              <i class="pi pi-cloud-upload"></i>
+            </div>
+            <h3 class="upload-title">Trascina qui i file</h3>
+            <p class="upload-subtitle">oppure fai click per selezionare</p>
+            <div class="upload-formats">XML e PDF di fatture elettroniche</div>
+          </div>
+          
+          <!-- Contatore file con design migliorato -->
+          <div *ngIf="files.length > 0" class="file-summary">
+            <div class="flex align-items-center justify-content-between">
+              <div class="flex align-items-center">
+                <div class="file-counter">
+                  <span>{{ files.length }}</span>
+                </div>
+                <div class="ml-3">
+                  <div class="counter-title">File selezionati</div>
+                  <div class="counter-subtitle">Pronti per l'elaborazione</div>
+                </div>
+              </div>
+              <p-badge [value]="formatSize(totalSize)" styleClass="size-badge"></p-badge>
+            </div>
+          </div>
+    
+          <!-- Progress bar con animazione fluida -->
+          <div *ngIf="progressPercent > 0" class="progress-container">
+            <div class="flex justify-content-between align-items-center mb-2">
+              <div class="flex align-items-center">
+                <i class="pi pi-spin pi-spinner mr-2 text-primary"></i>
+                <span class="progress-text">Caricamento in corso...</span>
+              </div>
+              <span class="progress-percentage">{{ progressPercent }}%</span>
+            </div>
+            <p-progressBar
+              [value]="progressPercent"
+              [showValue]="false"
+              styleClass="custom-progress"
+            ></p-progressBar>
+            <p class="progress-status mt-2">
+              Elaborazione dei file, attendere prego...
+            </p>
+          </div>
+        </ng-template>
+      </p-fileUpload>
+    </div>
+    
+    <!-- Pulsanti di azione con effetti hover avanzati -->
+    <div class="action-buttons flex justify-content-end gap-4 mt-4">
+      <button
+        pButton
+        pRipple
+        type="button"
+        label="Annulla"
+        icon="pi pi-times"
+        class="p-button-text p-button-rounded cancel-button"
+        (click)="cancel()"
+        [disabled]="uploading"
+      ></button>
+      <button
+        pButton
+        pRipple
+        type="button"
+        label="Elabora fatture"
+        icon="pi pi-upload"
+        class="p-button-primary p-button-rounded upload-button"
+        (click)="uploadInvoices()"
+        [disabled]="files.length === 0 || uploading"
+        [loading]="uploading"
+      ></button>
+    </div>
+  </div>

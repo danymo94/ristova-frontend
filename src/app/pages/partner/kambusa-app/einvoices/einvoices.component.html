@@ -113,147 +113,23 @@
       *ngIf="viewMode === 'grid'"
       class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
     >
-      <p-card
+      <app-einvoice-view
         *ngFor="let invoice of filteredInvoices"
-        styleClass="invoice-card"
-      >
-        <ng-template pTemplate="header">
-          <div class="p-3 bg-gray-50 flex justify-between items-center">
-            <div class="font-bold">Fattura #{{ invoice.invoiceNumber }}</div>
-            <p-badge
-              [value]="getFormattedDate(invoice.invoiceDate)"
-              severity="info"
-              styleClass="p-badge-info"
-            ></p-badge>
-          </div>
-        </ng-template>
-
-        <div>
-          <p class="mb-2">
-            <strong>Fornitore:</strong>
-            {{ getSupplierName(invoice.supplierId) }}
-          </p>
-          <p class="mb-2">
-            <strong>Importo:</strong>
-            {{ invoice.totalAmount | currency : "EUR" }}
-          </p>
-          <p class="mb-2">
-            <strong>Righe:</strong>
-            {{ invoice.invoiceLines.length || 0 }}
-          </p>
-        </div>
-
-        <div
-          *ngIf="invoice.invoiceLines && invoice.invoiceLines.length > 0"
-          class="mt-3 border-t pt-2"
-        >
-          <p class="text-sm font-medium mb-1">Primi 3 articoli:</p>
-          <ul class="text-sm">
-            <li
-              *ngFor="let line of invoice.invoiceLines.slice(0, 3)"
-              class="mb-1"
-            >
-              {{ line.quantity }}x {{ line.description | slice : 0 : 30
-              }}{{ line.description.length > 30 ? "..." : "" }}
-            </li>
-            <li
-              *ngIf="invoice.invoiceLines.length > 3"
-              class="text-gray-500 italic"
-            >
-              + altri {{ invoice.invoiceLines.length - 3 }} articoli...
-            </li>
-          </ul>
-        </div>
-
-        <div class="flex gap-2 mb-3">
-          <p-badge
-            [value]="
-              hasRawProductsExtracted(invoice) ? 'Estratti' : 'Da Estrarre'
-            "
-            [severity]="hasRawProductsExtracted(invoice) ? 'success' : 'warn'"
-            [pTooltip]="
-              'Prodotti grezzi ' +
-              (hasRawProductsExtracted(invoice) ? 'estratti' : 'da estrarre')
-            "
-          ></p-badge>
-          <p-badge
-            [value]="
-              isWarehouseValued(invoice) ? 'Valorizzato' : 'Non Valorizzato'
-            "
-            [severity]="isWarehouseValued(invoice) ? 'success' : 'info'"
-            [pTooltip]="
-              'Magazzino ' +
-              (isWarehouseValued(invoice) ? 'valorizzato' : 'da valorizzare')
-            "
-          ></p-badge>
-          <p-badge
-            [value]="
-              hasCostCenterAssigned(invoice) ? 'Assegnato' : 'Non Assegnato'
-            "
-            [severity]="hasCostCenterAssigned(invoice) ? 'success' : 'info'"
-            [pTooltip]="
-              'Centro di costo ' +
-              (hasCostCenterAssigned(invoice) ? 'assegnato' : 'da assegnare')
-            "
-          ></p-badge>
-        </div>
-
-        <div
-          *ngIf="processingRawProducts && processingInvoiceId === invoice.id"
-          class="mt-3"
-        >
-          <p-progressBar
-            [value]="progressPercent"
-            [showValue]="true"
-          ></p-progressBar>
-          <div class="text-center text-sm text-gray-600 mt-1">
-            Elaborazione prodotti grezzi in corso...
-          </div>
-        </div>
-
-        <ng-template pTemplate="footer">
-          <div class="flex justify-between">
-            <button
-              pButton
-              icon="pi pi-eye"
-              label="Dettagli"
-              class="p-button-text p-button-sm"
-              (click)="viewInvoiceDetails(invoice)"
-            ></button>
-            <button
-              pButton
-              icon="pi pi-pencil"
-              label="Modifica"
-              class="p-button-text p-button-sm p-button-warning"
-              (click)="editInvoice(invoice)"
-            ></button>
-          </div>
-          <div class="flex gap-1">
-            <button
-              pButton
-              [icon]="
-                hasRawProductsExtracted(invoice) ? 'pi pi-list' : 'pi pi-sync'
-              "
-              [label]="hasRawProductsExtracted(invoice) ? 'Prodotti' : 'Estrai'"
-              class="p-button-sm p-button-outlined"
-              [loading]="
-                processingRawProducts && processingInvoiceId === invoice.id
-              "
-              (click)="
-                hasRawProductsExtracted(invoice)
-                  ? loadInvoiceRawProducts(invoice.id!)
-                  : createRawProducts(invoice)
-              "
-            ></button>
-            <button
-              pButton
-              icon="pi pi-pencil"
-              class="p-button-sm p-button-outlined p-button-warning"
-              (click)="editInvoice(invoice)"
-            ></button>
-          </div>
-        </ng-template>
-      </p-card>
+        [invoice]="invoice"
+        [suppliers]="suppliersArray()"
+        viewMode="card"
+        [processingRawProducts]="
+          processingRawProducts || extractingFromInvoice()
+        "
+        [processingInvoiceId]="processingInvoiceId"
+        [progressPercent]="progressPercent"
+        (onDetails)="viewInvoiceDetails($event)"
+        (onEdit)="editInvoice($event)"
+        (onDelete)="handleInvoiceDelete($event)" 
+        (onExtractRawProducts)="createRawProducts($event)"
+        (onShowRawProducts)="loadInvoiceRawProducts($event!)"
+        (onUpdatePaymentStatus)="handleUpdatePaymentStatus($event)"
+      ></app-einvoice-view>
     </div>
 
     <!-- Vista tabella -->
@@ -309,14 +185,18 @@
               <p-badge
                 styleClass="p-badge-sm !truncate"
                 [value]="
-                  hasRawProductsExtracted(invoice) ? 'Estratti' : 'Da Estrarre'
+                  invoice.status.rawProductStatus === 'processed'
+                    ? 'Estratti'
+                    : 'Da Estrarre'
                 "
                 [severity]="
-                  hasRawProductsExtracted(invoice) ? 'success' : 'warn'
+                  invoice.status.rawProductStatus === 'processed'
+                    ? 'success'
+                    : 'warn'
                 "
                 [pTooltip]="
                   'Prodotti grezzi ' +
-                  (hasRawProductsExtracted(invoice)
+                  (invoice.status.rawProductStatus === 'processed'
                     ? 'estratti'
                     : 'da estrarre')
                 "
@@ -324,27 +204,26 @@
               <p-badge
                 styleClass="p-badge-sm !truncate"
                 [value]="
-                  isWarehouseValued(invoice) ? 'Valorizzato' : 'Da Valorizzare'
+                  invoice.status.paymentStatus === 'paid'
+                    ? 'Pagato'
+                    : invoice.status.paymentStatus === 'scheduled'
+                    ? 'Programmato'
+                    : 'In attesa'
                 "
-                [severity]="isWarehouseValued(invoice) ? 'success' : 'info'"
+                [severity]="
+                  invoice.status.paymentStatus === 'paid'
+                    ? 'success'
+                    : invoice.status.paymentStatus === 'scheduled'
+                    ? 'info'
+                    : 'warn'
+                "
                 [pTooltip]="
-                  'Magazzino ' +
-                  (isWarehouseValued(invoice)
-                    ? 'valorizzato'
-                    : 'da valorizzare')
-                "
-              ></p-badge>
-              <p-badge
-                styleClass="p-badge-sm"
-                [value]="
-                  hasCostCenterAssigned(invoice) ? 'Assegnato' : 'Da Assegnare'
-                "
-                [severity]="hasCostCenterAssigned(invoice) ? 'success' : 'info'"
-                [pTooltip]="
-                  'Centro di costo ' +
-                  (hasCostCenterAssigned(invoice)
-                    ? 'assegnato'
-                    : 'da assegnare')
+                  'Stato pagamento: ' +
+                  (invoice.status.paymentStatus === 'paid'
+                    ? 'Pagato'
+                    : invoice.status.paymentStatus === 'scheduled'
+                    ? 'Programmato'
+                    : 'In attesa')
                 "
               ></p-badge>
             </div>
@@ -370,53 +249,44 @@
               <button
                 pButton
                 [icon]="
-                  hasRawProductsExtracted(invoice) ? 'pi pi-list' : 'pi pi-sync'
+                  invoice.status.rawProductStatus === 'processed'
+                    ? 'pi pi-list'
+                    : 'pi pi-sync'
                 "
                 class="p-button-text p-button-rounded p-button-sm"
                 [pTooltip]="
-                  hasRawProductsExtracted(invoice)
+                  invoice.status.rawProductStatus === 'processed'
                     ? 'Visualizza prodotti grezzi'
                     : 'Estrai prodotti grezzi'
                 "
                 tooltipPosition="top"
                 [loading]="
-                  processingRawProducts && processingInvoiceId === invoice.id
+                  (processingRawProducts || extractingFromInvoice()) &&
+                  processingInvoiceId === invoice.id
                 "
                 (click)="
-                  hasRawProductsExtracted(invoice)
+                  invoice.status.rawProductStatus === 'processed'
                     ? loadInvoiceRawProducts(invoice.id!)
                     : createRawProducts(invoice)
                 "
               ></button>
               <button
                 pButton
-                icon="pi pi-check-circle"
+                icon="pi pi-credit-card"
                 class="p-button-text p-button-rounded p-button-sm"
-                [pTooltip]="
-                  isWarehouseValued(invoice)
-                    ? 'Rimuovi valorizzazione magazzino'
-                    : 'Segna come valorizzato'
-                "
+                pTooltip="Gestisci pagamento"
                 tooltipPosition="top"
-                [disabled]="!hasRawProductsExtracted(invoice)"
-                (click)="updateWarehouseValued(invoice)"
-              ></button>
-              <button
-                pButton
-                icon="pi pi-dollar"
-                class="p-button-text p-button-rounded p-button-sm"
-                [pTooltip]="
-                  hasCostCenterAssigned(invoice)
-                    ? 'Rimuovi assegnazione centro di costo'
-                    : 'Segna centro di costo assegnato'
-                "
-                tooltipPosition="top"
-                (click)="updateCostCenterAssigned(invoice)"
+                (click)="viewInvoiceDetails(invoice)"
               ></button>
             </div>
           </td>
         </tr>
-        <tr *ngIf="processingRawProducts && processingInvoiceId === invoice.id">
+        <tr
+          *ngIf="
+            (processingRawProducts || extractingFromInvoice()) &&
+            processingInvoiceId === invoice.id
+          "
+        >
           <td colspan="7">
             <p-progressBar
               [value]="progressPercent"
@@ -449,64 +319,11 @@
   [style]="{ width: '650px' }"
   styleClass="upload-dialog"
 >
-  <div class="p-fluid">
-    <p class="text-sm text-gray-600 mb-3">
-      Carica file XML di fatture elettroniche per elaborarli automaticamente.
-      Puoi anche caricare file PDF che verranno convertiti in XML.
-    </p>
-
-    <p-fileUpload
-      #fileUpload
-      mode="advanced"
-      [multiple]="true"
-      [showUploadButton]="false"
-      accept=".xml,.pdf"
-      chooseLabel="Seleziona File"
-      [maxFileSize]="10000000"
-      [customUpload]="true"
-      (onSelect)="onSelectedFiles($event)"
-      (onClear)="onClearFiles()"
-      (onRemove)="onRemoveFile($event)"
-    >
-      <ng-template pTemplate="content">
-        <div *ngIf="files.length > 0" class="mt-3">
-          <p>
-            Totale: {{ files.length }} file(s) - {{ formatSize(totalSize) }}
-          </p>
-        </div>
-
-        <p-progressBar
-          *ngIf="progressPercent > 0"
-          [value]="progressPercent"
-          [showValue]="true"
-          [style]="{ height: '20px' }"
-          class="mt-3"
-        ></p-progressBar>
-      </ng-template>
-    </p-fileUpload>
-  </div>
-
-  <ng-template pTemplate="footer">
-    <button
-      pButton
-      pRipple
-      label="Annulla"
-      icon="pi pi-times"
-      class="p-button-text"
-      (click)="closeUploadDialog()"
-      [disabled]="isLoading() || progressPercent > 0"
-    ></button>
-    <button
-      pButton
-      pRipple
-      label="Elabora"
-      icon="pi pi-upload"
-      class="p-button-primary"
-      (click)="uploadInvoices()"
-      [disabled]="files.length === 0 || isLoading() || progressPercent > 0"
-      [loading]="isLoading() || progressPercent > 0"
-    ></button>
-  </ng-template>
+  <app-upload
+    [projectId]="getSelectedProjectId()!"
+    (uploadComplete)="handleUploadComplete()"
+    (uploadCanceled)="handleUploadCanceled()"
+  ></app-upload>
 </p-dialog>
 
 <!-- Dialog per visualizzare dettagli fattura -->
@@ -519,106 +336,15 @@
   [style]="{ width: '80%', maxWidth: '900px' }"
   styleClass="details-dialog"
 >
-  <div *ngIf="selectedInvoice" class="p-2">
-    <div class="flex justify-between mb-4">
-      <div>
-        <h2 class="text-xl font-semibold">
-          Fattura #{{ selectedInvoice.invoiceNumber }}
-        </h2>
-        <p class="text-gray-600">
-          Data: {{ selectedInvoice.invoiceDate | date : "dd/MM/yyyy" }}
-        </p>
-      </div>
-      <div class="text-right">
-        <p class="text-lg font-bold">
-          {{ selectedInvoice.totalAmount | currency : "EUR" }}
-        </p>
-        <p class="text-sm text-gray-500">Importo totale</p>
-      </div>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-      <div class="border rounded p-3">
-        <h3 class="text-md font-medium mb-2">Informazioni Fornitore</h3>
-        <p class="mb-1">
-          <strong>Nome:</strong>
-          {{ getSupplierName(selectedInvoice.supplierId) }}
-        </p>
-        <p class="mb-1">
-          <strong>Partita IVA:</strong>
-          {{ getSupplierInfo(selectedInvoice.supplierId, "taxCode") }}
-        </p>
-        <p class="mb-1">
-          <strong>Indirizzo:</strong>
-          {{ getSupplierInfo(selectedInvoice.supplierId, "address") }}
-        </p>
-        <p class="mb-1">
-          <strong>Città:</strong>
-          {{ getSupplierInfo(selectedInvoice.supplierId, "city") }},
-          {{ getSupplierInfo(selectedInvoice.supplierId, "province") }}
-        </p>
-      </div>
-
-      <div class="border rounded p-3">
-        <h3 class="text-md font-medium mb-2">Informazioni Fattura</h3>
-        <p class="mb-1">
-          <strong>Numero Fattura:</strong> {{ selectedInvoice.invoiceNumber }}
-        </p>
-        <p class="mb-1">
-          <strong>Data:</strong>
-          {{ selectedInvoice.invoiceDate | date : "dd/MM/yyyy" }}
-        </p>
-        <p class="mb-1">
-          <strong>Totale Prodotti:</strong>
-          {{ selectedInvoice.invoiceLines.length || 0 }}
-        </p>
-        <p class="mb-1">
-          <strong>Data Registrazione:</strong>
-          {{ selectedInvoice.createdAt | date : "dd/MM/yyyy HH:mm" }}
-        </p>
-      </div>
-    </div>
-
-    <div class="border rounded p-3 mb-4">
-      <h3 class="text-md font-medium mb-2">Righe Fattura</h3>
-      <p-table
-        [value]="selectedInvoice.invoiceLines || []"
-        styleClass="p-datatable-sm"
-        [scrollable]="true"
-      >
-        <ng-template pTemplate="header">
-          <tr>
-            <th>Codice</th>
-            <th>Descrizione</th>
-            <th class="text-right">Qtà</th>
-            <th class="text-right">U.M.</th>
-            <th class="text-right">Prezzo Unitario</th>
-            <th class="text-right">IVA</th>
-            <th class="text-right">Totale</th>
-          </tr>
-        </ng-template>
-        <ng-template pTemplate="body" let-line>
-          <tr>
-            <td>{{ line.articleCode }}</td>
-            <td>{{ line.description }}</td>
-            <td class="text-right">{{ line.quantity }}</td>
-            <td class="text-right">{{ line.unitOfMeasure }}</td>
-            <td class="text-right">{{ line.unitPrice | currency : "EUR" }}</td>
-            <td class="text-right">{{ line.vatRate }}%</td>
-            <td class="text-right">{{ line.totalPrice | currency : "EUR" }}</td>
-          </tr>
-        </ng-template>
-        <ng-template pTemplate="footer">
-          <tr>
-            <td colspan="6" class="text-right font-bold">Totale Fattura</td>
-            <td class="text-right font-bold">
-              {{ selectedInvoice.totalAmount | currency : "EUR" }}
-            </td>
-          </tr>
-        </ng-template>
-      </p-table>
-    </div>
-  </div>
+  <app-einvoice-view
+    *ngIf="selectedInvoice"
+    [invoice]="selectedInvoice"
+    [suppliers]="suppliersArray()"
+    viewMode="detail"
+    (onEdit)="editInvoice($event)"
+    (onDelete)="handleInvoiceDelete($event)" 
+    (onUpdatePaymentStatus)="handleUpdatePaymentStatus($event)"
+  ></app-einvoice-view>
 
   <ng-template pTemplate="footer">
     <button
@@ -629,15 +355,26 @@
       class="p-button-text"
       (click)="closeDetailsDialog()"
     ></button>
-    <button
-      pButton
-      pRipple
-      label="Modifica"
-      icon="pi pi-pencil"
-      class="p-button-warning"
-      (click)="editInvoice(selectedInvoice)"
-    ></button>
   </ng-template>
+</p-dialog>
+
+<!-- Dialog per filtri -->
+<p-dialog
+  header="Filtra Fatture"
+  [(visible)]="filterDialogVisible"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{ width: '450px' }"
+  styleClass="filter-dialog"
+>
+  <app-einvoice-filter
+    [supplierOptions]="supplierOptions"
+    [filters]="filters"
+    (onApplyFilters)="applyFilters($event)"
+    (onResetFilters)="resetFilters()"
+    (onCancel)="closeFilterDialog()"
+  ></app-einvoice-filter>
 </p-dialog>
 
 <!-- Dialog per visualizzazione dei prodotti grezzi -->
@@ -747,109 +484,6 @@
         invoiceRawProducts()!.length === 0
       "
       (click)="generateEmbeddings()"
-    ></button>
-  </ng-template>
-</p-dialog>
-
-<!-- Dialog per filtri -->
-<p-dialog
-  header="Filtra Fatture"
-  [(visible)]="filterDialogVisible"
-  [modal]="true"
-  [draggable]="false"
-  [resizable]="false"
-  [style]="{ width: '450px' }"
-  styleClass="filter-dialog"
->
-  <div class="p-fluid">
-    <div class="field mb-4">
-      <label for="supplier" class="block text-sm font-medium text-gray-700 mb-1"
-        >Fornitore</label
-      >
-      <p-dropdown
-        id="supplier"
-        [options]="supplierOptions"
-        [(ngModel)]="filters.supplierId"
-        optionLabel="name"
-        optionValue="id"
-        placeholder="Seleziona un fornitore"
-        [showClear]="true"
-        styleClass="w-full"
-      ></p-dropdown>
-    </div>
-
-    <div class="field mb-4">
-      <label
-        for="dateRange"
-        class="block text-sm font-medium text-gray-700 mb-1"
-        >Intervallo di date</label
-      >
-      <p-calendar
-        id="dateRange"
-        [(ngModel)]="filters.dateRange"
-        selectionMode="range"
-        [readonlyInput]="true"
-        [showIcon]="true"
-        [showButtonBar]="true"
-        placeholder="Seleziona un intervallo di date"
-        styleClass="w-full"
-      ></p-calendar>
-    </div>
-
-    <div class="field mb-4">
-      <label for="totalMin" class="block text-sm font-medium text-gray-700 mb-1"
-        >Importo minimo</label
-      >
-      <p-inputNumber
-        id="totalMin"
-        [(ngModel)]="filters.minAmount"
-        mode="currency"
-        currency="EUR"
-        locale="it-IT"
-        placeholder="Importo minimo"
-        styleClass="w-full"
-      ></p-inputNumber>
-    </div>
-
-    <div class="field mb-4">
-      <label for="totalMax" class="block text-sm font-medium text-gray-700 mb-1"
-        >Importo massimo</label
-      >
-      <p-inputNumber
-        id="totalMax"
-        [(ngModel)]="filters.maxAmount"
-        mode="currency"
-        currency="EUR"
-        locale="it-IT"
-        placeholder="Importo massimo"
-        styleClass="w-full"
-      ></p-inputNumber>
-    </div>
-  </div>
-
-  <ng-template pTemplate="footer">
-    <button
-      pButton
-      pRipple
-      label="Annulla"
-      icon="pi pi-times"
-      class="p-button-text"
-      (click)="closeFilterDialog()"
-    ></button>
-    <button
-      pButton
-      pRipple
-      label="Reimposta"
-      icon="pi pi-refresh"
-      class="p-button-outlined"
-      (click)="resetFilters()"
-    ></button>
-    <button
-      pButton
-      pRipple
-      label="Applica"
-      icon="pi pi-check"
-      (click)="applyFilters()"
     ></button>
   </ng-template>
 </p-dialog>

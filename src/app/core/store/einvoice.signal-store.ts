@@ -11,6 +11,9 @@ import {
   EInvoice,
   CreateEInvoiceDto,
   UpdateEInvoiceDto,
+  UpdatePaymentStatusDto,
+  AssignCostCenterDto,
+  ProcessInventoryDto,
 } from '../models/einvoice.model';
 import { EinvoiceService } from '../services/api/local/einvoice.service';
 import { Router } from '@angular/router';
@@ -91,6 +94,29 @@ export const EInvoiceStore = signalStore(
           tap(() => patchState(store, { loading: true, error: null })),
           switchMap(() => {
             return einvoiceService.getAllPartnerInvoices().pipe(
+              tapResponse({
+                next: (invoices) => {
+                  patchState(store, { invoices, loading: false, error: null });
+                },
+                error: (error: unknown) => {
+                  patchState(store, {
+                    loading: false,
+                    error:
+                      (error as Error)?.message || 'Failed to fetch invoices',
+                  });
+                },
+              })
+            );
+          })
+        )
+      ),
+
+      // Fetch all admin invoices
+      fetchAllAdminInvoices: rxMethod<void>(
+        pipe(
+          tap(() => patchState(store, { loading: true, error: null })),
+          switchMap(() => {
+            return einvoiceService.getAllAdminInvoices().pipe(
               tapResponse({
                 next: (invoices) => {
                   patchState(store, { invoices, loading: false, error: null });
@@ -246,6 +272,247 @@ export const EInvoiceStore = signalStore(
                 },
               })
             );
+          })
+        )
+      ),
+
+      // Delete invoice
+      deleteInvoice: rxMethod<{ projectId: string; invoiceId: string }>(
+        pipe(
+          tap(() => patchState(store, { loading: true, error: null })),
+          switchMap(({ projectId, invoiceId }) => {
+            return einvoiceService.deleteInvoice(projectId, invoiceId).pipe(
+              tapResponse({
+                next: () => {
+                  toastService.showSuccess('Invoice deleted successfully');
+
+                  // Remove deleted invoice from the array
+                  const currentInvoices = store.invoices() || [];
+                  const filteredInvoices = currentInvoices.filter(
+                    (inv) => inv.id !== invoiceId
+                  );
+
+                  patchState(store, {
+                    invoices: filteredInvoices,
+                    selectedInvoice:
+                      store.selectedInvoice()?.id === invoiceId
+                        ? null
+                        : store.selectedInvoice(),
+                    loading: false,
+                    error: null,
+                  });
+                },
+                error: (error: unknown) => {
+                  toastService.showError('Failed to delete invoice');
+                  patchState(store, {
+                    loading: false,
+                    error:
+                      (error as Error)?.message || 'Failed to delete invoice',
+                  });
+                },
+              })
+            );
+          })
+        )
+      ),
+
+      // Update payment status
+      updatePaymentStatus: rxMethod<{
+        projectId: string;
+        invoiceId: string;
+        paymentData: UpdatePaymentStatusDto;
+      }>(
+        pipe(
+          tap(() => patchState(store, { loading: true, error: null })),
+          switchMap(({ projectId, invoiceId, paymentData }) => {
+            return einvoiceService
+              .updatePaymentStatus(projectId, invoiceId, paymentData)
+              .pipe(
+                tapResponse({
+                  next: (updatedInvoice) => {
+                    toastService.showSuccess(
+                      'Payment status updated successfully'
+                    );
+
+                    // Update invoices array with the updated invoice
+                    const currentInvoices = store.invoices() || [];
+                    const updatedInvoices = currentInvoices.map((inv) =>
+                      inv.id === updatedInvoice.id ? updatedInvoice : inv
+                    );
+
+                    patchState(store, {
+                      invoices: updatedInvoices,
+                      selectedInvoice:
+                        store.selectedInvoice()?.id === updatedInvoice.id
+                          ? updatedInvoice
+                          : store.selectedInvoice(),
+                      loading: false,
+                      error: null,
+                    });
+                  },
+                  error: (error: unknown) => {
+                    toastService.showError('Failed to update payment status');
+                    patchState(store, {
+                      loading: false,
+                      error:
+                        (error as Error)?.message ||
+                        'Failed to update payment status',
+                    });
+                  },
+                })
+              );
+          })
+        )
+      ),
+
+      // Assign to cost center
+      assignToCostCenter: rxMethod<{
+        projectId: string;
+        invoiceId: string;
+        costCenterData: AssignCostCenterDto;
+      }>(
+        pipe(
+          tap(() => patchState(store, { loading: true, error: null })),
+          switchMap(({ projectId, invoiceId, costCenterData }) => {
+            return einvoiceService
+              .assignToCostCenter(projectId, invoiceId, costCenterData)
+              .pipe(
+                tapResponse({
+                  next: (updatedInvoice) => {
+                    toastService.showSuccess(
+                      'Invoice assigned to cost center successfully'
+                    );
+
+                    // Update invoices array with the updated invoice
+                    const currentInvoices = store.invoices() || [];
+                    const updatedInvoices = currentInvoices.map((inv) =>
+                      inv.id === updatedInvoice.id ? updatedInvoice : inv
+                    );
+
+                    patchState(store, {
+                      invoices: updatedInvoices,
+                      selectedInvoice:
+                        store.selectedInvoice()?.id === updatedInvoice.id
+                          ? updatedInvoice
+                          : store.selectedInvoice(),
+                      loading: false,
+                      error: null,
+                    });
+                  },
+                  error: (error: unknown) => {
+                    toastService.showError(
+                      'Failed to assign invoice to cost center'
+                    );
+                    patchState(store, {
+                      loading: false,
+                      error:
+                        (error as Error)?.message ||
+                        'Failed to assign invoice to cost center',
+                    });
+                  },
+                })
+              );
+          })
+        )
+      ),
+
+      // Process to inventory
+      processToInventory: rxMethod<{
+        projectId: string;
+        invoiceId: string;
+        inventoryData: ProcessInventoryDto;
+      }>(
+        pipe(
+          tap(() => patchState(store, { loading: true, error: null })),
+          switchMap(({ projectId, invoiceId, inventoryData }) => {
+            return einvoiceService
+              .processToInventory(projectId, invoiceId, inventoryData)
+              .pipe(
+                tapResponse({
+                  next: (updatedInvoice) => {
+                    toastService.showSuccess(
+                      'Invoice processed to inventory successfully'
+                    );
+
+                    // Update invoices array with the updated invoice
+                    const currentInvoices = store.invoices() || [];
+                    const updatedInvoices = currentInvoices.map((inv) =>
+                      inv.id === updatedInvoice.id ? updatedInvoice : inv
+                    );
+
+                    patchState(store, {
+                      invoices: updatedInvoices,
+                      selectedInvoice:
+                        store.selectedInvoice()?.id === updatedInvoice.id
+                          ? updatedInvoice
+                          : store.selectedInvoice(),
+                      loading: false,
+                      error: null,
+                    });
+                  },
+                  error: (error: unknown) => {
+                    toastService.showError(
+                      'Failed to process invoice to inventory'
+                    );
+                    patchState(store, {
+                      loading: false,
+                      error:
+                        (error as Error)?.message ||
+                        'Failed to process invoice to inventory',
+                    });
+                  },
+                })
+              );
+          })
+        )
+      ),
+
+      // Process as raw products
+      processAsRawProducts: rxMethod<{
+        projectId: string;
+        invoiceId: string;
+      }>(
+        pipe(
+          tap(() => patchState(store, { loading: true, error: null })),
+          switchMap(({ projectId, invoiceId }) => {
+            return einvoiceService
+              .processAsRawProducts(projectId, invoiceId)
+              .pipe(
+                tapResponse({
+                  next: (updatedInvoice) => {
+                    toastService.showSuccess(
+                      'Invoice processed as raw products successfully'
+                    );
+
+                    // Update invoices array with the updated invoice
+                    const currentInvoices = store.invoices() || [];
+                    const updatedInvoices = currentInvoices.map((inv) =>
+                      inv.id === updatedInvoice.id ? updatedInvoice : inv
+                    );
+
+                    patchState(store, {
+                      invoices: updatedInvoices,
+                      selectedInvoice:
+                        store.selectedInvoice()?.id === updatedInvoice.id
+                          ? updatedInvoice
+                          : store.selectedInvoice(),
+                      loading: false,
+                      error: null,
+                    });
+                  },
+                  error: (error: unknown) => {
+                    toastService.showError(
+                      'Failed to process invoice as raw products'
+                    );
+                    patchState(store, {
+                      loading: false,
+                      error:
+                        (error as Error)?.message ||
+                        'Failed to process invoice as raw products',
+                    });
+                  },
+                })
+              );
           })
         )
       ),

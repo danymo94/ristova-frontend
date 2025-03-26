@@ -1,0 +1,262 @@
+<p-dialog
+  header="Modifica Magazzino/Centro di Costo"
+  [(visible)]="visible"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{ width: '550px' }"
+  styleClass="edit-dialog rounded-dialog warehouse-dialog"
+  [closeOnEscape]="true"
+  [dismissableMask]="true"
+  (onHide)="onHide()"
+  (onShow)="onShow()"
+>
+  <div *ngIf="warehouse && editingWarehouse" class="p-fluid content-wrapper">
+    <!-- Intestazione con info tipo e stato -->
+    <div class="warehouse-header mb-3">
+      <div class="type-info">
+        <span
+          class="type-label"
+          [ngClass]="{
+            physical: warehouse.type === 'PHYSICAL',
+            'cost-center': warehouse.type === 'COST_CENTER'
+          }"
+        >
+          <i
+            [class]="warehouse.type === 'PHYSICAL' ? 'pi pi-box' : 'pi pi-euro'"
+            class="mr-2"
+          ></i>
+          {{
+            warehouse.type === "PHYSICAL"
+              ? "Magazzino Fisico"
+              : "Centro di Costo"
+          }}
+        </span>
+      </div>
+      <div class="status-toggle">
+        <p-inputSwitch [(ngModel)]="editingWarehouse.isActive"></p-inputSwitch>
+        <label class="ml-2 text-sm">{{
+          editingWarehouse.isActive ? "Attivo" : "Inattivo"
+        }}</label>
+      </div>
+    </div>
+
+    <!-- Informazioni di base sempre visibili -->
+    <div class="form-section">
+      <div class="form-grid grid">
+        <div class="field col-12 md:col-7">
+          <label for="name">Nome*</label>
+          <input
+            id="name"
+            type="text"
+            pInputText
+            [(ngModel)]="editingWarehouse.name"
+            required
+            class="w-full"
+            placeholder="Nome magazzino o centro di costo"
+          />
+        </div>
+
+        <div
+          class="field col-12 md:col-5"
+          *ngIf="warehouse.type === 'COST_CENTER'"
+        >
+          <label for="costCenterCode">Codice</label>
+          <input
+            id="costCenterCode"
+            type="text"
+            pInputText
+            [(ngModel)]="editingWarehouse.costCenterCode"
+            class="w-full"
+            placeholder="Es. CC001"
+          />
+        </div>
+
+        <div class="field col-12">
+          <label for="description">Descrizione</label>
+          <textarea
+            id="description"
+            pInputTextarea
+            [(ngModel)]="editingWarehouse.description"
+            rows="2"
+            class="w-full"
+            placeholder="Breve descrizione"
+          ></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scheda Fisica (visibile solo per tipo PHYSICAL) -->
+    <div *ngIf="warehouse.type === 'PHYSICAL'" class="physical-section">
+      <div class="section-header">
+        <i class="pi pi-map-marker section-icon"></i>
+        <h3>Ubicazione</h3>
+      </div>
+
+      <div class="form-grid grid">
+        <div class="field col-12 md:col-12">
+          <label for="address">Indirizzo</label>
+          <input
+            id="address"
+            type="text"
+            pInputText
+            [ngModel]="getLocationAddress()"
+            (ngModelChange)="setLocationAddress($event)"
+            class="w-full"
+            placeholder="Via/Piazza e numero"
+          />
+        </div>
+
+        <div class="field col-6 md:col-4">
+          <label for="city">Città</label>
+          <input
+            id="city"
+            type="text"
+            pInputText
+            [ngModel]="getLocationCity()"
+            (ngModelChange)="setLocationCity($event)"
+            class="w-full"
+            placeholder="Città"
+          />
+        </div>
+
+        <div class="field col-6 md:col-3">
+          <label for="postalCode">CAP</label>
+          <input
+            id="postalCode"
+            type="text"
+            pInputText
+            [ngModel]="getLocationPostalCode()"
+            (ngModelChange)="setLocationPostalCode($event)"
+            class="w-full"
+            placeholder="CAP"
+          />
+        </div>
+
+        <div class="field col-6 md:col-5">
+          <label for="country">Paese</label>
+          <input
+            id="country"
+            type="text"
+            pInputText
+            [ngModel]="getLocationCountry()"
+            (ngModelChange)="setLocationCountry($event)"
+            class="w-full"
+            placeholder="Paese"
+          />
+        </div>
+      </div>
+
+      <div class="section-header">
+        <i class="pi pi-user section-icon"></i>
+        <h3>Responsabile</h3>
+      </div>
+
+      <div class="form-grid grid">
+        <div class="field col-12 md:col-4">
+          <label for="responsibleName">Nome</label>
+          <input
+            id="responsibleName"
+            type="text"
+            pInputText
+            [ngModel]="getResponsibleName()"
+            (ngModelChange)="setResponsibleName($event)"
+            class="w-full"
+            placeholder="Nome responsabile"
+          />
+        </div>
+
+        <div class="field col-6 md:col-4">
+          <label for="responsiblePhone">Telefono</label>
+          <input
+            id="responsiblePhone"
+            type="tel"
+            pInputText
+            [ngModel]="getResponsiblePhone()"
+            (ngModelChange)="setResponsiblePhone($event)"
+            class="w-full"
+            placeholder="+39 xxx xxxxxxx"
+          />
+        </div>
+
+        <div class="field col-6 md:col-4">
+          <label for="responsibleEmail">Email</label>
+          <input
+            id="responsibleEmail"
+            type="email"
+            pInputText
+            [ngModel]="getResponsibleEmail()"
+            (ngModelChange)="setResponsibleEmail($event)"
+            class="w-full"
+            placeholder="email@esempio.com"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Sezione Centro di Costo (visibile solo per tipo COST_CENTER) -->
+    <div *ngIf="warehouse.type === 'COST_CENTER'" class="cost-center-section">
+      <div class="section-header">
+        <i class="pi pi-th-large section-icon"></i>
+        <h3>Categorie</h3>
+      </div>
+
+      <div class="form-grid grid">
+        <div class="field col-12">
+          <p-chips
+            [(ngModel)]="editingWarehouse.costCenterCategories"
+            placeholder="Aggiungi categoria (premi Enter)"
+            separator=","
+            styleClass="w-full"
+          ></p-chips>
+          <small class="text-muted"
+            >Inserisci le categorie associate a questo centro di costo</small
+          >
+        </div>
+      </div>
+    </div>
+
+    <!-- Note per entrambi i tipi -->
+    <div class="notes-section">
+      <div class="section-header">
+        <i class="pi pi-pencil section-icon"></i>
+        <h3>Note</h3>
+      </div>
+
+      <div class="form-grid grid">
+        <div class="field col-12">
+          <textarea
+            id="notes"
+            pInputTextarea
+            [(ngModel)]="editingWarehouse.notes"
+            rows="2"
+            class="w-full"
+            placeholder="Note aggiuntive"
+          ></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div class="dialog-footer">
+      <button
+        pButton
+        pRipple
+        label="Annulla"
+        icon="pi pi-times"
+        class="p-button-text"
+        (click)="closeDialog()"
+      ></button>
+      <button
+        pButton
+        pRipple
+        label="Salva"
+        icon="pi pi-check"
+        class="p-button-primary"
+        (click)="updateWarehouse()"
+        [disabled]="!editingWarehouse?.name"
+      ></button>
+    </div>
+  </ng-template>
+</p-dialog>

@@ -30,11 +30,16 @@ import { EInvoiceStore } from '../../../../core/store/einvoice.signal-store';
 import { ToastService } from '../../../../core/services/toast.service';
 import {
   Warehouse,
-  CreateWarehouseDto,
   WarehouseType,
-  UpdateWarehouseDto,
 } from '../../../../core/models/warehouse.model';
 import { EInvoice } from '../../../../core/models/einvoice.model';
+
+// Componenti
+import { WarehouseViewComponent } from './view/view.component';
+import { NewComponent } from './new/new.component';
+import { DetailsComponent } from './details/details.component';
+import { EditComponent } from './edit/edit.component';
+import { AssignmentComponent } from './assignment/assignment.component';
 
 @Component({
   selector: 'app-warehouses',
@@ -53,6 +58,11 @@ import { EInvoice } from '../../../../core/models/einvoice.model';
     BadgeModule,
     InputSwitchModule,
     ProgressBarModule,
+    WarehouseViewComponent,
+    NewComponent,
+    DetailsComponent,
+    EditComponent,
+    AssignmentComponent,
   ],
   templateUrl: './warehouses.component.html',
 })
@@ -87,13 +97,8 @@ export class WarehousesComponent implements OnInit, OnDestroy {
   deleteDialogVisible: boolean = false;
   assignInvoicesDialogVisible: boolean = false;
 
-  // Form data
-  newWarehouse: CreateWarehouseDto = this.getEmptyWarehouseDto();
-  editingWarehouse: UpdateWarehouseDto | null = null;
-
   // Invoice assignment
   unassignedInvoices: EInvoice[] = [];
-  selectedInvoiceIds: string[] = [];
 
   // Cleanup
   private destroy$ = new Subject<void>();
@@ -137,11 +142,29 @@ export class WarehousesComponent implements OnInit, OnDestroy {
   getUnassignedInvoices(): EInvoice[] {
     const allInvoices = this.invoices() || [];
 
-    // Filtra le fatture che non sono state assegnate a centri di costo
-    // o che non sono state valorizzate per magazzini fisici
+    // Filtra le fatture in base al tipo di magazzino selezionato
+    if (this.selectedWarehouse()?.type === 'PHYSICAL') {
+      // Per i magazzini fisici, seleziona le fatture che non sono state valorizzate per magazzini
+      return allInvoices.filter(
+        (invoice) =>
+          invoice.status?.inventoryStatus === 'not_processed' ||
+          invoice.status?.inventoryStatus === 'partially_processed'
+      );
+    } else if (this.selectedWarehouse()?.type === 'COST_CENTER') {
+      // Per i centri di costo, seleziona le fatture che non sono state assegnate
+      // e che hanno i prodotti grezzi già elaborati
+      return allInvoices.filter(
+        (invoice) =>
+          invoice.status?.costCenterStatus === 'not_assigned' &&
+          invoice.status?.rawProductStatus === 'not_processed'
+      );
+    }
+
+    // Di default ritorna le fatture non processate
     return allInvoices.filter(
       (invoice) =>
-        !invoice.status?.costCenterAssigned || !invoice.status?.warehouseValued
+        invoice.status?.costCenterStatus === 'not_assigned' ||
+        invoice.status?.inventoryStatus === 'not_processed'
     );
   }
 
@@ -188,43 +211,37 @@ export class WarehousesComponent implements OnInit, OnDestroy {
 
   // Dialog handlers
   openCreateDialog(): void {
-    this.newWarehouse = this.getEmptyWarehouseDto();
     this.createDialogVisible = true;
   }
 
-  openEditDialog(warehouse: Warehouse): void {
-    this.editingWarehouse = {
-      name: warehouse.name,
-      description: warehouse.description,
-      isActive: warehouse.isActive,
-      location: warehouse.location ? { ...warehouse.location } : undefined,
-      responsible: warehouse.responsible
-        ? { ...warehouse.responsible }
-        : undefined,
-      notes: warehouse.notes,
-      costCenterCode: warehouse.costCenterCode,
-      costCenterCategories: warehouse.costCenterCategories
-        ? [...warehouse.costCenterCategories]
-        : undefined,
-    };
+  handleCreateDialogVisibilityChange(visible: boolean): void {
+    this.createDialogVisible = visible;
+  }
 
+  openEditDialog(warehouse: Warehouse): void {
     this.warehouseStore.selectWarehouse(warehouse);
     this.editDialogVisible = true;
+  }
+
+  handleEditDialogVisibilityChange(visible: boolean): void {
+    this.editDialogVisible = visible;
+  }
+
+  handleWarehouseUpdated(): void {
+    // Refresh data if needed
+    const projectId = this.selectedProject()?.id;
+    if (projectId) {
+      this.loadData(projectId);
+    }
   }
 
   openDetailsDialog(warehouse: Warehouse): void {
     this.warehouseStore.selectWarehouse(warehouse);
     this.detailsDialogVisible = true;
+  }
 
-    // Carica i dettagli estesi del magazzino incluse le statistiche se è un magazzino fisico
-    const projectId = this.selectedProject()?.id;
-    if (projectId && warehouse.type === 'PHYSICAL') {
-      this.warehouseStore.fetchWarehouse({
-        projectId,
-        id: warehouse.id,
-        withStats: true,
-      });
-    }
+  handleDetailsDialogVisibilityChange(visible: boolean): void {
+    this.detailsDialogVisible = visible;
   }
 
   openDeleteDialog(warehouse: Warehouse): void {
@@ -235,56 +252,27 @@ export class WarehousesComponent implements OnInit, OnDestroy {
   openAssignDialog(warehouse: Warehouse): void {
     this.warehouseStore.selectWarehouse(warehouse);
     this.unassignedInvoices = this.getUnassignedInvoices();
-    this.selectedInvoiceIds = [];
     this.assignInvoicesDialogVisible = true;
   }
 
-  // CRUD operations
-  createWarehouse(): void {
-    const projectId = this.selectedProject()?.id;
-    if (!projectId) {
-      this.toastService.showError('Nessun progetto selezionato');
-      return;
-    }
-
-    // Validazione basilare
-    if (!this.newWarehouse.name || !this.newWarehouse.type) {
-      this.toastService.showError('Nome e tipo sono campi obbligatori');
-      return;
-    }
-
-    this.warehouseStore.createWarehouse({
-      projectId,
-      warehouse: this.newWarehouse,
-    });
-
-    this.createDialogVisible = false;
+  handleAssignDialogVisibilityChange(visible: boolean): void {
+    this.assignInvoicesDialogVisible = visible;
   }
 
-  updateWarehouse(): void {
+  handleInvoicesAssigned(): void {
+    // Aggiorna i dati dopo l'assegnazione delle fatture
     const projectId = this.selectedProject()?.id;
-    const selectedWarehouse = this.selectedWarehouse();
-
-    if (!projectId || !selectedWarehouse || !this.editingWarehouse) {
-      this.toastService.showError(
-        'Dati insufficienti per aggiornare il magazzino'
-      );
-      return;
+    if (projectId) {
+      this.loadUnassignedInvoices();
     }
+  }
 
-    // Validazione basilare
-    if (!this.editingWarehouse.name) {
-      this.toastService.showError('Il nome è un campo obbligatorio');
-      return;
+  handleWarehouseCreated(): void {
+    // Refresh data after warehouse creation if needed
+    const projectId = this.selectedProject()?.id;
+    if (projectId) {
+      this.loadData(projectId);
     }
-
-    this.warehouseStore.updateWarehouse({
-      projectId,
-      id: selectedWarehouse.id,
-      warehouse: this.editingWarehouse,
-    });
-
-    this.editDialogVisible = false;
   }
 
   deleteWarehouse(): void {
@@ -295,6 +283,12 @@ export class WarehousesComponent implements OnInit, OnDestroy {
       this.toastService.showError(
         'Dati insufficienti per eliminare il magazzino'
       );
+      return;
+    }
+
+    // Verifica che l'ID sia definito
+    if (!selectedWarehouse.id) {
+      this.toastService.showError('ID magazzino non valido');
       return;
     }
 
@@ -314,40 +308,18 @@ export class WarehousesComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // Verifica che l'ID sia definito
+    if (!warehouse.id) {
+      this.toastService.showError('ID magazzino non valido');
+      return;
+    }
+
     this.warehouseStore.updateWarehouseStatus({
       projectId,
       id: warehouse.id,
       isActive: !warehouse.isActive,
     });
   }
-
-  assignInvoicesToWarehouse(): void {
-    // Implementazione da fare: assegnare fatture al magazzino/centro di costo selezionato
-    const projectId = this.selectedProject()?.id;
-    const selectedWarehouse = this.selectedWarehouse();
-
-    if (
-      !projectId ||
-      !selectedWarehouse ||
-      this.selectedInvoiceIds.length === 0
-    ) {
-      this.toastService.showError(
-        'Selezionare almeno una fattura da assegnare'
-      );
-      return;
-    }
-
-    // Qui implementeremo la logica di assegnazione
-    // Per ora mostriamo solo un messaggio di conferma
-    this.toastService.showInfo(
-      `Assegnazione di ${this.selectedInvoiceIds.length} fatture al ${
-        selectedWarehouse.type === 'PHYSICAL' ? 'magazzino' : 'centro di costo'
-      } "${selectedWarehouse.name}" sarà implementata nella prossima versione`
-    );
-
-    this.assignInvoicesDialogVisible = false;
-  }
-
 
   getWarehouseTypeLabel(type: WarehouseType): string {
     return type === 'PHYSICAL' ? 'Magazzino Fisico' : 'Centro di Costo';
@@ -376,153 +348,43 @@ export class WarehousesComponent implements OnInit, OnDestroy {
     return `${address}, ${postalCode} ${city}`;
   }
 
-  // ...existing code...
-
-// Metodi helper per gestire oggetti annidati opzionali nel form di editing
-ensureLocationExists(): void {
-  if (this.editingWarehouse && !this.editingWarehouse.location) {
-    this.editingWarehouse.location = {
-      address: '',
-      city: '',
-      postalCode: '',
-      country: 'Italia'
-    };
+  // Handlers per gli eventi emessi dal componente view
+  handleWarehouseDetails(warehouse: Warehouse): void {
+    this.openDetailsDialog(warehouse);
   }
-}
 
-ensureResponsibleExists(): void {
-  if (this.editingWarehouse && !this.editingWarehouse.responsible) {
-    this.editingWarehouse.responsible = {
-      name: '',
-      phone: '',
-      email: ''
-    };
+  handleWarehouseEdit(warehouse: Warehouse): void {
+    this.openEditDialog(warehouse);
   }
-}
 
-getLocationAddress(): string {
-  return this.editingWarehouse?.location?.address || '';
-}
-
-setLocationAddress(value: string): void {
-  this.ensureLocationExists();
-  if (this.editingWarehouse && this.editingWarehouse.location) {
-    this.editingWarehouse.location.address = value;
+  handleWarehouseDelete(warehouse: Warehouse): void {
+    this.openDeleteDialog(warehouse);
   }
-}
 
-getResponsibleName(): string {
-  return this.editingWarehouse?.responsible?.name || '';
-}
-
-setResponsibleName(value: string): void {
-  this.ensureResponsibleExists();
-  if (this.editingWarehouse && this.editingWarehouse.responsible) {
-    this.editingWarehouse.responsible.name = value;
+  handleToggleStatus(warehouse: Warehouse): void {
+    this.toggleWarehouseStatus(warehouse);
   }
-}
 
-getResponsiblePhone(): string {
-  return this.editingWarehouse?.responsible?.phone || '';
-}
-
-setResponsiblePhone(value: string): void {
-  this.ensureResponsibleExists();
-  if (this.editingWarehouse && this.editingWarehouse.responsible) {
-    this.editingWarehouse.responsible.phone = value;
+  handleAssignInvoices(warehouse: Warehouse): void {
+    this.openAssignDialog(warehouse);
   }
-}
 
-getResponsibleEmail(): string {
-  return this.editingWarehouse?.responsible?.email || '';
-}
-
-setResponsibleEmail(value: string): void {
-  this.ensureResponsibleExists();
-  if (this.editingWarehouse && this.editingWarehouse.responsible) {
-    this.editingWarehouse.responsible.email = value;
+  handleEditFromDetails(warehouse: Warehouse): void {
+    this.detailsDialogVisible = false;
+    this.openEditDialog(warehouse);
   }
-}
 
-getLocationCity(): string {
-  return this.editingWarehouse?.location?.city || '';
-}
-
-setLocationCity(value: string): void {
-  this.ensureLocationExists();
-  if (this.editingWarehouse && this.editingWarehouse.location) {
-    this.editingWarehouse.location.city = value;
+  // Clear search query method
+  clearSearch(): void {
+    this.searchQuery = '';
+    this.applyFilters();
   }
-}
 
-getLocationPostalCode(): string {
-  return this.editingWarehouse?.location?.postalCode || '';
-}
-
-setLocationPostalCode(value: string): void {
-  this.ensureLocationExists();
-  if (this.editingWarehouse && this.editingWarehouse.location) {
-    this.editingWarehouse.location.postalCode = value;
+  // Refresh warehouses data
+  refreshWarehouses(): void {
+    const projectId = this.selectedProject()?.id;
+    if (projectId) {
+      this.loadData(projectId);
+    }
   }
-}
-
-getLocationCountry(): string {
-  return this.editingWarehouse?.location?.country || 'Italia';
-}
-
-setLocationCountry(value: string): void {
-  this.ensureLocationExists();
-  if (this.editingWarehouse && this.editingWarehouse.location) {
-    this.editingWarehouse.location.country = value;
-  }
-}
-// ...existing code...
-
-// Helper methods for creating new warehouses
-ensureNewResponsibleExists(): void {
-  if (!this.newWarehouse.responsible) {
-    this.newWarehouse.responsible = {
-      name: '',
-      phone: '',
-      email: ''
-    };
-  }
-}
-
-ensureNewLocationExists(): void {
-  if (!this.newWarehouse.location) {
-    this.newWarehouse.location = {
-      address: '',
-      city: '',
-      postalCode: '',
-      country: 'Italia'
-    };
-  }
-}
-
-getEmptyWarehouseDto(): CreateWarehouseDto {
-  return {
-    name: '',
-    description: '',
-    type: 'PHYSICAL',
-    isActive: true,
-    location: {
-      address: '',
-      city: '',
-      postalCode: '',
-      country: 'Italia',
-    },
-    responsible: {
-      name: '',
-      phone: '',
-      email: ''
-    },
-    notes: '',
-  };
-}
-
-// ...existing code...
-
-// ...existing code...
-
 }
