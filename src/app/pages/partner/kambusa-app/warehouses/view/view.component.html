@@ -28,6 +28,53 @@
     <div class="p-2">
       <p class="mb-2 text-sm line-clamp-2">{{ warehouse.description }}</p>
 
+      <!-- Economic valuation section -->
+      <div class="mb-3">
+        <div *ngIf="loadingValues" class="text-center py-2">
+          <p-progressBar
+            mode="indeterminate"
+            [style]="{ height: '5px' }"
+          ></p-progressBar>
+          <p class="text-xs text-gray-500 mt-1">
+            Caricamento valori economici...
+          </p>
+        </div>
+
+        <div *ngIf="!loadingValues" class="economic-value-container">
+          <!-- For physical warehouses -->
+          <div *ngIf="warehouse.type === 'PHYSICAL'" class="grid grid-cols-2">
+            <div class="value-box">
+              <div class="value-label">Valore Totale</div>
+              <div class="value-amount">
+                {{ warehouseValue | currency : "EUR" }}
+              </div>
+            </div>
+            <div class="value-box">
+              <div class="flows">
+                <div class="flow-in">
+                  <i class="pi pi-arrow-down-right"></i>
+                  <span>{{ totalInValue | currency : "EUR" }}</span>
+                </div>
+                <div class="flow-out">
+                  <i class="pi pi-arrow-up-right"></i>
+                  <span>{{ totalOutValue | currency : "EUR" }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- For cost centers -->
+          <div *ngIf="warehouse.type === 'COST_CENTER'" class="value-container">
+            <div class="value-box cost-center-value">
+              <div class="value-label">Spesa Totale</div>
+              <div class="value-amount">
+                {{ totalOutValue | currency : "EUR" }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="mb-3 flex justify-between">
         <p-tag
           [value]="getStatusLabel(warehouse.isActive)"

@@ -64,16 +64,16 @@
 
       <!-- Tabella delle fatture da assegnare -->
       <p-table
-        *ngIf="!loading && filteredInvoices.length > 0"
-        [value]="filteredInvoices"
-        [paginator]="true"
-        [rows]="5"
-        styleClass="p-datatable-sm"
-        selectionMode="multiple"
-        [(selection)]="selectedInvoiceIds"
-        dataKey="id"
-        [rowHover]="true"
-      >
+      *ngIf="!loading && filteredInvoices.length > 0"
+      [value]="filteredInvoices"
+      [paginator]="true"
+      [rows]="5"
+      styleClass="p-datatable-sm"
+      selectionMode="multiple"
+      [(selection)]="selectedInvoices"
+      dataKey="id"
+      [rowHover]="true"
+    >
         <ng-template pTemplate="header">
           <tr>
             <th style="width: 3em">
@@ -90,7 +90,7 @@
         <ng-template pTemplate="body" let-invoice>
           <tr>
             <td>
-              <p-tableCheckbox [value]="invoice.id"></p-tableCheckbox>
+              <p-tableCheckbox [value]="invoice"></p-tableCheckbox>
             </td>
             <td>{{ invoice.invoiceNumber }}</td>
             <td>{{ invoice.invoiceDate | date : "dd/MM/yyyy" }}</td>
@@ -132,7 +132,7 @@
         <ng-template pTemplate="summary">
           <div class="flex items-center">
             <i class="pi pi-check-square mr-2 text-primary"></i>
-            <strong>{{ selectedInvoiceIds.length }}</strong> fatture selezionate
+            <strong>{{ selectedInvoices.length }}</strong> fatture selezionate
             di {{ filteredInvoices.length }} totali
           </div>
         </ng-template>
@@ -156,7 +156,7 @@
         label="Assegna"
         icon="pi pi-check"
         class="p-button-primary"
-        [disabled]="!showAssignment || selectedInvoiceIds.length === 0"
+        [disabled]="!showAssignment || selectedInvoices.length === 0"
         (click)="assignInvoicesToWarehouse()"
       ></button>
     </div>

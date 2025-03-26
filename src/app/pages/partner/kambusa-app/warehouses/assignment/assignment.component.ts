@@ -59,23 +59,22 @@ export class AssignmentComponent implements OnInit, OnChanges {
   @Output() invoicesAssigned = new EventEmitter<void>();
 
   // Local state
-  selectedInvoiceIds: string[] = [];
+  selectedInvoices: EInvoice[] = []; // Memorizza le fatture complete invece degli ID
   filteredInvoices: EInvoice[] = [];
   showAssignment: boolean = false;
 
   ngOnInit(): void {
     // Reset the selection when the component initializes
-    this.selectedInvoiceIds = [];
+    this.selectedInvoices = [];
     this.filterInvoices();
   }
-
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['warehouse'] || changes['unassignedInvoices']) {
       this.filterInvoices();
     }
-
+  
     if (changes['visible'] && this.visible) {
-      this.selectedInvoiceIds = [];
+      this.selectedInvoices = [];
     }
   }
 
@@ -96,7 +95,7 @@ export class AssignmentComponent implements OnInit, OnChanges {
       this.filteredInvoices = this.unassignedInvoices.filter(
         (invoice) =>
           invoice.status?.costCenterStatus === 'not_assigned' &&
-          invoice.status?.rawProductStatus === 'processed'
+          invoice.status?.rawProductStatus === 'not_processed'
       );
     } else {
       // For physical warehouses, don't show any invoices here
@@ -105,28 +104,27 @@ export class AssignmentComponent implements OnInit, OnChanges {
     }
   }
 
-  // Event handlers
   closeDialog(): void {
     this.visible = false;
     this.visibleChange.emit(false);
-    this.selectedInvoiceIds = [];
+    this.selectedInvoices = [];
   }
 
   assignInvoicesToWarehouse(): void {
     const projectId = this.projectStore.selectedProject()?.id;
-    if (!projectId || !this.warehouse || this.selectedInvoiceIds.length === 0) {
+    if (!projectId || !this.warehouse || this.selectedInvoices.length === 0) {
       this.toastService.showError(
         'Selezionare almeno una fattura da assegnare'
       );
       return;
     }
-
+  
     // Verifica che l'ID sia definito
     if (!this.warehouse.id) {
       this.toastService.showError('ID magazzino non valido');
       return;
     }
-
+  
     // Verifica che sia un centro di costo
     if (this.warehouse.type !== 'COST_CENTER') {
       this.toastService.showError(
@@ -134,29 +132,32 @@ export class AssignmentComponent implements OnInit, OnChanges {
       );
       return;
     }
-
+  
+    // Estrai gli ID dalle fatture selezionate
+    const selectedIds = this.selectedInvoices.map(invoice => invoice.id);
+    
     // Assegna ciascuna fattura selezionata al centro di costo
-    this.assignInvoicesToCostCenter(projectId, this.warehouse.id);
-
+    this.assignInvoicesToCostCenter(projectId, this.warehouse.id, selectedIds);
+  
     this.closeDialog();
     this.invoicesAssigned.emit();
   }
 
-  assignInvoicesToCostCenter(projectId: string, costCenterId: string): void {
+  assignInvoicesToCostCenter(projectId: string, costCenterId: string, invoiceIds: string[]): void {
     // Prepara il contatore per le operazioni di assegnazione completate
     let completedAssignments = 0;
-    const totalAssignments = this.selectedInvoiceIds.length;
-
+    const totalAssignments = invoiceIds.length;
+  
     // Usa assignInvoiceToCostCenter dallo StockMovementStore
-    this.selectedInvoiceIds.forEach((invoiceId) => {
+    invoiceIds.forEach((invoiceId) => {
       this.stockMovementStore.assignInvoiceToCostCenter({
         projectId,
         invoiceId,
         costCenterId,
       });
-
+  
       completedAssignments++;
-
+  
       // Quando tutte le assegnazioni sono completate, notifica l'utente
       if (completedAssignments === totalAssignments) {
         if (this.warehouse) {
