@@ -133,6 +133,7 @@
     <app-warehouse-view
       *ngFor="let warehouse of filteredWarehouses()"
       [warehouse]="warehouse"
+      [warehouseBalance]="getWarehouseBalance(warehouse.id || '')"
       viewMode="card"
       (onDetails)="handleWarehouseDetails($event)"
       (onEdit)="handleWarehouseEdit($event)"

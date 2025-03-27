@@ -1,0 +1,112 @@
+<!-- Loading State -->
+<div *ngIf="loading" class="mb-3">
+  <p-skeleton height="2rem" styleClass="mb-2"></p-skeleton>
+  <p-skeleton height="2rem" styleClass="mb-2"></p-skeleton>
+  <p-skeleton height="2rem" styleClass="mb-2"></p-skeleton>
+  <p-skeleton height="2rem" styleClass="mb-2"></p-skeleton>
+</div>
+
+<!-- Empty State -->
+<div
+  *ngIf="!loading && (!movements || movements.length === 0)"
+  class="text-center p-5 border-1 border-gray-200 border-round"
+>
+  <i class="pi pi-inbox text-5xl text-gray-400 mb-3"></i>
+  <h3>Nessun movimento trovato</h3>
+  <p class="text-gray-600">
+    Non ci sono movimenti registrati per questo
+    {{ warehouseType === "PHYSICAL" ? "magazzino" : "centro di costo" }}.
+  </p>
+</div>
+
+<!-- Movement List -->
+<p-table
+  *ngIf="!loading && movements && movements.length > 0"
+  [value]="movements"
+  [paginator]="true"
+  [rows]="10"
+  [rowsPerPageOptions]="[10, 25, 50]"
+  [showCurrentPageReport]="true"
+  currentPageReportTemplate="Mostra da {first} a {last} di {totalRecords} movimenti"
+  [rowHover]="true"
+  styleClass="p-datatable-sm p-datatable-gridlines"
+>
+  <ng-template pTemplate="header">
+    <tr>
+      <th style="width: 5rem">ID</th>
+      <th style="width: 8rem">Data</th>
+      <th style="width: 10rem">Tipo</th>
+      <th>Riferimento</th>
+      <th style="width: 8rem">Quantità</th>
+      <th style="width: 8rem">Importo</th>
+      <th style="width: 8rem">Stato</th>
+      <th style="width: 6rem">Azioni</th>
+    </tr>
+  </ng-template>
+
+  <ng-template pTemplate="body" let-movement>
+    <tr>
+      <td>
+        <span class="text-xs font-mono">{{
+          movement.id?.substring(0, 8)
+        }}</span>
+      </td>
+      <td>
+        {{ movement.movementDate | date : "dd/MM/yyyy" }}
+      </td>
+      <td>
+        <p-tag
+          [value]="getMovementTypeLabel(movement.movementType)"
+          [severity]="getMovementTypeSeverity(movement.movementType)"
+        ></p-tag>
+      </td>
+      <td>
+        <span>{{ movement.reference || "-" }}</span>
+        <div *ngIf="movement.notes" class="text-xs text-gray-500">
+          {{ movement.notes }}
+        </div>
+      </td>
+      <td class="text-right">
+        {{ movement.totalQuantity || 0 }}
+      </td>
+      <td class="text-right">
+        {{ movement.totalAmount | currency : "EUR" }}
+      </td>
+      <td>
+        <p-tag
+          [value]="getStatusLabel(movement.status)"
+          [severity]="getStatusSeverity(movement.status)"
+        ></p-tag>
+      </td>
+      <td>
+        <div class="flex gap-1 justify-content-center">
+          <button
+            pButton
+            icon="pi pi-eye"
+            class="p-button-sm p-button-text"
+            pTooltip="Visualizza dettagli"
+            (click)="viewMovement(movement)"
+          ></button>
+          <button
+            *ngIf="movement.status === 'draft'"
+            pButton
+            icon="pi pi-trash"
+            class="p-button-sm p-button-text p-button-danger"
+            pTooltip="Elimina movimento"
+            (click)="confirmDelete(movement)"
+          ></button>
+        </div>
+      </td>
+    </tr>
+  </ng-template>
+</p-table>
+
+<p-confirmDialog
+  header="Conferma eliminazione"
+  icon="pi pi-exclamation-triangle"
+  acceptLabel="Sì, elimina"
+  rejectLabel="Annulla"
+  acceptButtonStyleClass="p-button-danger"
+  [style]="{ width: '450px' }"
+>
+</p-confirmDialog>

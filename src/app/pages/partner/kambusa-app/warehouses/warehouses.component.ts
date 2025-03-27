@@ -31,6 +31,7 @@ import { ToastService } from '../../../../core/services/toast.service';
 import {
   Warehouse,
   WarehouseType,
+  WarehouseBalance,
 } from '../../../../core/models/warehouse.model';
 import { EInvoice } from '../../../../core/models/einvoice.model';
 
@@ -79,6 +80,7 @@ export class WarehousesComponent implements OnInit, OnDestroy {
   filteredWarehouses = this.warehouseStore.filteredWarehouses;
   selectedWarehouse = this.warehouseStore.selectedWarehouse;
   invoices = this.einvoiceStore.invoices;
+  warehouseBalance = this.warehouseStore.warehouseBalance;
 
   // Loading states
   loading = computed(
@@ -127,7 +129,10 @@ export class WarehousesComponent implements OnInit, OnDestroy {
   }
 
   loadData(projectId: string): void {
-    this.warehouseStore.fetchProjectWarehouses({ projectId });
+    this.warehouseStore.fetchProjectWarehouses({
+      projectId,
+      withStats: true, // Richiedi statistiche per i magazzini
+    });
     this.loadUnassignedInvoices();
   }
 
@@ -182,28 +187,12 @@ export class WarehousesComponent implements OnInit, OnDestroy {
   applyFilters(): void {
     if (!this.warehouses()) return;
 
-    let filtered = [...this.warehouses()!];
-
     // Applica filtro per tipo
-    if (this.filterType !== 'ALL') {
-      filtered = filtered.filter((w) => w.type === this.filterType);
-    }
-
-    // Applica filtro di ricerca
-    if (this.searchQuery) {
-      const query = this.searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (w) =>
-          w.name.toLowerCase().includes(query) ||
-          w.description.toLowerCase().includes(query)
-      );
-    }
-
-    // Aggiorna i magazzini filtrati
     this.warehouseStore.filterByType(
       this.filterType === 'ALL' ? undefined : this.filterType
     );
 
+    // Applica filtro di ricerca
     if (this.searchQuery) {
       this.warehouseStore.filterBySearch(this.searchQuery);
     }
@@ -319,6 +308,23 @@ export class WarehousesComponent implements OnInit, OnDestroy {
       id: warehouse.id,
       isActive: !warehouse.isActive,
     });
+  }
+
+  // Aggiornamento del componente per recuperare il bilancio di un magazzino
+  getWarehouseBalance(warehouseId: string): WarehouseBalance | null {
+    const balance = this.warehouseBalance();
+    if (!balance || balance.warehouseId !== warehouseId) {
+      // Se non abbiamo un bilancio per questo magazzino, ne richiediamo uno
+      const projectId = this.selectedProject()?.id;
+      if (projectId && warehouseId) {
+        this.warehouseStore.fetchWarehouseBalance({
+          projectId,
+          warehouseId,
+        });
+      }
+      return null;
+    }
+    return balance;
   }
 
   getWarehouseTypeLabel(type: WarehouseType): string {

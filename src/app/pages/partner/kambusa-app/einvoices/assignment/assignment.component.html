@@ -147,8 +147,40 @@
       Seleziona le righe della fattura che desideri valorizzare nel magazzino:
     </p>
 
+    <!-- Contatori per le righe filtrate -->
+    <div
+      class="flex justify-between items-center mb-3 border-round-lg p-3 bg-gray-50"
+    >
+      <div>
+        <span class="font-medium">Righe disponibili:</span>
+        {{ getUnprocessedLines().length }} di
+        {{ selectedInvoiceForWarehouse.invoiceLines?.length || 0 }}
+      </div>
+      <div *ngIf="hasProcessedLines()" class="text-sm text-gray-600">
+        <i class="pi pi-info-circle mr-1"></i>
+        Le righe già processate non sono visualizzate
+      </div>
+    </div>
+
+    <!-- Messaggio se non ci sono righe disponibili -->
+    <div
+      *ngIf="getUnprocessedLines().length === 0"
+      class="p-5 border-round-lg bg-gray-50 text-center"
+    >
+      <i
+        class="pi pi-exclamation-triangle text-yellow-500 text-2xl mb-3 block"
+      ></i>
+      <h3 class="text-lg font-medium m-0 mb-2">Nessuna riga disponibile</h3>
+      <p class="text-gray-600 m-0">
+        Tutte le righe di questa fattura sono già state processate in altri
+        magazzini.
+      </p>
+    </div>
+
+    <!-- Tabella con solo righe non processate -->
     <p-table
-      [value]="selectedInvoiceForWarehouse.invoiceLines || []"
+      *ngIf="getUnprocessedLines().length > 0"
+      [value]="getUnprocessedLines()"
       [(selection)]="selectedInvoiceLines"
       styleClass="p-datatable-sm"
       [scrollable]="true"
@@ -180,13 +212,19 @@
           <td class="text-right">{{ line.totalPrice | currency : "EUR" }}</td>
         </tr>
       </ng-template>
+      <ng-template pTemplate="summary">
+        <div class="flex justify-between">
+          <div>
+            <span class="font-medium">Righe selezionate:</span>
+            {{ selectedInvoiceLines.length }}
+          </div>
+          <div *ngIf="selectedInvoiceLines.length > 0">
+            <span class="font-medium">Totale selezionato:</span>
+            {{ calculateSelectedTotal() | currency : "EUR" }}
+          </div>
+        </div>
+      </ng-template>
     </p-table>
-
-    <div class="mt-3">
-      <p>
-        <strong>Righe selezionate:</strong> {{ selectedInvoiceLines.length }}
-      </p>
-    </div>
   </div>
 
   <ng-template pTemplate="footer">
@@ -201,7 +239,9 @@
       pButton
       label="Conferma selezione"
       icon="pi pi-check"
-      [disabled]="selectedInvoiceLines.length === 0"
+      [disabled]="
+        selectedInvoiceLines.length === 0 || getUnprocessedLines().length === 0
+      "
       [loading]="assigningToWarehouse"
       (click)="confirmPartialSelection()"
     ></button>

@@ -61,6 +61,10 @@ export interface StockMovementDetail {
 // DTOs per le richieste
 export interface InboundMovementDto {
   movementType: StockMovementType;
+  movementDate?: string;
+  reference?: string;
+  notes?: string;
+  documentNumber?: string;
   products: {
     rawProductId: string;
     quantity: number;
@@ -71,6 +75,10 @@ export interface InboundMovementDto {
 
 export interface OutboundMovementDto {
   movementType: StockMovementType;
+  movementDate?: string;
+  reference?: string;
+  notes?: string;
+  documentNumber?: string;
   products: {
     rawProductId: string;
     quantity: number;
@@ -80,6 +88,10 @@ export interface OutboundMovementDto {
 }
 
 export interface InventoryCheckDto {
+  movementDate?: string;
+  reference?: string;
+  notes?: string;
+  documentNumber?: string;
   products: {
     rawProductId: string;
     expectedQty: number;
@@ -92,6 +104,10 @@ export interface InventoryCheckDto {
 export interface TransferMovementDto {
   sourceWarehouseId: string;
   targetWarehouseId: string;
+  movementDate?: string;
+  reference?: string;
+  notes?: string;
+  documentNumber?: string;
   products: {
     rawProductId: string;
     quantity: number;

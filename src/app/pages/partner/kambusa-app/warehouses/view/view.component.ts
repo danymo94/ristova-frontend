@@ -29,14 +29,12 @@ import { toSignal, toObservable } from '@angular/core/rxjs-interop';
 import {
   Warehouse,
   WarehouseType,
-} from '../../../../../core/models/warehouse.model';
-import {
   WarehouseBalance,
-} from '../../../../../core/models/stock-movement.model';
+} from '../../../../../core/models/warehouse.model';
 
 // Store
-import { StockMovementStore } from '../../../../../core/store/stock-movement.signal-store';
 import { ProjectStore } from '../../../../../core/store/project.signal-store';
+import { WarehouseStore } from '../../../../../core/store/warehouse.signal-store';
 
 @Component({
   selector: 'app-warehouse-view',
@@ -58,6 +56,7 @@ import { ProjectStore } from '../../../../../core/store/project.signal-store';
 export class WarehouseViewComponent implements OnInit, OnChanges, OnDestroy {
   @Input() warehouse: Warehouse | null = null;
   @Input() viewMode: 'card' | 'detail' | 'list-item' = 'card';
+  @Input() warehouseBalance: WarehouseBalance | null = null; // Aggiunto per ricevere il bilancio
 
   @Output() onDetails = new EventEmitter<Warehouse>();
   @Output() onEdit = new EventEmitter<Warehouse>();
@@ -66,7 +65,7 @@ export class WarehouseViewComponent implements OnInit, OnChanges, OnDestroy {
   @Output() onAssignInvoices = new EventEmitter<Warehouse>();
 
   // Inject stores
-  private stockMovementStore = inject(StockMovementStore);
+  private warehouseStore = inject(WarehouseStore);
   private projectStore = inject(ProjectStore);
 
   // Warehouse economic values
@@ -91,7 +90,26 @@ export class WarehouseViewComponent implements OnInit, OnChanges, OnDestroy {
       this.warehouse?.id &&
       this.viewMode === 'card'
     ) {
+      // Se c'è un bilancio fornito, usalo
+      if (
+        this.warehouseBalance &&
+        this.warehouseBalance.warehouseId === this.warehouse.id
+      ) {
+        this.processWarehouseBalance(this.warehouseBalance);
+        return;
+      }
+
+      // Altrimenti carica i valori
       this.loadEconomicValues();
+    }
+
+    // Se cambia il bilancio del magazzino, aggiorna i valori
+    if (
+      changes['warehouseBalance'] &&
+      this.warehouseBalance &&
+      this.warehouse?.id === this.warehouseBalance.warehouseId
+    ) {
+      this.processWarehouseBalance(this.warehouseBalance);
     }
   }
 
@@ -118,8 +136,8 @@ export class WarehouseViewComponent implements OnInit, OnChanges, OnDestroy {
     this.loadingValues = true;
     this.resetEconomicValues();
 
-    // Eseguiamo il metodo fetchWarehouseBalance che internamente effettua la chiamata API
-    this.stockMovementStore.fetchWarehouseBalance({
+    // Usa WarehouseStore invece di StockMovementStore
+    this.warehouseStore.fetchWarehouseBalance({
       projectId,
       warehouseId: this.warehouse.id,
     });
@@ -127,17 +145,24 @@ export class WarehouseViewComponent implements OnInit, OnChanges, OnDestroy {
     // Utilizziamo runInInjectionContext per fornire il contesto di injection necessario
     runInInjectionContext(this.injector, () => {
       const subscription = toObservable(
-        this.stockMovementStore.warehouseBalance
-      ).subscribe((balance: WarehouseBalance | null) => {
-        if (balance && balance.warehouseId === this.warehouse?.id) {
-          // Processa i dati solo se il balance si riferisce al magazzino corrente
-          this.processWarehouseBalance(balance);
-        }
-        this.loadingValues = false;
+        this.warehouseStore.warehouseBalance
+      ).subscribe({
+        next: (balance) => {
+          if (balance && balance.warehouseId === this.warehouse?.id) {
+            // Processa i dati solo se il balance si riferisce al magazzino corrente
+            this.processWarehouseBalance(balance);
+          }
+          this.loadingValues = false;
+        },
+        error: () => {
+          this.loadingValues = false;
+        },
       });
 
       // Salva la sottoscrizione nella mappa usando l'ID del magazzino come chiave
-      this.subscriptions.set(this.warehouse?.id || '', subscription || '');
+      if (this.warehouse?.id) {
+        this.subscriptions.set(this.warehouse.id, subscription);
+      }
     });
   }
 
@@ -145,12 +170,9 @@ export class WarehouseViewComponent implements OnInit, OnChanges, OnDestroy {
     // Per magazzini fisici, usa i valori direttamente
     if (this.warehouse?.type === 'PHYSICAL') {
       this.warehouseValue = balance.totalValue || 0;
-      this.totalInValue =
-        balance.balance?.reduce(
-          (sum: number, item: any) => sum + item.totalValue,
-          0
-        ) || 0;
-      this.totalOutValue = balance.productCount || 0;
+      // Modifica l'accesso ai dati per adattarlo al nuovo modello WarehouseBalance
+      this.totalInValue = balance.totalValue || 0; // Modifica in base alla struttura del nuovo WarehouseBalance
+      this.totalOutValue = balance.totalItems || 0; // Modifica in base alla struttura del nuovo WarehouseBalance
     }
     // Per centri di costo, il valore totale rappresenta la spesa
     else if (this.warehouse?.type === 'COST_CENTER') {

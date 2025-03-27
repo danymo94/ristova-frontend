@@ -1,0 +1,535 @@
+<div class="wizard-container">
+  <!-- Steps -->
+  <p-steps
+    [model]="steps"
+    [activeIndex]="currentStep"
+    [readonly]="true"
+    styleClass="mb-4"
+  ></p-steps>
+
+  <!-- Passo 1: Scelta tipo movimento -->
+  <div *ngIf="currentStep === 0" class="step-content">
+    <h3 class="mb-3">Seleziona tipo di movimento</h3>
+    <p class="text-gray-600 mb-4">
+      Scegli il tipo di operazione di magazzino che desideri effettuare.
+    </p>
+
+    <form [formGroup]="typeForm" class="movement-type-form">
+      <div class="grid">
+        <div
+          *ngFor="let type of movementTypes"
+          class="col-12 md:col-6 lg:col-4 mb-3"
+        >
+          <div
+            class="movement-type-card border-round-lg p-3"
+            [ngClass]="[
+              type.color,
+              { selected: typeForm.get('movementType')?.value === type.value }
+            ]"
+            (click)="typeForm.get('movementType')?.setValue(type.value)"
+            pTooltip="{{ type.description }}"
+            tooltipPosition="top"
+          >
+            <div class="flex align-items-center">
+              <div class="type-icon mr-3">
+                <i class="{{ type.icon }}"></i>
+              </div>
+              <div class="type-details">
+                <div class="type-name font-medium">{{ type.label }}</div>
+                <div class="type-desc text-sm text-gray-600 line-clamp-1">
+                  {{ type.description }}
+                </div>
+              </div>
+              <div
+                class="ml-auto"
+                *ngIf="typeForm.get('movementType')?.value === type.value"
+              >
+                <i class="pi pi-check"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Passo 2: Dettagli movimento -->
+  <div *ngIf="currentStep === 1" class="step-content">
+    <div class="flex align-items-center mb-3">
+      <div
+        class="movement-type-badge mr-2"
+        [ngClass]="getSelectedTypeInfo()?.color"
+      >
+        <i class="{{ getSelectedTypeInfo()?.icon }}"></i>
+      </div>
+      <h3 class="m-0">{{ getSelectedTypeInfo()?.label }}: Dettagli</h3>
+    </div>
+
+    <p class="text-gray-600 mb-4">
+      Inserisci i dettagli per questo movimento di magazzino.
+    </p>
+
+    <form [formGroup]="detailsForm" class="movement-details-form">
+      <div class="grid">
+        <div class="col-12 md:col-6 lg:col-4 mb-3">
+          <label for="movementDate" class="block mb-2">Data movimento*</label>
+          <p-calendar
+            id="movementDate"
+            formControlName="movementDate"
+            [showIcon]="true"
+            dateFormat="dd/mm/yy"
+            [required]="true"
+            styleClass="w-full"
+          ></p-calendar>
+        </div>
+
+        <div class="col-12 md:col-6 lg:col-4 mb-3">
+          <label for="reference" class="block mb-2">Riferimento</label>
+          <input
+            id="reference"
+            type="text"
+            pInputText
+            formControlName="reference"
+            placeholder="Es: Ordine #123"
+            class="w-full"
+          />
+        </div>
+
+        <div class="col-12 md:col-6 lg:col-4 mb-3">
+          <label for="documentNumber" class="block mb-2"
+            >Numero documento</label
+          >
+          <input
+            id="documentNumber"
+            type="text"
+            pInputText
+            formControlName="documentNumber"
+            placeholder="Es: Fattura #456"
+            class="w-full"
+          />
+        </div>
+
+        <!-- Campo aggiuntivo per il trasferimento -->
+        <div *ngIf="selectedType === 'TRANSFER'" class="col-12 md:col-6 mb-3">
+          <label for="targetWarehouseId" class="block mb-2"
+            >Magazzino di destinazione*</label
+          >
+          <p-dropdown
+            id="targetWarehouseId"
+            formControlName="targetWarehouseId"
+            [options]="warehouses"
+            optionLabel="name"
+            optionValue="id"
+            placeholder="Seleziona magazzino di destinazione"
+            [filter]="true"
+            filterBy="name"
+            [showClear]="true"
+            [required]="true"
+            styleClass="w-full"
+          ></p-dropdown>
+          <small *ngIf="warehouses.length === 0" class="text-gray-500">
+            Non ci sono altri magazzini disponibili per il trasferimento
+          </small>
+        </div>
+
+        <div class="col-12 mb-3">
+          <label for="notes" class="block mb-2">Note</label>
+          <textarea
+            id="notes"
+            pInputTextarea
+            formControlName="notes"
+            [rows]="3"
+            placeholder="Eventuali note aggiuntive"
+            class="w-full"
+          ></textarea>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Passo 3: Prodotti -->
+  <div *ngIf="currentStep === 2" class="step-content">
+    <div class="flex align-items-center mb-3">
+      <div
+        class="movement-type-badge mr-2"
+        [ngClass]="getSelectedTypeInfo()?.color"
+      >
+        <i class="{{ getSelectedTypeInfo()?.icon }}"></i>
+      </div>
+      <h3 class="m-0">{{ getSelectedTypeInfo()?.label }}: Prodotti</h3>
+    </div>
+
+    <p class="text-gray-600 mb-2">
+      Seleziona i prodotti da includere in questo movimento.
+    </p>
+
+    <div class="mb-3 flex justify-content-between align-items-center">
+      <button
+        pButton
+        icon="pi pi-plus"
+        label="Aggiungi prodotto"
+        (click)="addProduct()"
+        class="p-button-outlined"
+      ></button>
+
+      <div class="product-totals text-right">
+        <div class="text-sm">
+          Totale Quantità:
+          <span class="font-medium">{{ totals.quantity }}</span>
+        </div>
+        <div class="text-sm">
+          Totale Importo:
+          <span class="font-medium">{{
+            totals.amount | currency : "EUR"
+          }}</span>
+        </div>
+      </div>
+    </div>
+
+    <form [formGroup]="productsForm">
+      <div formArrayName="products">
+        <div
+          *ngFor="let product of products.controls; let i = index"
+          [formGroupName]="i"
+          class="product-row mb-3 p-3 border-1 border-round border-gray-200"
+        >
+          <div
+            class="product-row-header flex justify-content-between align-items-center mb-2"
+          >
+            <h4 class="m-0 text-lg">Prodotto {{ i + 1 }}</h4>
+            <button
+              pButton
+              icon="pi pi-trash"
+              class="p-button-text p-button-danger p-button-sm"
+              (click)="removeProduct(i)"
+              *ngIf="products.length > 1"
+            ></button>
+          </div>
+
+          <div class="grid">
+            <div class="col-12 md:col-6 lg:col-4 mb-3">
+              <label class="block mb-2">Prodotto*</label>
+              <p-autoComplete
+                formControlName="rawProductId"
+                [suggestions]="filteredProducts"
+                (completeMethod)="searchProducts($event, i)"
+                field="description"
+                [dropdown]="true"
+                placeholder="Cerca un prodotto"
+                styleClass="w-full"
+                [forceSelection]="true"
+                [required]="true"
+                [autoHighlight]="true"
+                (onSelect)="onProductSelect($event, i)"
+              >
+                <ng-template pTemplate="item" let-product>
+                  <div class="product-item">
+                    <div class="product-name font-medium">
+                      {{ product.description }}
+                    </div>
+                    <div
+                      *ngIf="product.productCode"
+                      class="product-code text-xs text-gray-500"
+                    >
+                      Codice: {{ product.productCode }}
+                    </div>
+                  </div>
+                </ng-template>
+              </p-autoComplete>
+            </div>
+
+            <div class="col-12 md:col-6 lg:col-4 mb-3">
+              <label class="block mb-2">Quantità*</label>
+              <p-inputNumber
+                formControlName="quantity"
+                [min]="0.01"
+                [showButtons]="true"
+                styleClass="w-full"
+                (onInput)="calculateTotals()"
+              ></p-inputNumber>
+            </div>
+
+            <div class="col-12 md:col-6 lg:col-4 mb-3">
+              <label class="block mb-2">Prezzo unitario (€)*</label>
+              <p-inputNumber
+                formControlName="unitPrice"
+                mode="currency"
+                currency="EUR"
+                locale="it-IT"
+                [min]="0"
+                styleClass="w-full"
+                (onInput)="calculateTotals()"
+              ></p-inputNumber>
+            </div>
+
+            <!-- Campi specifici per l'inventario -->
+            <ng-container *ngIf="selectedType === 'INVENTORY'">
+              <div class="col-12 md:col-6 mb-3">
+                <label class="block mb-2">Quantità attesa</label>
+                <p-inputNumber
+                  formControlName="expectedQty"
+                  [min]="0"
+                  [showButtons]="true"
+                  styleClass="w-full"
+                  [readonly]="true"
+                ></p-inputNumber>
+              </div>
+
+              <div class="col-12 md:col-6 mb-3">
+                <label class="block mb-2">Quantità effettiva*</label>
+                <p-inputNumber
+                  formControlName="actualQty"
+                  [min]="0"
+                  [showButtons]="true"
+                  styleClass="w-full"
+                  [disabled]="!isProductSelected(i)"
+                ></p-inputNumber>
+              </div>
+            </ng-container>
+
+            <div class="col-12 mb-3">
+              <label class="block mb-2">Note</label>
+              <textarea
+                pInputTextarea
+                formControlName="notes"
+                rows="2"
+                placeholder="Note specifiche per questo prodotto"
+                class="w-full"
+              ></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Passo 4: Riepilogo e conferma -->
+  <div *ngIf="currentStep === 3" class="step-content">
+    <div class="flex align-items-center mb-3">
+      <div
+        class="movement-type-badge mr-2"
+        [ngClass]="getSelectedTypeInfo()?.color"
+      >
+        <i class="{{ getSelectedTypeInfo()?.icon }}"></i>
+      </div>
+      <h3 class="m-0">Riepilogo e conferma</h3>
+    </div>
+
+    <p class="text-gray-600 mb-4">
+      Verifica i dettagli del movimento prima di confermare.
+    </p>
+
+    <div class="summary-section mb-4">
+      <h4>Tipo movimento</h4>
+      <p-card
+        styleClass="mb-3"
+        [style]="{ background: getSelectedTypeInfo()?.color }"
+      >
+        <div class="flex align-items-center">
+          <i class="{{ getSelectedTypeInfo()?.icon }} mr-2 text-xl"></i>
+          <span class="font-medium text-lg">{{
+            getSelectedTypeInfo()?.label
+          }}</span>
+        </div>
+        <div class="text-sm mt-2">{{ getSelectedTypeInfo()?.description }}</div>
+      </p-card>
+
+      <h4>Dettagli</h4>
+      <p-card styleClass="mb-3">
+        <div class="grid">
+          <div class="col-12 md:col-6 lg:col-4 mb-2">
+            <div class="text-sm text-gray-600">Data movimento</div>
+            <div>
+              {{
+                detailsForm.value.movementDate
+                  | date : "fullDate" : "" : "it-IT"
+              }}
+            </div>
+          </div>
+
+          <div class="col-12 md:col-6 lg:col-4 mb-2">
+            <div class="text-sm text-gray-600">Riferimento</div>
+            <div>{{ detailsForm.value.reference || "Nessun riferimento" }}</div>
+          </div>
+
+          <div class="col-12 md:col-6 lg:col-4 mb-2">
+            <div class="text-sm text-gray-600">Numero documento</div>
+            <div>
+              {{ detailsForm.value.documentNumber || "Nessun documento" }}
+            </div>
+          </div>
+
+          <div *ngIf="selectedType === 'TRANSFER'" class="col-12 md:col-6 mb-2">
+            <div class="text-sm text-gray-600">Magazzino di origine</div>
+            <div>{{ warehouse?.name || "Non specificato" }}</div>
+          </div>
+
+          <div *ngIf="selectedType === 'TRANSFER'" class="col-12 md:col-6 mb-2">
+            <div class="text-sm text-gray-600">Magazzino di destinazione</div>
+            <div>
+              {{
+                getWarehouseById(detailsForm.value.targetWarehouseId)?.name ||
+                  "Non specificato"
+              }}
+            </div>
+          </div>
+
+          <div *ngIf="detailsForm.value.notes" class="col-12 mt-2">
+            <div class="text-sm text-gray-600">Note</div>
+            <div style="white-space: pre-line">
+              {{ detailsForm.value.notes }}
+            </div>
+          </div>
+        </div>
+      </p-card>
+
+      <h4>Prodotti</h4>
+      <p-card>
+        <p-table
+          [value]="products.controls"
+          [responsive]="true"
+          styleClass="p-datatable-sm"
+        >
+          <ng-template pTemplate="header">
+            <tr>
+              <th>Prodotto</th>
+              <th style="width: 15%" class="text-right">Quantità</th>
+              <th style="width: 20%" class="text-right">Prezzo Unit.</th>
+              <th style="width: 20%" class="text-right">Totale</th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-product let-i="rowIndex">
+            <tr>
+              <td>
+                <div class="product-name">
+                  {{ getRawProductName(product.value.rawProductId) }}
+                </div>
+                <div *ngIf="product.value.notes" class="text-xs text-gray-500">
+                  {{ product.value.notes }}
+                </div>
+              </td>
+              <td class="text-right">{{ product.value.quantity }}</td>
+              <td class="text-right">
+                {{ product.value.unitPrice | currency : "EUR" }}
+              </td>
+              <td class="text-right">
+                {{
+                  product.value.quantity * product.value.unitPrice
+                    | currency : "EUR"
+                }}
+              </td>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="footer">
+            <tr>
+              <td colspan="2" class="text-right font-bold">Totali:</td>
+              <td class="text-right font-bold">{{ totals.quantity }}</td>
+              <td class="text-right font-bold">
+                {{ totals.amount | currency : "EUR" }}
+              </td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </p-card>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="wizard-controls flex justify-content-between mt-4">
+    <div>
+      <button
+        *ngIf="currentStep > 0"
+        pButton
+        icon="pi pi-arrow-left"
+        label="Indietro"
+        (click)="prevStep()"
+        class="p-button-outlined"
+        [disabled]="submitting"
+      ></button>
+    </div>
+
+    <div class="flex gap-2">
+      <button
+        pButton
+        icon="pi pi-times"
+        label="Annulla"
+        (click)="cancelWizard()"
+        class="p-button-danger p-button-outlined"
+        [disabled]="submitting"
+      ></button>
+
+      <button
+        *ngIf="currentStep < 3"
+        pButton
+        icon="pi pi-arrow-right"
+        iconPos="right"
+        label="Continua"
+        (click)="nextStep()"
+        class="p-button-primary"
+      ></button>
+
+      <button
+        *ngIf="currentStep === 3"
+        pButton
+        icon="pi pi-check"
+        label="Crea Movimento"
+        (click)="submitMovement()"
+        class="p-button-success"
+        [loading]="submitting"
+        [disabled]="submitting"
+      ></button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .movement-type-form .movement-type-card {
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    border: 1px solid var(--surface-border);
+  }
+
+  .movement-type-form .movement-type-card:hover {
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+  }
+
+  .movement-type-form .movement-type-card.selected {
+    border: 2px solid var(--primary-color);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  }
+
+  .type-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.4);
+  }
+
+  .movement-type-badge {
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+  }
+
+  .line-clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .product-row {
+    transition: background-color 0.2s;
+  }
+
+  .product-row:hover {
+    background-color: var(--surface-hover);
+  }
+</style>

@@ -130,7 +130,7 @@ export const partnerRoutes: RouteSection[] = [
         iconClass: 'pi pi-warehouse',
       },
       {
-        name: 'Warehouses',
+        name: 'Stock Movements',
         routerLink: '/partner/stockmovements',
         iconClass: 'pi pi-arrow-right-arrow-left',
       },

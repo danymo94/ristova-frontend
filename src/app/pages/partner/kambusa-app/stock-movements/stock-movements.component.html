@@ -1,406 +1,225 @@
-<!-- Vista Lista -->
-<div *ngIf="!isDetailView()" class="container mx-auto p-3 sm:p-4 md:p-5">
+<div class="stock-movements-container p-3">
+  <!-- Header con titolo e tipo di vista -->
+  <div
+    class="flex flex-column md:flex-row justify-content-between align-items-center mb-4"
+  >
+    <h1 class="text-2xl font-bold mb-3 md:mb-0">Movimenti di Magazzino</h1>
+
+    <p-selectButton
+      [options]="viewOptions"
+      [(ngModel)]="viewType"
+      optionLabel="label"
+      optionValue="value"
+    >
+      <ng-template let-item pTemplate>
+        <i [class]="item.icon" class="mr-2"></i>
+        {{ item.label }}
+      </ng-template>
+    </p-selectButton>
+  </div>
+
   <!-- Stato vuoto quando non c'è progetto selezionato -->
-  @if (!selectedProject()) {
-  <div class="empty-state">
-    <i class="pi pi-info-circle"></i>
-    <h3>Nessun ristorante selezionato</h3>
-    <p>
+  <div *ngIf="!selectedProject()" class="empty-state text-center p-5">
+    <i class="pi pi-info-circle text-6xl text-gray-400 mb-3"></i>
+    <h3 class="text-xl mb-2">Nessun ristorante selezionato</h3>
+    <p class="text-gray-600">
       Seleziona un ristorante dal menu in alto per visualizzare i movimenti di
       magazzino.
     </p>
   </div>
-  } @else {
-  <!-- Header con titolo e pulsanti azione -->
-  <div class="flex flex-wrap justify-between items-center mb-4">
-    <h1 class="text-2xl font-bold mb-2 md:mb-0">Movimenti di Magazzino</h1>
-    <div class="flex gap-2">
-      <!-- Ricerca -->
-      <div class="p-inputgroup">
-        <span class="p-inputgroup-addon">
-          <i class="pi pi-search"></i>
-        </span>
-        <input
-          type="text"
-          pInputText
-          placeholder="Cerca movimenti..."
-          (input)="onSearch($event)"
-        />
+
+  <div *ngIf="selectedProject()" class="grid">
+    <!-- Colonna sinistra: Selezione magazzino/centro di costo -->
+    <div class="col-12 md:col-3">
+      <div class="card p-0">
+        <div class="p-3 font-bold bg-gray-100 border-bottom-1 border-gray-200">
+          <span *ngIf="viewType === 'warehouse'">Magazzini</span>
+          <span *ngIf="viewType === 'costcenter'">Centri di Costo</span>
+        </div>
+        <div class="p-0">
+          <app-warehouse-selector
+            [warehouses]="warehouses()"
+            [loading]="isLoading()"
+            [warehouseType]="
+              viewType === 'warehouse' ? 'PHYSICAL' : 'COST_CENTER'
+            "
+            [selectedWarehouseId]="selectedWarehouse?.id"
+            (warehouseSelected)="onWarehouseSelected($event)"
+          ></app-warehouse-selector>
+        </div>
+      </div>
+    </div>
+
+    <!-- Colonna destra: Contenuto principale -->
+    <div class="col-12 md:col-9">
+      <!-- Quando non è stato selezionato un magazzino/centro di costo -->
+      <div
+        *ngIf="!hasSelectedWarehouse"
+        class="card flex align-items-center justify-content-center min-h-20rem"
+      >
+        <div class="text-center p-5">
+          <i class="pi pi-arrow-left text-5xl text-gray-400 mb-3"></i>
+          <h3 class="text-xl mb-2">
+            Seleziona un
+            {{ viewType === "warehouse" ? "magazzino" : "centro di costo" }}
+          </h3>
+          <p class="text-gray-600">
+            Seleziona un elemento dalla lista per visualizzarne i dettagli e i
+            movimenti.
+          </p>
+        </div>
       </div>
 
-      <!-- Filtri -->
-      <div class="flex">
-        <button
-          pButton
-          pRipple
-          label="Tutti"
-          [class.p-button-outlined]="filterType() !== 'ALL'"
-          [class.p-button-primary]="filterType() === 'ALL'"
-          (click)="filterByType('ALL')"
-        ></button>
-        <button
-          pButton
-          pRipple
-          label="Acquisti"
-          [class.p-button-outlined]="filterType() !== 'PURCHASE'"
-          [class.p-button-info]="filterType() === 'PURCHASE'"
-          (click)="filterByType('PURCHASE')"
-        ></button>
-        <button
-          pButton
-          pRipple
-          label="Vendite"
-          [class.p-button-outlined]="filterType() !== 'SALE'"
-          [class.p-button-success]="filterType() === 'SALE'"
-          (click)="filterByType('SALE')"
-        ></button>
+      <!-- Quando è stato selezionato un magazzino/centro di costo -->
+      <div *ngIf="hasSelectedWarehouse">
+        <div class="card mb-3">
+          <div class="flex justify-content-between align-items-center">
+            <h2 class="text-xl m-0">
+              <i
+                *ngIf="viewType === 'warehouse'"
+                class="pi pi-building mr-2"
+              ></i>
+              <i
+                *ngIf="viewType === 'costcenter'"
+                class="pi pi-chart-pie mr-2"
+              ></i>
+              {{ selectedWarehouse?.name }}
+            </h2>
+            <button
+              pButton
+              icon="pi pi-plus"
+              label="Nuovo Movimento"
+              (click)="openNewMovementDialog()"
+              class="p-button-primary"
+            ></button>
+          </div>
+        </div>
+
+        <!-- Tab View per movimenti e inventario -->
+        <p-tabView [(activeIndex)]="activeTabIndex">
+          <!-- Tab Movimenti -->
+          <p-tabPanel header="Movimenti">
+            <div
+              class="mb-3 flex flex-column md:flex-row align-items-center justify-content-between gap-3"
+            >
+              <!-- Filtri -->
+              <div class="p-inputgroup flex-1 md:max-w-20rem">
+                <span class="p-inputgroup-addon">
+                  <i class="pi pi-search"></i>
+                </span>
+                <input
+                  type="text"
+                  pInputText
+                  [(ngModel)]="searchQuery"
+                  placeholder="Cerca movimenti..."
+                  class="w-full"
+                />
+                <button
+                  *ngIf="searchQuery"
+                  pButton
+                  icon="pi pi-times"
+                  class="p-button-outlined"
+                  (click)="searchQuery = ''; applyFilters()"
+                ></button>
+              </div>
+
+              <div class="flex gap-2">
+                <p-dropdown
+                  [options]="movementTypeOptions"
+                  [(ngModel)]="filterByType"
+                  placeholder="Tipo movimento"
+                  [showClear]="true"
+                  optionLabel="label"
+                  optionValue="value"
+                  styleClass="w-10rem"
+                  (onChange)="applyFilters()"
+                ></p-dropdown>
+
+                <p-dropdown
+                  [options]="movementStatusOptions"
+                  [(ngModel)]="filterByStatus"
+                  placeholder="Stato"
+                  [showClear]="true"
+                  optionLabel="label"
+                  optionValue="value"
+                  styleClass="w-10rem"
+                  (onChange)="applyFilters()"
+                ></p-dropdown>
+
+                <button
+                  pButton
+                  icon="pi pi-filter-slash"
+                  class="p-button-outlined"
+                  (click)="clearFilters()"
+                  [disabled]="!filterByType && !filterByStatus && !searchQuery"
+                  pTooltip="Cancella filtri"
+                ></button>
+              </div>
+            </div>
+
+            <!-- Lista movimenti -->
+            <app-movement-list
+              [movements]="stockMovements()"
+              [loading]="isLoading()"
+              [warehouseType]="
+                viewType === 'warehouse' ? 'PHYSICAL' : 'COST_CENTER'
+              "
+              (movementSelected)="onMovementSelected($event)"
+            ></app-movement-list>
+          </p-tabPanel>
+
+          <!-- Tab Inventario -->
+          <p-tabPanel header="Inventario">
+            <app-warehouse-inventory
+              [warehouse]="selectedWarehouse"
+              [warehouseBalance]="warehouseStore.warehouseBalance()"
+              [loading]="isLoading()"
+            ></app-warehouse-inventory>
+          </p-tabPanel>
+        </p-tabView>
       </div>
-
-      <!-- Toggle visualizzazione -->
-      <button
-        pButton
-        pRipple
-        [icon]="viewMode() === 'grid' ? 'pi pi-list' : 'pi pi-th-large'"
-        class="p-button-outlined"
-        (click)="toggleViewMode()"
-        pTooltip="Cambia visualizzazione"
-        tooltipPosition="bottom"
-      ></button>
-      <button
-        pButton
-        pRipple
-        icon="pi pi-refresh"
-        class="p-button-outlined"
-        [loading]="loading()"
-        (click)="refreshData()"
-        pTooltip="Aggiorna dati"
-        tooltipPosition="bottom"
-      ></button>
-
-      <!-- Pulsante nuovo movimento -->
-      <button
-        pButton
-        pRipple
-        icon="pi pi-plus"
-        label="Nuovo Movimento"
-        class="p-button-primary"
-        (click)="openNewMovementDialog()"
-        pTooltip="Crea nuovo movimento di magazzino"
-        tooltipPosition="bottom"
-      ></button>
     </div>
   </div>
-
-  <!-- Stato di caricamento -->
-  <div *ngIf="loading()" class="flex justify-center my-5">
-    <i class="pi pi-spin pi-spinner text-4xl text-primary"></i>
-  </div>
-
-  <!-- Messaggio stato vuoto -->
-  <div
-    *ngIf="
-      !loading() && (!filteredMovements() || filteredMovements().length === 0)
-    "
-    class="empty-state"
-  >
-    <i class="pi pi-arrow-right-arrow-left"></i>
-    <h3>Nessun movimento trovato</h3>
-    <p>Non ci sono movimenti di magazzino registrati per questo progetto.</p>
-    <div class="flex gap-2 justify-center mt-4">
-      <button
-        pButton
-        pRipple
-        icon="pi pi-plus"
-        label="Nuovo Movimento"
-        class="p-button-primary"
-        (click)="openNewMovementDialog()"
-      ></button>
-    </div>
-  </div>
-
-  <!-- Lista movimenti - vista tabella -->
-  @if (!loading() && filteredMovements()!.length > 0 && viewMode() === 'list') {
-  <p-table
-    [value]="filteredMovements()"
-    [paginator]="true"
-    [rows]="10"
-    [rowsPerPageOptions]="[10, 25, 50]"
-    [showCurrentPageReport]="true"
-    currentPageReportTemplate="Mostrando {first} a {last} di {totalRecords} movimenti"
-    styleClass="p-datatable-sm"
-  >
-    <ng-template pTemplate="header">
-      <tr>
-        <th pSortableColumn="movementDate">
-          Data <p-sortIcon field="movementDate"></p-sortIcon>
-        </th>
-        <th pSortableColumn="movementType">
-          Tipo <p-sortIcon field="movementType"></p-sortIcon>
-        </th>
-        <th pSortableColumn="warehouseId">
-          Magazzino <p-sortIcon field="warehouseId"></p-sortIcon>
-        </th>
-        <th pSortableColumn="reference">
-          Riferimento <p-sortIcon field="reference"></p-sortIcon>
-        </th>
-        <th class="text-right" pSortableColumn="totalQuantity">
-          Quantità <p-sortIcon field="totalQuantity"></p-sortIcon>
-        </th>
-        <th class="text-right" pSortableColumn="totalAmount">
-          Importo <p-sortIcon field="totalAmount"></p-sortIcon>
-        </th>
-        <th pSortableColumn="status">
-          Stato <p-sortIcon field="status"></p-sortIcon>
-        </th>
-        <th style="width: 150px">Azioni</th>
-      </tr>
-    </ng-template>
-    <ng-template pTemplate="body" let-movement>
-      <tr>
-        <td>{{ movement.movementDate | date : "dd/MM/yyyy" }}</td>
-        <td>
-          <div class="flex items-center">
-            <i
-              [class]="getMovementTypeIcon(movement.movementType) + ' mr-2'"
-            ></i>
-            {{ getMovementTypeName(movement.movementType) }}
-          </div>
-        </td>
-        <td>
-          {{ getWarehouseName(movement.warehouseId) }}
-          <div
-            *ngIf="movement.sourceWarehouseId && movement.targetWarehouseId"
-            class="text-xs text-gray-500"
-          >
-            Da: {{ getWarehouseName(movement.sourceWarehouseId) }} →
-            {{ getWarehouseName(movement.targetWarehouseId) }}
-          </div>
-        </td>
-        <td>
-          {{ movement.reference || "-" }}
-          <div *ngIf="movement.invoiceId" class="text-xs text-gray-500">
-            Fattura: {{ movement.invoiceId }}
-          </div>
-        </td>
-        <td class="text-right">{{ movement.totalQuantity }}</td>
-        <td class="text-right">
-          {{ movement.totalAmount | currency : "EUR" }}
-        </td>
-        <td>
-          <p-tag
-            [value]="getStatusLabel(movement.status)"
-            [severity]="getStatusSeverity(movement.status)"
-          ></p-tag>
-        </td>
-        <td>
-          <div class="flex gap-1 justify-end">
-            <button
-              pButton
-              icon="pi pi-eye"
-              class="p-button-text p-button-rounded p-button-sm"
-              pTooltip="Visualizza dettagli"
-              tooltipPosition="top"
-              (click)="openDetailsDialog(movement)"
-            ></button>
-
-            <!-- Menu di cambio stato -->
-            <button
-              *ngIf="movement.status === 'draft'"
-              pButton
-              icon="pi pi-check-circle"
-              class="p-button-text p-button-rounded p-button-sm p-button-success"
-              pTooltip="Conferma movimento"
-              tooltipPosition="top"
-              (click)="updateMovementStatus(movement, 'confirmed')"
-            ></button>
-
-            <button
-              *ngIf="movement.status === 'draft'"
-              pButton
-              icon="pi pi-times-circle"
-              class="p-button-text p-button-rounded p-button-sm p-button-danger"
-              pTooltip="Annulla movimento"
-              tooltipPosition="top"
-              (click)="updateMovementStatus(movement, 'cancelled')"
-            ></button>
-
-            <!-- Elimina -->
-            <button
-              *ngIf="movement.status !== 'confirmed'"
-              pButton
-              icon="pi pi-trash"
-              class="p-button-text p-button-rounded p-button-sm p-button-danger"
-              pTooltip="Elimina"
-              tooltipPosition="top"
-              (click)="openDeleteDialog(movement)"
-            ></button>
-          </div>
-        </td>
-      </tr>
-    </ng-template>
-  </p-table>
-  }
-
-  <!-- Lista movimenti - vista griglia -->
-  @if (!loading() && filteredMovements()!.length > 0 && viewMode() === 'grid') {
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-    <p-card
-      *ngFor="let movement of filteredMovements()"
-      styleClass="movement-card"
-    >
-      <ng-template pTemplate="header">
-        <div class="p-3 flex justify-between items-center bg-gray-50">
-          <div class="flex items-center">
-            <i
-              [class]="getMovementTypeIcon(movement.movementType) + ' mr-2'"
-            ></i>
-            <span class="font-bold">{{
-              getMovementTypeName(movement.movementType)
-            }}</span>
-          </div>
-          <p-tag
-            [value]="getStatusLabel(movement.status)"
-            [severity]="getStatusSeverity(movement.status)"
-          ></p-tag>
-        </div>
-      </ng-template>
-
-      <div class="p-2">
-        <div class="mb-3">
-          <div class="flex justify-between mb-1">
-            <span class="text-gray-600">Data:</span>
-            <span class="font-medium">{{
-              movement.movementDate | date : "dd/MM/yyyy"
-            }}</span>
-          </div>
-
-          <div class="flex justify-between mb-1">
-            <span class="text-gray-600">Magazzino:</span>
-            <span class="font-medium">{{
-              getWarehouseName(movement.warehouseId)
-            }}</span>
-          </div>
-
-          <div
-            *ngIf="movement.sourceWarehouseId && movement.targetWarehouseId"
-            class="flex justify-between mb-1"
-          >
-            <span class="text-gray-600">Trasferimento:</span>
-            <span class="font-medium">
-              {{ getWarehouseName(movement.sourceWarehouseId) }} →
-              {{ getWarehouseName(movement.targetWarehouseId) }}
-            </span>
-          </div>
-
-          <div class="flex justify-between mb-1">
-            <span class="text-gray-600">Quantità:</span>
-            <span class="font-medium">{{ movement.totalQuantity }}</span>
-          </div>
-
-          <div class="flex justify-between mb-1">
-            <span class="text-gray-600">Importo:</span>
-            <span class="font-medium">{{
-              movement.totalAmount | currency : "EUR"
-            }}</span>
-          </div>
-
-          <div *ngIf="movement.reference" class="flex justify-between">
-            <span class="text-gray-600">Riferimento:</span>
-            <span class="font-medium">{{ movement.reference }}</span>
-          </div>
-
-          <div *ngIf="movement.invoiceId" class="flex justify-between">
-            <span class="text-gray-600">Fattura:</span>
-            <span class="font-medium">{{ movement.invoiceId }}</span>
-          </div>
-        </div>
-      </div>
-
-      <ng-template pTemplate="footer">
-        <div class="flex justify-between">
-          <button
-            pButton
-            icon="pi pi-eye"
-            label="Dettagli"
-            class="p-button-text p-button-sm"
-            (click)="openDetailsDialog(movement)"
-          ></button>
-
-          <div>
-            <!-- Menu di cambio stato -->
-            <button
-              *ngIf="movement.status === 'draft'"
-              pButton
-              icon="pi pi-check-circle"
-              class="p-button-text p-button-sm p-button-success mr-2"
-              pTooltip="Conferma"
-              tooltipPosition="top"
-              (click)="updateMovementStatus(movement, 'confirmed')"
-            ></button>
-
-            <button
-              *ngIf="movement.status === 'draft'"
-              pButton
-              icon="pi pi-times-circle"
-              class="p-button-text p-button-sm p-button-danger mr-2"
-              pTooltip="Annulla"
-              tooltipPosition="top"
-              (click)="updateMovementStatus(movement, 'cancelled')"
-            ></button>
-
-            <!-- Elimina -->
-            <button
-              *ngIf="movement.status !== 'confirmed'"
-              pButton
-              icon="pi pi-trash"
-              class="p-button-text p-button-sm p-button-danger"
-              pTooltip="Elimina"
-              tooltipPosition="top"
-              (click)="openDeleteDialog(movement)"
-            ></button>
-          </div>
-        </div>
-      </ng-template>
-    </p-card>
-  </div>
-  } }
 </div>
 
-<!-- Vista Dettaglio -->
-<app-view
-  *ngIf="isDetailView()"
-  [movementId]="selectedMovementId()"
-  (backToList)="returnToList()"
+<!-- Dialog per nuovo movimento -->
+<p-dialog
+  [(visible)]="showNewMovementDialog"
+  [style]="{ width: '80vw', maxWidth: '900px' }"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  header="Nuovo Movimento di Magazzino"
 >
-</app-view>
+  <app-new-movement-wizard
+    *ngIf="showNewMovementDialog"
+    [warehouse]="selectedWarehouse"
+    [warehouseType]="viewType === 'warehouse' ? 'PHYSICAL' : 'COST_CENTER'"
+    (movementCreated)="onMovementCreated($event)"
+    (cancel)="closeNewMovementDialog()"
+  ></app-new-movement-wizard>
+</p-dialog>
+
+<!-- Dialog per dettagli movimento -->
+<p-dialog
+  [(visible)]="showDetailsDialog"
+  [style]="{ width: '80vw', maxWidth: '900px' }"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  header="Dettagli Movimento"
+>
+  <app-movement-details
+    *ngIf="showDetailsDialog && selectedMovement()"
+    [movement]="selectedMovement()"
+    [movementDetails]="stockMovementStore.movementDetails()"
+    [loading]="isLoading()"
+    (close)="closeDetailsDialog()"
+  ></app-movement-details>
+</p-dialog>
 
 <style>
-  .empty-state {
-    padding: 3rem 1rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .empty-state i {
-    font-size: 3rem;
-    color: #ccc;
-    margin-bottom: 1rem;
-  }
-
-  .empty-state h3 {
-    font-size: 1.5rem;
-    margin-bottom: 0.5rem;
-  }
-
-  .movement-card {
-    transition: all 0.3s ease;
-    height: 100%;
-  }
-
-  .movement-card:hover {
-    box-shadow: 0 8px 15px -3px rgba(0, 0, 0, 0.1),
-      0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  .min-h-20rem {
+    min-height: 20rem;
   }
 </style>

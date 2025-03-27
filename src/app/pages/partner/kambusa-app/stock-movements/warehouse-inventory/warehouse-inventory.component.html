@@ -1,0 +1,405 @@
+<!-- Loading State -->
+<div *ngIf="loading" class="p-3">
+  <p-skeleton height="3rem" styleClass="mb-3"></p-skeleton>
+  <div class="grid">
+    <div class="col-12 md:col-4">
+      <p-skeleton height="8rem" styleClass="mb-3"></p-skeleton>
+    </div>
+    <div class="col-12 md:col-4">
+      <p-skeleton height="8rem" styleClass="mb-3"></p-skeleton>
+    </div>
+    <div class="col-12 md:col-4">
+      <p-skeleton height="8rem" styleClass="mb-3"></p-skeleton>
+    </div>
+  </div>
+  <p-skeleton height="20rem"></p-skeleton>
+</div>
+
+<!-- Stato vuoto quando non ci sono dati -->
+<div
+  *ngIf="
+    !loading &&
+    (!warehouseBalance ||
+      !warehouseBalance.items ||
+      warehouseBalance.items.length === 0)
+  "
+  class="empty-state text-center p-5"
+>
+  <i class="pi pi-inbox text-6xl text-gray-300 mb-3"></i>
+  <h3 class="text-xl mb-2">Nessun prodotto in inventario</h3>
+  <p class="text-gray-600 mb-4">
+    Non sono presenti prodotti nell'inventario del magazzino selezionato.
+  </p>
+</div>
+
+<!-- Stato pieno con inventario -->
+<div
+  *ngIf="
+    !loading &&
+    warehouseBalance &&
+    warehouseBalance.items &&
+    warehouseBalance.items.length > 0
+  "
+>
+  <!-- Pannello riassuntivo -->
+  <div class="grid mb-4">
+    <div class="col-12 md:col-4">
+      <div class="summary-box border-round p-3 bg-blue-50">
+        <div class="text-sm text-gray-700 mb-1">Totale Prodotti</div>
+        <div class="text-2xl font-medium">
+          {{ warehouseBalance.totalItems || 0 }}
+        </div>
+      </div>
+    </div>
+    <div class="col-12 md:col-4">
+      <div class="summary-box border-round p-3 bg-green-50">
+        <div class="text-sm text-gray-700 mb-1">Valore Totale</div>
+        <div class="text-2xl font-medium">
+          {{ warehouseBalance.totalValue | currency : "EUR" }}
+        </div>
+      </div>
+    </div>
+    <div class="col-12 md:col-4">
+      <div class="summary-box border-round p-3 bg-yellow-50">
+        <div class="text-sm text-gray-700 mb-1">Ultimo Aggiornamento</div>
+        <div class="text-xl font-medium">
+          {{ warehouseBalance.lastUpdate | date : "medium" }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Grafico distribuzione per categoria -->
+  <div class="card mb-4">
+    <h3 class="m-0 mb-3">Distribuzione per Categoria</h3>
+    <div class="chart-container" style="position: relative; height: 300px">
+      <p-chart type="pie" [data]="chartData" [options]="chartOptions"></p-chart>
+    </div>
+  </div>
+
+  <!-- Filtri e opzioni di visualizzazione -->
+  <div
+    class="flex flex-column md:flex-row justify-content-between align-items-center gap-3 mb-3"
+  >
+    <div class="p-inputgroup flex-1 md:max-w-20rem">
+      <span class="p-inputgroup-addon">
+        <i class="pi pi-search"></i>
+      </span>
+      <input
+        type="text"
+        pInputText
+        [(ngModel)]="searchTerm"
+        (input)="filterItems()"
+        placeholder="Cerca prodotti..."
+        class="w-full"
+      />
+      <button
+        *ngIf="searchTerm"
+        pButton
+        icon="pi pi-times"
+        class="p-button-outlined"
+        (click)="searchTerm = ''; filterItems()"
+      ></button>
+    </div>
+
+    <div class="flex gap-2">
+      <button
+        pButton
+        icon="pi pi-th-large"
+        [class.p-button-outlined]="!groupByCategory"
+        [class.p-button-info]="groupByCategory"
+        pTooltip="Raggruppa per categoria"
+        (click)="toggleGroupByCategory()"
+      ></button>
+    </div>
+  </div>
+
+  <!-- Visualizzazione raggruppata per categoria -->
+<!-- ...existing code... -->
+
+<!-- Visualizzazione tabellare standard -->
+<div *ngIf="!groupByCategory" class="card">
+    <p-table
+      [value]="filteredItems"
+      [paginator]="filteredItems.length > 10"
+      [rows]="10"
+      [rowsPerPageOptions]="[10, 25, 50]"
+      [sortField]="sortField"
+      [sortOrder]="sortOrder"
+      (onSort)="onSort($event)"
+      styleClass="p-datatable-sm p-datatable-gridlines"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th [pSortableColumn]="'productName'" style="width: 40%">
+            Prodotto <p-sortIcon field="productName"></p-sortIcon>
+          </th>
+          <th
+            [pSortableColumn]="'currentQuantity'"
+            style="width: 15%"
+            class="text-right"
+          >
+            Quantità <p-sortIcon field="currentQuantity"></p-sortIcon>
+          </th>
+          <th
+            [pSortableColumn]="'averageUnitCost'"
+            style="width: 15%"
+            class="text-right"
+          >
+            Costo Medio <p-sortIcon field="averageUnitCost"></p-sortIcon>
+          </th>
+          <th
+            [pSortableColumn]="'totalValue'"
+            style="width: 15%"
+            class="text-right"
+          >
+            Valore <p-sortIcon field="totalValue"></p-sortIcon>
+          </th>
+          <th style="width: 15%" class="text-right">Ultimo Movimento</th>
+        </tr>
+      </ng-template>
+  
+      <ng-template pTemplate="body" let-item>
+        <tr>
+          <td>
+            <div
+              class="product-name cursor-pointer"
+              (click)="viewProductDetails(item.rawProductId)"
+            >
+              {{ getProductName(item.rawProductId) }}
+            </div>
+            <div class="text-xs text-gray-500">
+              {{ getProductCategory(item.rawProductId) }}
+            </div>
+          </td>
+          <td class="text-right">{{ item.currentQuantity }}</td>
+          <td class="text-right">
+            {{ item.averageUnitCost | currency : "EUR" }}
+          </td>
+          <td class="text-right">{{ item.totalValue | currency : "EUR" }}</td>
+          <td class="text-right">
+            {{ item.lastMovementDate | date : "shortDate" }}
+          </td>
+        </tr>
+      </ng-template>
+  
+      <ng-template pTemplate="footer">
+        <tr>
+          <td><span class="font-medium">Totali</span></td>
+          <td class="text-right font-medium">
+            {{ warehouseBalance?.totalQuantity || 0 }}
+          </td>
+          <td></td>
+          <td class="text-right font-medium">
+            {{ warehouseBalance?.totalValue | currency : "EUR" }}
+          </td>
+          <td></td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+  <!-- ...existing code... -->
+
+  <!-- Visualizzazione tabellare standard -->
+  <div *ngIf="!groupByCategory" class="card">
+    <p-table
+      [value]="filteredItems"
+      [paginator]="filteredItems.length > 10"
+      [rows]="10"
+      [rowsPerPageOptions]="[10, 25, 50]"
+      [sortField]="sortField"
+      [sortOrder]="sortOrder"
+      (onSort)="onSort($event)"
+      styleClass="p-datatable-sm p-datatable-gridlines"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th [pSortableColumn]="'productName'" style="width: 40%">
+            Prodotto <p-sortIcon field="productName"></p-sortIcon>
+          </th>
+          <th
+            [pSortableColumn]="'currentQuantity'"
+            style="width: 15%"
+            class="text-right"
+          >
+            Quantità <p-sortIcon field="currentQuantity"></p-sortIcon>
+          </th>
+          <th
+            [pSortableColumn]="'averageUnitCost'"
+            style="width: 15%"
+            class="text-right"
+          >
+            Costo Medio <p-sortIcon field="averageUnitCost"></p-sortIcon>
+          </th>
+          <th
+            [pSortableColumn]="'totalValue'"
+            style="width: 15%"
+            class="text-right"
+          >
+            Valore <p-sortIcon field="totalValue"></p-sortIcon>
+          </th>
+          <th style="width: 15%" class="text-right">Ultimo Movimento</th>
+        </tr>
+      </ng-template>
+
+      <ng-template pTemplate="body" let-item>
+        <tr>
+          <td>
+            <div
+              class="product-name cursor-pointer"
+              (click)="viewProductDetails(item.rawProductId)"
+            >
+              {{ getProductName(item.rawProductId) }}
+            </div>
+            <div class="text-xs text-gray-500">
+              {{ getProductCategory(item.rawProductId) }}
+            </div>
+          </td>
+          <td class="text-right">{{ item.currentQuantity }}</td>
+          <td class="text-right">
+            {{ item.averageUnitCost | currency : "EUR" }}
+          </td>
+          <td class="text-right">{{ item.totalValue | currency : "EUR" }}</td>
+          <td class="text-right">
+            {{ item.lastMovementDate | date : "shortDate" }}
+          </td>
+        </tr>
+      </ng-template>
+
+      <ng-template pTemplate="footer">
+        <tr>
+          <td><span class="font-medium">Totali</span></td>
+          <td class="text-right font-medium">
+            {{ warehouseBalance.totalQuantity }}
+          </td>
+          <td></td>
+          <td class="text-right font-medium">
+            {{ warehouseBalance.totalValue | currency : "EUR" }}
+          </td>
+          <td></td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+</div>
+
+<!-- Dialog per dettagli prodotto -->
+<p-dialog
+  header="Dettagli Prodotto"
+  [(visible)]="showProductDetailsDialog"
+  [style]="{ width: '50vw' }"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+>
+  <div *ngIf="selectedProduct" class="p-3">
+    <h3 class="mt-0 mb-3">{{ selectedProduct.description }}</h3>
+
+    <div class="grid mb-3">
+      <div class="col-12 md:col-6">
+        <div class="field">
+          <label class="text-sm text-gray-600">Codice Prodotto</label>
+          <div class="font-medium">{{ selectedProduct.productCode }}</div>
+        </div>
+      </div>
+      <div class="col-12 md:col-6">
+        <div class="field">
+          <label class="text-sm text-gray-600">Unità di Misura</label>
+          <div class="font-medium">{{ selectedProduct.unitOfMeasure }}</div>
+        </div>
+      </div>
+
+      <div class="col-12 md:col-6">
+        <div class="field">
+          <label class="text-sm text-gray-600">Categoria</label>
+          <div class="font-medium">
+            {{
+              selectedProduct.additionalData?.category || "Non categorizzato"
+            }}
+          </div>
+        </div>
+      </div>
+      <div class="col-12 md:col-6">
+        <div class="field">
+          <label class="text-sm text-gray-600">IVA</label>
+          <div class="font-medium">{{ selectedProduct.vatRate }}%</div>
+        </div>
+      </div>
+
+      <div class="col-12" *ngIf="selectedProduct.additionalData?.note">
+        <div class="field">
+          <label class="text-sm text-gray-600">Note</label>
+          <div>{{ selectedProduct.additionalData?.note }}</div>
+        </div>
+      </div>
+    </div>
+
+    <h4 class="mt-4 mb-2">Storico Acquisti</h4>
+    <p-table
+      *ngIf="
+        selectedProduct.purchaseHistory &&
+        selectedProduct.purchaseHistory.length > 0
+      "
+      [value]="selectedProduct.purchaseHistory"
+      styleClass="p-datatable-sm"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th>Data</th>
+          <th class="text-right">Quantità</th>
+          <th class="text-right">Prezzo Unit.</th>
+          <th class="text-right">Totale</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-history>
+        <tr>
+          <td>{{ history.purchaseDate | date : "shortDate" }}</td>
+          <td class="text-right">{{ history.quantity }}</td>
+          <td class="text-right">{{ history.unitPrice | currency : "EUR" }}</td>
+          <td class="text-right">
+            {{ history.totalPrice | currency : "EUR" }}
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+
+    <div
+      *ngIf="
+        !selectedProduct.purchaseHistory ||
+        selectedProduct.purchaseHistory.length === 0
+      "
+      class="text-center p-3 border-1 border-gray-200 border-round"
+    >
+      <p class="mb-0">Nessuno storico acquisti disponibile</p>
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <button
+      pButton
+      icon="pi pi-times"
+      label="Chiudi"
+      class="p-button-text"
+      (click)="closeProductDetailsDialog()"
+    ></button>
+  </ng-template>
+</p-dialog>
+
+<style>
+  .card-with-shadow {
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  .summary-box {
+    height: 100%;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  }
+
+  .cursor-pointer {
+    cursor: pointer;
+  }
+
+  .cursor-pointer:hover {
+    text-decoration: underline;
+  }
+</style>

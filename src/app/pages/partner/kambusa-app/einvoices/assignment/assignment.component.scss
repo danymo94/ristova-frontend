@@ -7,3 +7,34 @@
         padding: 1.5rem;
     }
 }
+
+// Stili aggiuntivi per il dialog di selezione parziale
+::ng-deep {
+    .p-dialog-content {
+        // Imposta altezza massima per contenuti di dialogo con molte righe
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+}
+
+// Stili per il contatore delle righe
+.counter-badge {
+    font-size: 0.875rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    background-color: #e3f2fd;
+    color: #0d47a1;
+}
+
+// Stili per la tabella di selezione righe
+::ng-deep .p-datatable-sm {
+    .p-datatable-tbody>tr.selected-row {
+        background-color: #e3f2fd;
+    }
+
+    .p-datatable-thead>tr>th {
+        padding: 0.5rem;
+        font-weight: 600;
+        background-color: #f9f9f9;
+    }
+}

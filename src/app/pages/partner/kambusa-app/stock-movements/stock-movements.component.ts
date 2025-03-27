@@ -1,41 +1,42 @@
 import {
   Component,
   OnInit,
-  OnDestroy,
   inject,
   computed,
-  signal,
+  Signal,
   effect,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
-import { Subject } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
-
-// PrimeNG imports
-import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
-import { InputTextModule } from 'primeng/inputtext';
-import { TooltipModule } from 'primeng/tooltip';
-import { TagModule } from 'primeng/tag';
 import { CardModule } from 'primeng/card';
-import { BadgeModule } from 'primeng/badge';
+import { TableModule } from 'primeng/table';
+import { DialogModule } from 'primeng/dialog';
+import { InputTextModule } from 'primeng/inputtext';
+import { DropdownModule } from 'primeng/dropdown';
+import { TabViewModule } from 'primeng/tabview';
+import { TooltipModule } from 'primeng/tooltip';
+import { ToastModule } from 'primeng/toast';
+import { SelectButtonModule } from 'primeng/selectbutton';
 
-// Core imports
 import { ProjectStore } from '../../../../core/store/project.signal-store';
 import { WarehouseStore } from '../../../../core/store/warehouse.signal-store';
 import { StockMovementStore } from '../../../../core/store/stock-movement.signal-store';
 import { RawProductStore } from '../../../../core/store/rawproduct.signal-store';
-import { ToastService } from '../../../../core/services/toast.service';
+
+import { WarehouseSelectorComponent } from './warehouse-selector/warehouse-selector.component';
+import { MovementListComponent } from './movement-list/movement-list.component';
+import { MovementDetailsComponent } from './movement-details/movement-details.component';
+import { NewMovementWizardComponent } from './new-movement-wizard/new-movement-wizard.component';
+import { WarehouseInventoryComponent } from './warehouse-inventory/warehouse-inventory.component';
+
+import { Warehouse } from '../../../../core/models/warehouse.model';
 import {
   StockMovement,
   StockMovementType,
   MovementStatus,
 } from '../../../../core/models/stock-movement.model';
-
-// View Component
-import { ViewComponent } from './view/view.component';
+import { ToastService } from '../../../../core/services/toast.service';
 
 @Component({
   selector: 'app-stock-movements',
@@ -43,286 +44,201 @@ import { ViewComponent } from './view/view.component';
   imports: [
     CommonModule,
     FormsModule,
-    RouterModule,
-    TableModule,
     ButtonModule,
-    InputTextModule,
-    TooltipModule,
-    TagModule,
     CardModule,
-    BadgeModule,
-    ViewComponent,
+    TableModule,
+    DialogModule,
+    InputTextModule,
+    DropdownModule,
+    TabViewModule,
+    TooltipModule,
+    ToastModule,
+    SelectButtonModule,
+
+    // Componenti figli
+    WarehouseSelectorComponent,
+    MovementListComponent,
+    MovementDetailsComponent,
+    NewMovementWizardComponent,
+    WarehouseInventoryComponent,
   ],
   templateUrl: './stock-movements.component.html',
+  styleUrls: ['./stock-movements.component.scss'],
 })
-export class StockMovementsComponent implements OnInit, OnDestroy {
-  // Dependency injection
+export class StockMovementsComponent implements OnInit {
+  // Servizi iniettati
   private projectStore = inject(ProjectStore);
-  private warehouseStore = inject(WarehouseStore);
-  private stockMovementStore = inject(StockMovementStore);
+  public warehouseStore = inject(WarehouseStore);
+  public stockMovementStore = inject(StockMovementStore);
   private rawProductStore = inject(RawProductStore);
   private toastService = inject(ToastService);
 
-  // Signals from store
+  // Signal selectors dagli store
   selectedProject = this.projectStore.selectedProject;
   warehouses = this.warehouseStore.warehouses;
-  movements = this.stockMovementStore.movements;
+  stockMovements = this.stockMovementStore.movements;
   selectedMovement = this.stockMovementStore.selectedMovement;
 
-  // Local signals
-  viewMode = signal<'list' | 'grid'>('list');
-  searchQuery = signal<string>('');
-  filterType = signal<StockMovementType | 'ALL'>('ALL');
-  filterWarehouse = signal<string | null>(null);
+  // Stato del componente
+  viewType: 'warehouse' | 'costcenter' = 'warehouse';
+  selectedWarehouse: Warehouse | null = null;
 
-  // View mode signal
-  isDetailView = signal<boolean>(false);
-  selectedMovementId = signal<string | null>(null);
+  // Stato dei dialog
+  showNewMovementDialog = false;
+  showDetailsDialog = false;
 
-  // Loading state
-  loading = computed(
-    () =>
-      this.stockMovementStore.loading() ||
-      this.warehouseStore.loading() ||
-      this.rawProductStore.loading()
+  // Stato dei tab
+  activeTabIndex = 0; // 0: Movimenti, 1: Inventario
+
+  // Filtri
+  filterByType: StockMovementType | null = null;
+  filterByStatus: MovementStatus | null = null;
+  searchQuery = '';
+
+  // Computed signals
+  isLoading = computed(
+    () => this.warehouseStore.loading() || this.stockMovementStore.loading()
   );
 
-  // Computed values
-  filteredMovements = computed(() => {
-    const allMovements = this.movements();
-    if (!allMovements) return [];
+  hasSelectedWarehouse = computed(() => !!this.selectedWarehouse);
 
-    let filtered = [...allMovements];
-
-    // Filtra per tipo
-    if (this.filterType() !== 'ALL') {
-      filtered = filtered.filter((m) => m.movementType === this.filterType());
-    }
-
-    // Filtra per magazzino
-    if (this.filterWarehouse()) {
-      filtered = filtered.filter(
-        (m) =>
-          m.warehouseId === this.filterWarehouse() ||
-          m.sourceWarehouseId === this.filterWarehouse() ||
-          m.targetWarehouseId === this.filterWarehouse()
-      );
-    }
-
-    // Filtra per termine di ricerca
-    const search = this.searchQuery().toLowerCase();
-    if (search) {
-      filtered = filtered.filter(
-        (m) =>
-          m.reference?.toLowerCase().includes(search) ||
-          this.getMovementTypeName(m.movementType)
-            .toLowerCase()
-            .includes(search) ||
-          this.getWarehouseName(m.warehouseId).toLowerCase().includes(search)
-      );
-    }
-
-    return filtered;
-  });
-
-  // Tipi di movimento disponibili
-  movementTypes: { label: string; value: StockMovementType; icon: string }[] = [
-    {
-      label: 'Acquisto',
-      value: StockMovementType.PURCHASE,
-      icon: 'pi pi-shopping-cart',
-    },
-    {
-      label: 'Vendita',
-      value: StockMovementType.SALE,
-      icon: 'pi pi-money-bill',
-    },
-    {
-      label: 'Rettifica inventario',
-      value: StockMovementType.INVENTORY,
-      icon: 'pi pi-sync',
-    },
-    {
-      label: 'Trasferimento',
-      value: StockMovementType.TRANSFER,
-      icon: 'pi pi-arrows-h',
-    },
-    {
-      label: 'Scarico per sprechi',
-      value: StockMovementType.WASTE,
-      icon: 'pi pi-trash',
-    },
-    {
-      label: 'Uso interno',
-      value: StockMovementType.INTERNAL_USE,
-      icon: 'pi pi-home',
-    },
-    {
-      label: 'Reso a fornitore',
-      value: StockMovementType.RETURN,
-      icon: 'pi pi-reply',
-    },
-    {
-      label: 'Spesa (centro di costo)',
-      value: StockMovementType.EXPENSE,
-      icon: 'pi pi-euro',
-    },
+  // Opzioni per i filtri
+  movementTypeOptions = [
+    { label: 'Tutti', value: null },
+    { label: 'Acquisto', value: StockMovementType.PURCHASE },
+    { label: 'Vendita', value: StockMovementType.SALE },
+    { label: 'Trasferimento', value: StockMovementType.TRANSFER },
+    { label: 'Inventario', value: StockMovementType.INVENTORY },
+    { label: 'Spreco', value: StockMovementType.WASTE },
+    { label: 'Uso Interno', value: StockMovementType.INTERNAL_USE },
+    { label: 'Reso', value: StockMovementType.RETURN },
+    { label: 'Spesa', value: StockMovementType.EXPENSE },
+    { label: 'Altro', value: StockMovementType.OTHER },
   ];
 
-  // Cleanup
-  private destroy$ = new Subject<void>();
+  movementStatusOptions = [
+    { label: 'Tutti', value: null },
+    { label: 'Bozza', value: 'draft' },
+    { label: 'Confermato', value: 'confirmed' },
+    { label: 'Annullato', value: 'cancelled' },
+  ];
+
+  // Opzioni per la selezione della vista
+  viewOptions = [
+    { icon: 'pi pi-building', label: 'Magazzini', value: 'warehouse' },
+    { icon: 'pi pi-chart-pie', label: 'Centri di Costo', value: 'costcenter' },
+  ];
 
   constructor() {
-    // Carica i dati quando il progetto selezionato cambia
+    // Reagire ai cambiamenti del progetto selezionato
     effect(() => {
-      const project = this.selectedProject();
-      if (project?.id) {
-        this.loadData(project.id);
+      const projectId = this.selectedProject()?.id;
+      if (projectId) {
+        this.loadWarehouses(projectId);
       }
     });
   }
 
-  ngOnInit(): void {
-    const projectId = this.selectedProject()?.id;
+  ngOnInit() {
+    const projectId = this.getSelectedProjectId();
     if (projectId) {
-      this.loadData(projectId);
+      this.loadWarehouses(projectId);
     }
   }
 
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
-
-  loadData(projectId: string): void {
-    // Carica i movimenti di stock
-    this.stockMovementStore.fetchProjectMovements({ projectId });
-
-    // Carica i magazzini/centri di costo
-    this.warehouseStore.fetchProjectWarehouses({ projectId });
-
-    // Carica i prodotti grezzi
-    this.rawProductStore.fetchProjectRawProducts({ projectId });
-  }
-
-  refreshData(): void {
-    const projectId = this.selectedProject()?.id;
-    if (projectId) {
-      this.loadData(projectId);
-    }
-  }
-
-  // Gestione filtri e ricerca
-  onSearch(event: Event): void {
-    this.searchQuery.set((event.target as HTMLInputElement).value);
-  }
-
-  filterByType(type: StockMovementType | 'ALL'): void {
-    this.filterType.set(type);
-  }
-
-  filterByWarehouse(warehouseId: string | null): void {
-    this.filterWarehouse.set(warehouseId);
-  }
-
-  // Cambia modalità di visualizzazione
-  toggleViewMode(): void {
-    this.viewMode.update((current) => (current === 'list' ? 'grid' : 'list'));
-  }
-
-  // Formattazione e utility
-  getMovementTypeName(type: StockMovementType | undefined): string {
-    if (!type) return 'N/A';
-    const found = this.movementTypes.find((t) => t.value === type);
-    return found ? found.label : type;
-  }
-
-  getMovementTypeIcon(type: StockMovementType | undefined): string {
-    if (!type) return 'pi pi-question';
-    const found = this.movementTypes.find((t) => t.value === type);
-    return found ? found.icon : 'pi pi-question';
-  }
-
-  getWarehouseName(warehouseId: string | undefined): string {
-    if (!warehouseId) return 'N/A';
-    const warehouseList = this.warehouses();
-    if (!warehouseList) return 'N/A';
-
-    const warehouse = warehouseList.find((w) => w.id === warehouseId);
-    return warehouse ? warehouse.name : 'N/A';
-  }
-
-  getStatusSeverity(status: MovementStatus | undefined): string {
-    if (!status) return 'info';
-    switch (status) {
-      case 'confirmed':
-        return 'success';
-      case 'draft':
-        return 'warning';
-      case 'cancelled':
-        return 'danger';
-      default:
-        return 'info';
-    }
-  }
-
-  getStatusLabel(status: MovementStatus | undefined): string {
-    if (!status) return 'N/A';
-    switch (status) {
-      case 'confirmed':
-        return 'Confermato';
-      case 'draft':
-        return 'Bozza';
-      case 'cancelled':
-        return 'Annullato';
-      default:
-        return status;
-    }
-  }
-
-  // Navigation methods
-  openDetailsDialog(movement: StockMovement): void {
-    // Setta il movimento selezionato
-    this.stockMovementStore.selectMovement(movement);
-    this.selectedMovementId.set(movement.id || null);
-    // Attiva la visualizzazione di dettaglio
-    this.isDetailView.set(true);
-  }
-
-  // Ritorna alla lista
-  returnToList(): void {
-    this.isDetailView.set(false);
-    this.selectedMovementId.set(null);
-    // Pulisci la selezione
-    this.stockMovementStore.selectMovement(null);
-  }
-
-  openNewMovementDialog(): void {
-    // Per ora implementeremo solo la visualizzazione
-    this.toastService.showInfo('Funzionalità in sviluppo');
-  }
-
-  // Gestione stato del movimento dalla lista
-  updateMovementStatus(movement: StockMovement, status: MovementStatus): void {
-    const projectId = this.selectedProject()?.id;
-
-    if (!projectId || !movement.id) {
-      this.toastService.showError('Dati insufficienti per aggiornare lo stato');
-      return;
-    }
-
-    this.stockMovementStore.updateMovementStatus({
+  private loadWarehouses(projectId: string) {
+    // Carica tutti i magazzini/centri di costo per il progetto
+    this.warehouseStore.fetchProjectWarehouses({
       projectId,
-      id: movement.id,
-      status,
+      withStats: true,
     });
   }
 
-  // Apre il dialog di eliminazione
-  openDeleteDialog(movement: StockMovement): void {
+  getSelectedProjectId(): string | null {
+    return this.selectedProject()?.id || null;
+  }
+
+  onWarehouseSelected(warehouse: Warehouse) {
+    this.selectedWarehouse = warehouse;
+
+    const projectId = this.getSelectedProjectId();
+    if (projectId && warehouse.id) {
+      // Carica i movimenti per il magazzino selezionato
+      this.stockMovementStore.fetchWarehouseMovements({
+        projectId,
+        warehouseId: warehouse.id,
+      });
+
+      // Carica anche il bilancio di magazzino
+      this.warehouseStore.fetchWarehouseBalance({
+        projectId,
+        warehouseId: warehouse.id,
+      });
+    }
+  }
+
+  changeView(type: 'warehouse' | 'costcenter') {
+    this.viewType = type;
+
+    // Resetta il magazzino selezionato quando si cambia vista
+    this.selectedWarehouse = null;
+    this.stockMovementStore.resetState();
+  }
+
+  openNewMovementDialog() {
+    this.showNewMovementDialog = true;
+  }
+
+  closeNewMovementDialog() {
+    this.showNewMovementDialog = false;
+  }
+
+  onMovementCreated(movement: StockMovement) {
+    this.closeNewMovementDialog();
+    this.toastService.showSuccess('Movimento creato con successo');
+
+    // Aggiorna i movimenti per il magazzino selezionato
+    if (this.selectedWarehouse?.id && this.getSelectedProjectId()) {
+      this.stockMovementStore.fetchWarehouseMovements({
+        projectId: this.getSelectedProjectId()!,
+        warehouseId: this.selectedWarehouse.id,
+      });
+    }
+  }
+
+  onMovementSelected(movement: StockMovement) {
     this.stockMovementStore.selectMovement(movement);
-    this.selectedMovementId.set(movement.id || null);
-    // Attiva la visualizzazione di dettaglio con l'azione di eliminazione
-    this.isDetailView.set(true);
+    this.showDetailsDialog = true;
+  }
+
+  closeDetailsDialog() {
+    this.showDetailsDialog = false;
+    this.stockMovementStore.selectMovement(null);
+  }
+
+  applyFilters() {
+    const projectId = this.getSelectedProjectId();
+    const warehouseId = this.selectedWarehouse?.id;
+
+    if (projectId && warehouseId) {
+      // Qui dovremmo implementare una logica per filtrare i movimenti
+      // In una implementazione reale, probabilmente passeremmo i filtri all'API
+      // Per ora, recuperiamo tutti i movimenti e filtriamo lato client
+      this.stockMovementStore.fetchWarehouseMovements({
+        projectId,
+        warehouseId,
+      });
+    }
+  }
+
+  clearFilters() {
+    this.filterByType = null;
+    this.filterByStatus = null;
+    this.searchQuery = '';
+    this.applyFilters();
+  }
+
+  changeTab(index: number) {
+    this.activeTabIndex = index;
   }
 }

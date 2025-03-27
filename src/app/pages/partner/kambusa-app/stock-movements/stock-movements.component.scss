@@ -1,0 +1,32 @@
+.stock-movements-container {
+    min-height: calc(100vh - 120px);
+}
+
+.min-h-20rem {
+    min-height: 20rem;
+}
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    text-align: center;
+
+    i {
+        font-size: 4rem;
+        color: var(--gray-300);
+        margin-bottom: 1rem;
+    }
+}
+
+// Stili per i badge delle informazioni di magazzino
+.summary-box {
+    transition: transform 0.2s;
+
+    &:hover {
+        transform: translateY(-2px);
+    }
+}
+

@@ -113,7 +113,7 @@
           >
             <span class="block text-gray-600 text-sm">Stock Totale</span>
             <span class="block text-lg font-bold">{{
-              warehouse.statistics?.totalStock || 0
+              warehouse.statistics?.totalStock?.toFixed(2)
             }}</span>
           </div>
           <div
@@ -121,7 +121,7 @@
           >
             <span class="block text-gray-600 text-sm">Valore</span>
             <span class="block text-lg font-bold">{{
-              warehouse.statistics?.stockValue || 0 | currency : "EUR"
+              warehouse.statistics?.stockValue?.toFixed(2) | currency : "EUR"
             }}</span>
           </div>
         </div>

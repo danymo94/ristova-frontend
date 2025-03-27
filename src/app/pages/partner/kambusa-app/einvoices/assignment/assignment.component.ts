@@ -178,6 +178,47 @@ export class AssignmentComponent implements OnInit {
     this.warehouseValuationDialogVisible = false; // Nascondi la prima dialog
   }
 
+  // Nuovo metodo per ottenere solo le righe non processate
+  getUnprocessedLines(): InvoiceLine[] {
+    if (
+      !this.selectedInvoiceForWarehouse ||
+      !this.selectedInvoiceForWarehouse.invoiceLines
+    ) {
+      return [];
+    }
+
+    return this.selectedInvoiceForWarehouse.invoiceLines.filter(
+      (line) => !line.processed && !line.processedWarehouseId
+    );
+  }
+
+  // Verifica se ci sono righe già processate
+  hasProcessedLines(): boolean {
+    if (
+      !this.selectedInvoiceForWarehouse ||
+      !this.selectedInvoiceForWarehouse.invoiceLines
+    ) {
+      return false;
+    }
+
+    const totalLines = this.selectedInvoiceForWarehouse.invoiceLines.length;
+    const unprocessedLines = this.getUnprocessedLines().length;
+
+    return totalLines > unprocessedLines;
+  }
+
+  // Calcola il totale delle righe selezionate
+  calculateSelectedTotal(): number {
+    if (!this.selectedInvoiceLines || this.selectedInvoiceLines.length === 0) {
+      return 0;
+    }
+
+    return this.selectedInvoiceLines.reduce(
+      (sum, line) => sum + line.totalPrice,
+      0
+    );
+  }
+
   toggleLineSelection(lineIndex: number): void {
     const index = this.selectedInvoiceLines.indexOf(lineIndex);
     if (index === -1) {
@@ -202,9 +243,11 @@ export class AssignmentComponent implements OnInit {
       return;
     }
 
+    // Ottieni gli identificatori delle righe selezionate
     const lineNumbers = this.selectedInvoiceLines.map(
       (line) => line.lineNumber
     );
+
 
     // Prepara i dati per l'invio all'API
     const data = {
@@ -212,6 +255,7 @@ export class AssignmentComponent implements OnInit {
     };
 
     // Chiamata allo stockMovementStore per processare la fattura nel magazzino
+    this.assigningToWarehouse = true;
     this.stockMovementStore.processInvoiceToWarehouse({
       projectId: this.projectId,
       invoiceId: this.selectedInvoiceForWarehouse.id!,

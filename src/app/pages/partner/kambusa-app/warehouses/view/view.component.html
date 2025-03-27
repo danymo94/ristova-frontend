@@ -42,33 +42,63 @@
 
         <div *ngIf="!loadingValues" class="economic-value-container">
           <!-- For physical warehouses -->
-          <div *ngIf="warehouse.type === 'PHYSICAL'" class="grid grid-cols-2">
-            <div class="value-box">
-              <div class="value-label">Valore Totale</div>
-              <div class="value-amount">
+          <div
+            *ngIf="warehouse.type === 'PHYSICAL'"
+            class="grid grid-cols-2 gap-2"
+          >
+            <div class="value-box bg-blue-50 p-2 rounded-md">
+              <div class="value-label text-sm text-gray-600">Valore Totale</div>
+              <div class="value-amount font-bold">
                 {{ warehouseValue | currency : "EUR" }}
               </div>
             </div>
-            <div class="value-box">
-              <div class="flows">
-                <div class="flow-in">
-                  <i class="pi pi-arrow-down-right"></i>
-                  <span>{{ totalInValue | currency : "EUR" }}</span>
-                </div>
-                <div class="flow-out">
-                  <i class="pi pi-arrow-up-right"></i>
-                  <span>{{ totalOutValue | currency : "EUR" }}</span>
-                </div>
+            <div class="value-box bg-gray-50 p-2 rounded-md">
+              <div class="text-sm text-gray-600">Referenze</div>
+              <div class="font-bold flex items-center w-full">
+                <i class="pi pi-box mr-1 text-blue-500"></i>
+                <span>{{
+                  warehouse.statistics?.productCount || totalOutValue || 0
+                }}</span>
               </div>
             </div>
           </div>
 
           <!-- For cost centers -->
-          <div *ngIf="warehouse.type === 'COST_CENTER'" class="value-container">
-            <div class="value-box cost-center-value">
-              <div class="value-label">Spesa Totale</div>
-              <div class="value-amount">
-                {{ totalOutValue | currency : "EUR" }}
+          <div
+            *ngIf="warehouse.type === 'COST_CENTER'"
+            class="value-box bg-green-50 p-3 rounded-md text-center"
+          >
+            <div class="value-label text-sm text-gray-600">Spesa Totale</div>
+            <div class="value-amount text-lg font-bold">
+              {{  warehouse.statistics?.stockValue | currency : "EUR" }}
+            </div>
+          </div>
+
+          <!-- Stats section (shown only if stats are available) -->
+          <div
+            *ngIf="warehouse.statistics && warehouse.type === 'PHYSICAL'"
+            class="mt-2 bg-gray-50 p-2 rounded-md"
+          >
+            <div class="text-xs text-gray-500 mb-1">Statistiche magazzino</div>
+            <div class="grid grid-cols-2 gap-2">
+              <div class="stat-item text-center">
+                <div class="stat-value font-medium">
+                  {{ warehouse.statistics?.totalStock?.toFixed(2) || 0 }}
+                </div>
+                <div class="stat-label text-xs text-gray-500">
+                  Giacenza totale
+                </div>
+              </div>
+              <div class="stat-item text-center">
+                <div class="stat-value text-sm font-medium">
+                  {{
+                    (warehouse.statistics?.lastMovementDate
+                      | date : "dd/MM/yy") || "N/A"
+                  }}
+                </div>
+                <div class="stat-label text-xs text-gray-500">
+                  Ultimo movimento
+                </div>
               </div>
             </div>
           </div>
@@ -84,8 +114,8 @@
         </p-tag>
 
         <p-badge
-          *ngIf="warehouse.statistics?.productCount"
-          [value]="warehouse.statistics?.productCount + ' prodotti' || ''"
+          *ngIf="warehouse.statistics?.movementCount"
+          [value]="warehouse.statistics?.movementCount + ' movimenti' || ''"
           severity="info"
         >
         </p-badge>
@@ -106,6 +136,25 @@
           <i class="pi pi-hashtag mr-2 mt-1"></i>
           <span>Codice: {{ warehouse.costCenterCode }}</span>
         </p>
+      </div>
+
+      <!-- Categorie dei centri di costo -->
+      <div
+        *ngIf="
+          warehouse.type === 'COST_CENTER' &&
+          warehouse.costCenterCategories &&
+          warehouse.costCenterCategories.length > 0
+        "
+        class="mb-3"
+      >
+        <p class="text-xs text-gray-500 mb-1">Categorie:</p>
+        <div class="flex flex-wrap gap-1">
+          <p-chip
+            *ngFor="let category of warehouse.costCenterCategories"
+            [label]="category"
+            [style]="{ 'font-size': '0.75rem' }"
+          ></p-chip>
+        </div>
       </div>
     </div>
 
@@ -179,7 +228,6 @@
 
 <!-- Vista list-item per tabelle -->
 <ng-container *ngIf="viewMode === 'list-item' && warehouse">
-  <!-- Questo contenuto verrà riutilizzato nella vista tabella -->
   <div class="flex gap-1 justify-end">
     <button
       pButton

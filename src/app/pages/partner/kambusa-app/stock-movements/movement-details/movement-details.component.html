@@ -1,0 +1,229 @@
+<div class="movement-details-container">
+  <!-- Loading State -->
+  <div *ngIf="loading" class="p-4">
+    <p-skeleton height="2rem" styleClass="mb-2"></p-skeleton>
+    <p-skeleton height="1rem" styleClass="mb-2" width="85%"></p-skeleton>
+    <p-skeleton height="10rem" styleClass="mb-2"></p-skeleton>
+  </div>
+
+  <!-- Dettagli movimento -->
+  <div *ngIf="!loading && movement">
+    <!-- Header con informazioni generali -->
+    <div class="mb-4">
+      <div class="grid">
+        <div class="col-12 md:col-6">
+          <div class="field">
+            <label class="text-sm text-gray-600">Tipo Movimento</label>
+            <div>
+              <p-tag
+                [value]="getMovementTypeLabel(movement.movementType)"
+                [severity]="'info'"
+                [style]="{ 'font-size': '1rem' }"
+              ></p-tag>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 md:col-6">
+          <div class="field">
+            <label class="text-sm text-gray-600">Stato</label>
+            <div>
+              <p-tag
+                [value]="getStatusLabel(movement.status)"
+                [severity]="getStatusSeverity(movement.status)"
+                [style]="{ 'font-size': '1rem' }"
+              ></p-tag>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 md:col-6">
+          <div class="field">
+            <label class="text-sm text-gray-600">Data</label>
+            <div class="font-medium">
+              {{ movement.movementDate | date : "fullDate" : "" : "it-IT" }}
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 md:col-6">
+          <div class="field">
+            <label class="text-sm text-gray-600">ID Movimento</label>
+            <div class="font-medium font-mono text-sm">{{ movement.id }}</div>
+          </div>
+        </div>
+
+        <div class="col-12 md:col-6">
+          <div class="field">
+            <label class="text-sm text-gray-600">Riferimento</label>
+            <div class="font-medium">
+              {{ movement.reference || "Nessun riferimento" }}
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 md:col-6" *ngIf="movement.documentNumber">
+          <div class="field">
+            <label class="text-sm text-gray-600">Numero Documento</label>
+            <div class="font-medium">{{ movement.documentNumber }}</div>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="field">
+            <label class="text-sm text-gray-600">Note</label>
+            <div>{{ movement.notes || "Nessuna nota" }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pannello riassuntivo quantità e importi -->
+    <div class="flex flex-wrap gap-3 mb-4">
+      <div class="summary-box bg-blue-50 border-round p-3 flex-1">
+        <div class="text-sm text-gray-700 mb-1">Quantità Totale</div>
+        <div class="text-2xl font-medium">
+          {{ movement.totalQuantity || 0 }}
+        </div>
+      </div>
+      <div class="summary-box bg-green-50 border-round p-3 flex-1">
+        <div class="text-sm text-gray-700 mb-1">Importo Totale</div>
+        <div class="text-2xl font-medium">
+          {{ movement.totalAmount | currency : "EUR" }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Dettagli del movimento -->
+    <div class="card p-3">
+      <h3 class="mt-0 mb-3">Dettaglio Prodotti</h3>
+
+      <!-- Loading state per dettagli -->
+      <div *ngIf="loading" class="p-3">
+        <p-skeleton
+          height="2rem"
+          styleClass="mb-2"
+          *ngFor="let i of [1, 2, 3, 4]"
+        ></p-skeleton>
+      </div>
+
+      <!-- Empty state -->
+      <div
+        *ngIf="!loading && (!movementDetails || movementDetails.length === 0)"
+        class="text-center p-3 border-1 border-gray-200 border-round"
+      >
+        <i class="pi pi-exclamation-circle text-3xl text-gray-400 mb-2"></i>
+        <p>Nessun dettaglio disponibile per questo movimento</p>
+      </div>
+
+      <!-- Tabella dettagli -->
+      <p-table
+        *ngIf="!loading && movementDetails && movementDetails.length > 0"
+        [value]="movementDetails"
+        [paginator]="movementDetails.length > 10"
+        [rows]="10"
+        styleClass="p-datatable-sm p-datatable-gridlines"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th style="width: 6rem">Direzione</th>
+            <th>Prodotto</th>
+            <th style="width: 8rem" class="text-right">Quantità</th>
+            <th style="width: 8rem" class="text-right">Prezzo Unitario</th>
+            <th style="width: 8rem" class="text-right">Importo</th>
+          </tr>
+        </ng-template>
+
+        <ng-template pTemplate="body" let-detail>
+          <tr>
+            <td>
+              <div class="flex align-items-center">
+                <i
+                  [class]="
+                    getDirectionIcon(detail.direction) +
+                    ' mr-2 ' +
+                    getDirectionColor(detail.direction)
+                  "
+                ></i>
+                <span>{{ getDirectionLabel(detail.direction) }}</span>
+              </div>
+            </td>
+            <td>
+              <div class="product-name">
+                {{
+                  productNames.get(detail.rawProductId) ||
+                    "Prodotto ID: " + detail.rawProductId
+                }}
+              </div>
+              <div *ngIf="detail.notes" class="text-xs text-gray-500">
+                {{ detail.notes }}
+              </div>
+            </td>
+            <td class="text-right">{{ detail.quantity }}</td>
+            <td class="text-right">
+              {{ detail.unitPrice | currency : "EUR" }}
+            </td>
+            <td class="text-right">
+              {{ detail.totalPrice | currency : "EUR" }}
+            </td>
+          </tr>
+        </ng-template>
+
+        <ng-template
+          pTemplate="footer"
+          *ngIf="movementDetails && movementDetails.length > 0"
+        >
+          <tr>
+            <td colspan="2" class="text-right font-medium">Totali:</td>
+            <td class="text-right font-medium">
+              {{ movement?.totalQuantity || 0 }}
+            </td>
+            <td></td>
+            <td class="text-right font-medium">
+              {{ movement?.totalAmount | currency : "EUR" }}
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex justify-content-end gap-2 mt-4">
+      <button
+        *ngIf="movement.status === 'draft'"
+        pButton
+        icon="pi pi-times"
+        label="Annulla Movimento"
+        class="p-button-outlined p-button-danger"
+        (click)="showCancelDialog = true"
+      ></button>
+
+      <button
+        *ngIf="movement.status === 'draft'"
+        pButton
+        icon="pi pi-check"
+        label="Conferma Movimento"
+        class="p-button-outlined p-button-success"
+        (click)="showConfirmDialog = true"
+      ></button>
+
+      <button
+        pButton
+        icon="pi pi-times"
+        label="Chiudi"
+        class="p-button-text"
+        (click)="closeDetails()"
+      ></button>
+    </div>
+  </div>
+</div>
+
+<!-- Conferma Dialogs -->
+<p-confirmDialog
+  header="Conferma movimento"
+  icon="pi pi-exclamation-triangle"
+  acceptLabel="Sì, conferma"
+  rejectLabel="Annulla"
+  acceptButtonStyleClass="p-button-success"
+  [style]="{ width: '450px' }"
+>
+</p-confirmDialog>
