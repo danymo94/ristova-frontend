@@ -279,24 +279,66 @@ export class ViewComponent {
     return true;
   }
 
-  // Metodi per la gestione del drag and drop
-  dragStart(event: any, invoice: EInvoice): void {
-    if (event.target) {
-      // Imposta gli stili per indicare che l'elemento è in fase di trascinamento
-      event.target.style.opacity = '0.7';
+// ...existing code...
 
-      // Salva i dati della fattura nell'evento di trascinamento
-      event.dataTransfer.setData('invoiceId', invoice.id);
+// Metodi per la gestione del drag and drop
+// Metodi per la gestione del drag and drop
+dragStart(event: any, invoice: EInvoice): void {
+  if (invoice && invoice.id) {
+    // Ottieni l'elemento usando l'ID univoco
+    const cardId = `invoice-card-${invoice.id}`;
+    const cardElement = document.getElementById(cardId);
+    
+    if (cardElement) {
+      console.log('Card trovata con ID:', cardId);
+      cardElement.classList.add('opacity-0');
+    } else {
+      console.log('Card non trovata con ID:', cardId);
+    }
 
-      // Emetti evento di drag start
-      this.onDrag.emit({ invoice, event });
+    // Crea una piccola anteprima personalizzata per il dragging
+    const dragImage = document.createElement('div');
+    dragImage.innerHTML = `
+      <div class="p-4 invoice-drag-clone">
+        <div class="drag-content">
+          <i class="pi pi-file-pdf drag-icon"></i>
+          <div>
+            <div class="font-medium text-sm">Fattura #${invoice.invoiceNumber}</div>
+            <div class="text-xs">${this.getSupplierName(invoice.supplierId).substring(0, 20)}</div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(dragImage);
+    
+    // Imposta l'immagine di trascinamento personalizzata
+    event.dataTransfer.setDragImage(dragImage, 20, 20);
+    
+    // Dopo un breve ritardo, rimuovi l'elemento di anteprima
+    setTimeout(() => {
+      document.body.removeChild(dragImage);
+    }, 0);
+
+    // Salva i dati della fattura nell'evento di trascinamento
+    event.dataTransfer.setData('invoiceId', invoice.id);
+
+    // Emetti evento di drag start
+    this.onDrag.emit({ invoice, event });
+  }
+}
+
+dragEnd(event: any, invoice: EInvoice): void {
+  if (invoice && invoice.id) {
+    // Ripristina la visibilità dell'elemento originale rimuovendo la classe dragging
+    const cardId = `invoice-card-${invoice.id}`;
+    const cardElement = document.getElementById(cardId);
+    
+    if (cardElement) {
+      console.log('Card trovata con ID per dragEnd:', cardId);
+      cardElement.classList.remove('opacity-0');
     }
   }
+}
 
-  dragEnd(event: any): void {
-    if (event.target) {
-      // Ripristina l'opacità dell'elemento quando il drag termina
-      event.target.style.opacity = '1';
-    }
-  }
+// ...existing code...
 }

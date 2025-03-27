@@ -57,6 +57,9 @@ export class WarehousesComponent implements OnInit, OnChanges {
     warehouseId: string;
   }>();
 
+  // Nuovo stato per il tipo di visualizzazione
+  viewType: 'warehouse' | 'costcenter' = 'warehouse';
+
   private warehouseStore = inject(WarehouseStore);
 
   physicalWarehouses: Warehouse[] = [];
@@ -157,6 +160,11 @@ export class WarehousesComponent implements OnInit, OnChanges {
     if (this.mode === 'dropTarget') {
       event.preventDefault();
     }
+  }
+
+  // Nuovo metodo per cambiare la vista
+  changeView(type: 'warehouse' | 'costcenter'): void {
+    this.viewType = type;
   }
 
   // Helper per calcolare le statistiche

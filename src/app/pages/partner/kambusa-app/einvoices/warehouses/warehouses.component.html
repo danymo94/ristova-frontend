@@ -1,132 +1,153 @@
 <div class="warehouse-container">
-  <p-tabView (onChange)="onTabChange($event)">
-    <!-- Tab Magazzini Fisici -->
-    <p-tabPanel header="Magazzini" leftIcon="pi pi-warehouse">
-      <div *ngIf="isLoading" class="loading-skeleton">
-        <div class="grid">
-          <div
-            *ngFor="let i of [1, 2, 3]"
-            class="col-12 md:col-6 lg:col-4 xl:col-3 mb-3"
-          >
-            <p-skeleton height="150px" styleClass="mb-2"></p-skeleton>
-          </div>
+  <!-- Switch/Toggle per cambio visualizzazione -->
+  <div class="toggle-container">
+    <div class="toggle-wrapper">
+      <button
+        class="toggle-button"
+        [ngClass]="{ active: viewType === 'warehouse' }"
+        (click)="changeView('warehouse')"
+      >
+        <i class="pi pi-building mr-2"></i>
+        Magazzini
+      </button>
+      <button
+        class="toggle-button"
+        [ngClass]="{ active: viewType === 'costcenter' }"
+        (click)="changeView('costcenter')"
+      >
+        <i class="pi pi-chart-pie mr-2"></i>
+        Centri di Costo
+      </button>
+      <div class="toggle-slider" [ngClass]="viewType"></div>
+    </div>
+  </div>
+
+  <!-- Magazzini Fisici -->
+  <div *ngIf="viewType === 'warehouse'">
+    <div *ngIf="isLoading" class="loading-skeleton">
+      <div class="grid">
+        <div
+          *ngFor="let i of [1, 2, 3]"
+          class="col-12 md:col-6 lg:col-4 xl:col-3 mb-3"
+        >
+          <p-skeleton height="150px" styleClass="mb-2"></p-skeleton>
         </div>
       </div>
+    </div>
 
+    <div
+      *ngIf="
+        !isLoading && (!physicalWarehouses || physicalWarehouses.length === 0)
+      "
+      class="empty-state"
+    >
       <div
-        *ngIf="
-          !isLoading && (!physicalWarehouses || physicalWarehouses.length === 0)
-        "
-        class="empty-state"
+        class="flex flex-column align-items-center justify-content-center p-5 text-center"
+      >
+        <i class="pi pi-inbox text-6xl mb-3 text-gray-400"></i>
+        <h3>Nessun magazzino disponibile</h3>
+        <p class="text-gray-500">
+          Non ci sono magazzini fisici configurati per questo progetto.
+        </p>
+      </div>
+    </div>
+
+    <div
+      *ngIf="!isLoading && physicalWarehouses!.length > 0"
+      class="warehouse-flex-container"
+    >
+      <div
+        *ngFor="let warehouse of physicalWarehouses"
+        class="warehouse-square"
       >
         <div
-          class="flex flex-column align-items-center justify-content-center p-5 text-center"
+          class="warehouse-card"
+          [ngClass]="{
+            'warehouse-droppable': mode === 'dropTarget',
+            'warehouse-drag-over': dragOverWarehouseId === warehouse.id
+          }"
+          (click)="selectWarehouse(warehouse)"
+          (dragenter)="onDragEnter($event, warehouse.id || '')"
+          (dragleave)="onDragLeave($event)"
+          (dragover)="onDragOver($event)"
+          (drop)="onDrop($event, warehouse.id || '')"
         >
-          <i class="pi pi-inbox text-6xl mb-3 text-gray-400"></i>
-          <h3>Nessun magazzino disponibile</h3>
-          <p class="text-gray-500">
-            Non ci sono magazzini fisici configurati per questo progetto.
-          </p>
+          <div class="warehouse-icon">
+            <i class="pi pi-building"></i>
+          </div>
+          <div class="warehouse-content">
+            <h5 class="warehouse-name">{{ warehouse.name }}</h5>
+            <div class="warehouse-count">
+              {{ getProductCount(warehouse) }} prodotti
+            </div>
+            <div class="warehouse-value">
+              {{ getTotalValue(warehouse) | currency : "EUR" }}
+            </div>
+          </div>
         </div>
       </div>
+    </div>
+  </div>
 
-      <div
-        *ngIf="!isLoading && physicalWarehouses!.length > 0"
-        class="warehouse-flex-container"
-      >
+  <!-- Centri di Costo -->
+  <div *ngIf="viewType === 'costcenter'">
+    <div *ngIf="isLoading" class="loading-skeleton">
+      <div class="grid">
         <div
-          *ngFor="let warehouse of physicalWarehouses"
-          class="warehouse-square"
+          *ngFor="let i of [1, 2, 3]"
+          class="col-12 md:col-6 lg:col-4 xl:col-3 mb-3"
         >
-          <div
-            class="warehouse-card"
-            [ngClass]="{
-              'warehouse-droppable': mode === 'dropTarget',
-              'warehouse-drag-over': dragOverWarehouseId === warehouse.id
-            }"
-            (click)="selectWarehouse(warehouse)"
-            (dragenter)="onDragEnter($event, warehouse.id || '')"
-            (dragleave)="onDragLeave($event)"
-            (dragover)="onDragOver($event)"
-            (drop)="onDrop($event, warehouse.id || '')"
-          >
-            <div class="warehouse-icon">
-              <i class="pi pi-building"></i>
-            </div>
-            <div class="warehouse-content">
-              <h5 class="warehouse-name">{{ warehouse.name }}</h5>
-              <div class="warehouse-count">
-                {{ getProductCount(warehouse) }} prodotti
-              </div>
-              <div class="warehouse-value">
-                {{ getTotalValue(warehouse) | currency : "EUR" }}
-              </div>
-            </div>
-          </div>
+          <p-skeleton height="150px" styleClass="mb-2"></p-skeleton>
         </div>
       </div>
-    </p-tabPanel>
+    </div>
 
-    <!-- Tab Centri di Costo -->
-    <p-tabPanel header="Centri di Costo" leftIcon="pi pi-chart-pie">
-      <div *ngIf="isLoading" class="loading-skeleton">
-        <div class="grid">
-          <div
-            *ngFor="let i of [1, 2, 3]"
-            class="col-12 md:col-6 lg:col-4 xl:col-3 mb-3"
-          >
-            <p-skeleton height="150px" styleClass="mb-2"></p-skeleton>
-          </div>
-        </div>
-      </div>
-
+    <div
+      *ngIf="!isLoading && (!costCenters || costCenters.length === 0)"
+      class="empty-state"
+    >
       <div
-        *ngIf="!isLoading && (!costCenters || costCenters.length === 0)"
-        class="empty-state"
+        class="flex flex-column align-items-center justify-content-center p-5 text-center"
       >
+        <i class="pi pi-chart-pie text-6xl mb-3 text-gray-400"></i>
+        <h3>Nessun centro di costo disponibile</h3>
+        <p class="text-gray-500">
+          Non ci sono centri di costo configurati per questo progetto.
+        </p>
+      </div>
+    </div>
+
+    <div
+      *ngIf="!isLoading && costCenters!.length > 0"
+      class="warehouse-flex-container"
+    >
+      <div *ngFor="let costCenter of costCenters" class="warehouse-square">
         <div
-          class="flex flex-column align-items-center justify-content-center p-5 text-center"
+          class="warehouse-card cost-center"
+          [ngClass]="{
+            'warehouse-droppable': mode === 'dropTarget',
+            'warehouse-drag-over': dragOverWarehouseId === costCenter.id
+          }"
+          (click)="selectWarehouse(costCenter)"
+          (dragenter)="onDragEnter($event, costCenter.id || '')"
+          (dragleave)="onDragLeave($event)"
+          (dragover)="onDragOver($event)"
+          (drop)="onDrop($event, costCenter.id || '')"
         >
-          <i class="pi pi-chart-pie text-6xl mb-3 text-gray-400"></i>
-          <h3>Nessun centro di costo disponibile</h3>
-          <p class="text-gray-500">
-            Non ci sono centri di costo configurati per questo progetto.
-          </p>
-        </div>
-      </div>
-
-      <div
-        *ngIf="!isLoading && costCenters!.length > 0"
-        class="warehouse-flex-container"
-      >
-        <div *ngFor="let costCenter of costCenters" class="warehouse-square">
-          <div
-            class="warehouse-card cost-center"
-            [ngClass]="{
-              'warehouse-droppable': mode === 'dropTarget',
-              'warehouse-drag-over': dragOverWarehouseId === costCenter.id
-            }"
-            (click)="selectWarehouse(costCenter)"
-            (dragenter)="onDragEnter($event, costCenter.id || '')"
-            (dragleave)="onDragLeave($event)"
-            (dragover)="onDragOver($event)"
-            (drop)="onDrop($event, costCenter.id || '')"
-          >
-            <div class="warehouse-icon">
-              <i class="pi pi-chart-line"></i>
+          <div class="warehouse-icon">
+            <i class="pi pi-chart-line"></i>
+          </div>
+          <div class="warehouse-content">
+            <h5 class="warehouse-name">{{ costCenter.name }}</h5>
+            <div *ngIf="costCenter.costCenterCode" class="cost-center-code">
+              {{ costCenter.costCenterCode }}
             </div>
-            <div class="warehouse-content">
-              <h5 class="warehouse-name">{{ costCenter.name }}</h5>
-              <div *ngIf="costCenter.costCenterCode" class="cost-center-code">
-                {{ costCenter.costCenterCode }}
-              </div>
-              <div class="warehouse-value">
-                {{ getTotalValue(costCenter) | currency : "EUR" }}
-              </div>
+            <div class="warehouse-value">
+              {{ getTotalValue(costCenter) | currency : "EUR" }}
             </div>
           </div>
         </div>
       </div>
-    </p-tabPanel>
-  </p-tabView>
+    </div>
+  </div>
 </div>
