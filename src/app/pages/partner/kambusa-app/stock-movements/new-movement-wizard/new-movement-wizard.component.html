@@ -22,10 +22,7 @@
         >
           <div
             class="movement-type-card border-round-lg p-3"
-            [ngClass]="[
-              type.color,
-              { selected: typeForm.get('movementType')?.value === type.value }
-            ]"
+           
             (click)="typeForm.get('movementType')?.setValue(type.value)"
             pTooltip="{{ type.description }}"
             tooltipPosition="top"

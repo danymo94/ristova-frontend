@@ -30,7 +30,6 @@ export class WarehouseService {
 
     // Aggiungi parametri di query opzionali
     const params: Record<string, string> = {};
-    if (type) params['type'] = type;
     if (search) params['search'] = search;
     if (withStats !== undefined) params['withStats'] = withStats.toString();
 

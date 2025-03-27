@@ -121,7 +121,7 @@ export const StockMovementStore = signalStore(
           costCenterId: string;
         }>(
           pipe(
-            tap(() => patchState(store, { loading: true, error: null })),
+            tap(() => patchState(store, { loading: false, error: null })),
             switchMap(({ projectId, invoiceId, costCenterId }) =>
               stockMovementService
                 .assignInvoiceToCostCenter(projectId, invoiceId, costCenterId)
@@ -170,7 +170,7 @@ export const StockMovementStore = signalStore(
           data: any;
         }>(
           pipe(
-            tap(() => patchState(store, { loading: true, error: null })),
+            tap(() => patchState(store, { loading: false, error: null })),
             switchMap(({ projectId, invoiceId, warehouseId, data }) =>
               stockMovementService
                 .processInvoiceToWarehouse(
@@ -186,7 +186,7 @@ export const StockMovementStore = signalStore(
 
                       patchState(store, {
                         movements: [...currentMovements, movement],
-                        selectedMovement: movement,
+                        selectedMovement: null,
                         loading: false,
                         error: null,
                       });
