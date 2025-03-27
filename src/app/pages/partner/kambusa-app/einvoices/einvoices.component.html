@@ -53,6 +53,18 @@
         tooltipPosition="bottom"
       ></button>
 
+      <!-- Nuovo pulsante per mostrare solo fatture non processate/tutte -->
+      <button
+        pButton
+        pRipple
+        [icon]="showOnlyUnprocessed ? 'pi pi-eye-slash' : 'pi pi-eye'"
+        class="p-button-outlined"
+        [class.p-button-info]="!showOnlyUnprocessed"
+        (click)="toggleUnprocessedView()"
+        [pTooltip]="showOnlyUnprocessed ? 'Mostra tutte le fatture' : 'Mostra solo fatture da lavorare'"
+        tooltipPosition="bottom"
+      ></button>
+
       <button
         pButton
         pRipple
@@ -116,10 +128,20 @@
     <i class="pi pi-file-invoice"></i>
     <h3>Nessuna fattura trovata</h3>
     <p>
-      Non ci sono fatture elettroniche registrate per questo progetto o
-      corrispondenti ai filtri applicati.
+      <span *ngIf="showOnlyUnprocessed">Non ci sono fatture da lavorare per questo progetto.</span>
+      <span *ngIf="!showOnlyUnprocessed">Non ci sono fatture elettroniche registrate per questo progetto o
+      corrispondenti ai filtri applicati.</span>
     </p>
     <div class="flex gap-2 justify-center mt-4">
+      <button
+        *ngIf="showOnlyUnprocessed && (einvoices() && einvoices()!.length > 0)"
+        pButton
+        pRipple
+        icon="pi pi-eye"
+        label="Mostra tutte le fatture"
+        class="p-button-outlined"
+        (click)="toggleUnprocessedView()"
+      ></button>
       <button
         pButton
         pRipple

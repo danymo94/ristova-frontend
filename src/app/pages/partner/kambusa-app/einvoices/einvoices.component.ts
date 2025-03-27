@@ -84,6 +84,9 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
   };
   filteredInvoices: EInvoice[] = [];
   supplierOptions: SupplierOption[] = [];
+  
+  // Nuovo flag per controllare se mostrare solo fatture non processate
+  showOnlyUnprocessed: boolean = true;
 
   // Warehouse section
   showWarehouseSection: boolean = true;
@@ -332,6 +335,12 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
     this.applyFiltersAndSearch();
   }
 
+  // Nuovo metodo per cambiare la visualizzazione
+  toggleUnprocessedView(): void {
+    this.showOnlyUnprocessed = !this.showOnlyUnprocessed;
+    this.applyFiltersAndSearch();
+  }
+
   applyFiltersAndSearch(): void {
     let filtered = [...(this.einvoices() || [])];
 
@@ -371,6 +380,15 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
     if (this.filters.maxAmount !== null) {
       filtered = filtered.filter(
         (invoice) => invoice.totalAmount <= (this.filters.maxAmount || Infinity)
+      );
+    }
+
+    // Filtro aggiuntivo per mostrare solo fatture non processate
+    if (this.showOnlyUnprocessed) {
+      filtered = filtered.filter(
+        (invoice) => 
+          invoice.status?.costCenterStatus === 'not_assigned' && 
+          invoice.status?.inventoryStatus === 'not_processed'
       );
     }
 
