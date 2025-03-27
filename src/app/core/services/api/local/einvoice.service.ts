@@ -93,7 +93,7 @@ export class EinvoiceService {
       );
   }
 
-  // Invoice status management endpoints
+  // Payment status updating
   updatePaymentStatus(
     projectId: string,
     invoiceId: string,
@@ -110,96 +110,12 @@ export class EinvoiceService {
       );
   }
 
-  assignToCostCenter(
-    projectId: string,
-    invoiceId: string,
-    costCenterData: AssignCostCenterDto
-  ): Observable<EInvoice> {
-    return this.http
-      .put<any>(
-        `${this.apiUrl}/partner/projects/${projectId}/einvoices/${invoiceId}/cost-center`,
-        costCenterData
-      )
-      .pipe(
-        map((response) => response.data),
-        catchError(this.handleError)
-      );
-  }
-
-  processToInventory(
-    projectId: string,
-    invoiceId: string,
-    inventoryData: ProcessInventoryDto
-  ): Observable<EInvoice> {
-    return this.http
-      .put<any>(
-        `${this.apiUrl}/partner/projects/${projectId}/einvoices/${invoiceId}/inventory`,
-        inventoryData
-      )
-      .pipe(
-        map((response) => response.data),
-        catchError(this.handleError)
-      );
-  }
-
-  processAsRawProducts(
-    projectId: string,
-    invoiceId: string
-  ): Observable<EInvoice> {
-    return this.http
-      .put<any>(
-        `${this.apiUrl}/partner/projects/${projectId}/einvoices/${invoiceId}/raw-products`,
-        {}
-      )
-      .pipe(
-        map((response) => response.data),
-        catchError(this.handleError)
-      );
-  }
-
-  // Admin endpoints
-  getAllAdminInvoices(): Observable<EInvoice[]> {
-    return this.http.get<any>(`${this.apiUrl}/admin/einvoices`).pipe(
-      map((response) => response.data || []),
-      catchError(this.handleError)
-    );
-  }
-
+  // Admin endpoints (mantenuti solo quelli essenziali)
   getAdminProjectInvoices(projectId: string): Observable<EInvoice[]> {
     return this.http
       .get<any>(`${this.apiUrl}/admin/projects/${projectId}/einvoices`)
       .pipe(
         map((response) => response.data || []),
-        catchError(this.handleError)
-      );
-  }
-
-  getAdminPartnerInvoices(partnerId: string): Observable<EInvoice[]> {
-    return this.http
-      .get<any>(`${this.apiUrl}/admin/partners/${partnerId}/einvoices`)
-      .pipe(
-        map((response) => response.data || []),
-        catchError(this.handleError)
-      );
-  }
-
-  getAdminInvoice(invoiceId: string): Observable<EInvoice> {
-    return this.http
-      .get<any>(`${this.apiUrl}/admin/einvoices/${invoiceId}`)
-      .pipe(
-        map((response) => response.data),
-        catchError(this.handleError)
-      );
-  }
-
-  updateAdminInvoice(
-    invoiceId: string,
-    invoice: UpdateEInvoiceDto
-  ): Observable<EInvoice> {
-    return this.http
-      .put<any>(`${this.apiUrl}/admin/einvoices/${invoiceId}`, invoice)
-      .pipe(
-        map((response) => response.data),
         catchError(this.handleError)
       );
   }

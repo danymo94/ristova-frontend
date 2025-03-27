@@ -12,11 +12,12 @@ import {
   CreateWarehouseDto,
   UpdateWarehouseDto,
   WarehouseType,
+  WarehouseBalance,
 } from '../models/warehouse.model';
 import { WarehouseService } from '../services/api/local/warehouse.service';
 import { Router } from '@angular/router';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
-import { pipe, switchMap, catchError, of, tap, EMPTY, Observable } from 'rxjs';
+import { pipe, switchMap, tap, EMPTY } from 'rxjs';
 import { tapResponse } from '@ngrx/operators';
 import { ToastService } from '../services/toast.service';
 import { AuthService } from '../services/auth.service';
@@ -26,6 +27,7 @@ export interface WarehouseState {
   warehouses: Warehouse[] | null;
   filteredWarehouses: Warehouse[] | null;
   selectedWarehouse: Warehouse | null;
+  warehouseBalance: WarehouseBalance | null;
   loading: boolean;
   error: string | null;
 }
@@ -34,6 +36,7 @@ const initialState: WarehouseState = {
   warehouses: null,
   filteredWarehouses: null,
   selectedWarehouse: null,
+  warehouseBalance: null,
   loading: false,
   error: null,
 };
@@ -99,10 +102,11 @@ export const WarehouseStore = signalStore(
         projectId: string;
         type?: WarehouseType;
         search?: string;
+        withStats?: boolean;
       }>(
         pipe(
           tap(() => patchState(store, { loading: true, error: null })),
-          switchMap(({ projectId, type, search }) => {
+          switchMap(({ projectId, type, search, withStats }) => {
             const role = authService.userRole();
             const request =
               role === 'admin'
@@ -114,12 +118,14 @@ export const WarehouseStore = signalStore(
                 : warehouseService.getPartnerProjectWarehouses(
                     projectId,
                     type,
-                    search
+                    search,
+                    withStats
                   );
 
             return request.pipe(
               tapResponse({
                 next: (warehouses) => {
+                  console.log('Fetched warehouses', warehouses);
                   patchState(store, {
                     warehouses,
                     filteredWarehouses: warehouses,
@@ -198,6 +204,43 @@ export const WarehouseStore = signalStore(
                 },
               })
             );
+          })
+        )
+      ),
+
+      // Fetch warehouse balance
+      fetchWarehouseBalance: rxMethod<{
+        projectId: string;
+        warehouseId: string;
+      }>(
+        pipe(
+          tap(() => patchState(store, { loading: true, error: null })),
+          switchMap(({ projectId, warehouseId }) => {
+            return warehouseService
+              .getWarehouseBalance(projectId, warehouseId)
+              .pipe(
+                tapResponse({
+                  next: (balance) => {
+                    patchState(store, {
+                      warehouseBalance: balance,
+                      loading: false,
+                      error: null,
+                    });
+                  },
+                  error: (error: unknown) => {
+                    patchState(store, {
+                      loading: false,
+                      error:
+                        (error as Error)?.message ||
+                        'Failed to fetch warehouse balance',
+                    });
+                    toastService.showError(
+                      (error as Error)?.message ||
+                        'Errore nel caricamento del bilancio del magazzino'
+                    );
+                  },
+                })
+              );
           })
         )
       ),
@@ -408,6 +451,11 @@ export const WarehouseStore = signalStore(
       // Clear selected warehouse
       clearSelectedWarehouse: () => {
         patchState(store, { selectedWarehouse: null });
+      },
+
+      // Clear warehouse balance
+      clearWarehouseBalance: () => {
+        patchState(store, { warehouseBalance: null });
       },
 
       // Clear errors

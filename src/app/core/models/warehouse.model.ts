@@ -19,10 +19,33 @@ export interface WarehouseResponsible {
 
 export interface WarehouseStatistics {
   warehouseId: string;
-  totalStock: number;
-  stockValue: number;
-  productCount: number;
+  totalStock?: number;
+  stockValue?: number;
+  productCount?: number;
+  movementCount?: number;
+  lastMovementDate?: string;
+  lastUpdate?: string;
+}
+
+export interface WarehouseBalanceItem {
+  warehouseId: string;
+  projectId: string;
+  rawProductId: string;
+  currentQuantity: number;
   lastMovementDate: string;
+  averageUnitCost: number;
+  totalValue: number;
+}
+
+export interface WarehouseBalance {
+  warehouseId: string;
+  warehouseName: string;
+  type: WarehouseType;
+  projectId: string;
+  items: WarehouseBalanceItem[];
+  totalItems: number;
+  totalQuantity: number;
+  totalValue: number;
   lastUpdate: string;
 }
 

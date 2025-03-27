@@ -10,9 +10,7 @@ import {
 import {
   StockMovement,
   StockMovementDetail,
-  ProductBalance,
   WarehouseBalance,
-  CreateMovementFromInvoiceDto,
   InboundMovementDto,
   OutboundMovementDto,
   InventoryCheckDto,
@@ -25,7 +23,7 @@ import {
 import { StockMovementService } from '../services/api/local/stock-movement.service';
 import { Router } from '@angular/router';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
-import { pipe, switchMap, tap, Observable, EMPTY } from 'rxjs';
+import { pipe, switchMap, tap } from 'rxjs';
 import { tapResponse } from '@ngrx/operators';
 import { ToastService } from '../services/toast.service';
 import { AuthService } from '../services/auth.service';
@@ -35,7 +33,6 @@ export interface StockMovementState {
   movements: StockMovement[] | null;
   selectedMovement: StockMovement | null;
   movementDetails: StockMovementDetail[] | null;
-  warehouseBalance: WarehouseBalance | null;
   loading: boolean;
   processing: boolean;
   error: string | null;
@@ -45,7 +42,6 @@ const initialState: StockMovementState = {
   movements: null,
   selectedMovement: null,
   movementDetails: null,
-  warehouseBalance: null,
   loading: false,
   processing: false,
   error: null,
@@ -99,52 +95,14 @@ export const StockMovementStore = signalStore(
       const movement = selectedMovement();
       return movement ? movement.status !== 'confirmed' : false;
     }),
-
-    // Computed property per i totali di valore in entrata
-    totalValueIn: computed(() => {
-      const allMovements = movements();
-      if (!allMovements) return 0;
-
-      return allMovements
-        .filter(
-          (m) =>
-            [
-              StockMovementType.PURCHASE,
-              StockMovementType.INVENTORY,
-              StockMovementType.TRANSFER,
-              StockMovementType.RETURN,
-            ].includes(m.movementType) && m.status !== 'cancelled'
-        )
-        .reduce((total, movement) => total + movement.totalAmount, 0);
-    }),
-
-    // Computed property per i totali di valore in uscita
-    totalValueOut: computed(() => {
-      const allMovements = movements();
-      if (!allMovements) return 0;
-
-      return allMovements
-        .filter(
-          (m) =>
-            [
-              StockMovementType.SALE,
-              StockMovementType.WASTE,
-              StockMovementType.INTERNAL_USE,
-              StockMovementType.EXPENSE,
-            ].includes(m.movementType) && m.status !== 'cancelled'
-        )
-        .reduce((total, movement) => total + movement.totalAmount, 0);
-    }),
   })),
 
   withMethods(
     (
       store,
       stockMovementService = inject(StockMovementService),
-      projectStore = inject(ProjectStore),
       authService = inject(AuthService),
-      toastService = inject(ToastService),
-      router = inject(Router)
+      toastService = inject(ToastService)
     ) => {
       // Create a variable to store the instance reference for use inside rxMethods
       const instance = {
@@ -154,14 +112,7 @@ export const StockMovementStore = signalStore(
           return movements ? movements.find((m) => m.id === id) || null : null;
         },
 
-        // Utility method to check if movement is in draft status
-        isMovementDraft(movement: StockMovement): boolean {
-          return movement.status === 'draft';
-        },
-
         // 1. Operazioni con Fatture
-
-        // Trova l'rxMethod assignInvoiceToCostCenter e assicurati che sia definito così:
 
         // Assign invoice to cost center
         assignInvoiceToCostCenter: rxMethod<{
@@ -211,18 +162,18 @@ export const StockMovementStore = signalStore(
           )
         ),
 
-        // Create movement from invoice
-        createMovementFromInvoice: rxMethod<{
+        // Process invoice to warehouse
+        processInvoiceToWarehouse: rxMethod<{
           projectId: string;
           invoiceId: string;
           warehouseId: string;
-          data: CreateMovementFromInvoiceDto;
+          data: any;
         }>(
           pipe(
             tap(() => patchState(store, { loading: true, error: null })),
             switchMap(({ projectId, invoiceId, warehouseId, data }) =>
               stockMovementService
-                .createMovementFromInvoice(
+                .processInvoiceToWarehouse(
                   projectId,
                   invoiceId,
                   warehouseId,
@@ -241,12 +192,6 @@ export const StockMovementStore = signalStore(
                       });
 
                       toastService.showSuccess('Movimento creato con successo');
-
-                      // Aggiorna automaticamente il saldo del magazzino
-                      instance.fetchWarehouseBalance({
-                        projectId,
-                        warehouseId,
-                      });
                     },
                     error: (error: unknown) => {
                       toastService.showError(
@@ -301,43 +246,7 @@ export const StockMovementStore = signalStore(
           )
         ),
 
-        // 2. Operazioni Magazzino (fisico)
-
-        // Fetch warehouse balance
-        fetchWarehouseBalance: rxMethod<{
-          projectId: string;
-          warehouseId: string;
-        }>(
-          pipe(
-            tap(() => patchState(store, { loading: true, error: null })),
-            switchMap(({ projectId, warehouseId }) =>
-              stockMovementService
-                .getWarehouseBalance(projectId, warehouseId)
-                .pipe(
-                  tapResponse({
-                    next: (balance: WarehouseBalance) => {
-                      patchState(store, {
-                        warehouseBalance: balance,
-                        loading: false,
-                        error: null,
-                      });
-                    },
-                    error: (error: unknown) => {
-                      toastService.showError(
-                        'Errore nel recupero del saldo magazzino'
-                      );
-                      patchState(store, {
-                        loading: false,
-                        error:
-                          (error as Error)?.message ||
-                          'Errore nel recupero del saldo magazzino',
-                      });
-                    },
-                  })
-                )
-            )
-          )
-        ),
+        // 2. Operazioni Magazzino
 
         // Create inbound movement
         createInboundMovement: rxMethod<{
@@ -365,12 +274,6 @@ export const StockMovementStore = signalStore(
                       toastService.showSuccess(
                         'Carico prodotti registrato con successo'
                       );
-
-                      // Aggiorna automaticamente il saldo del magazzino
-                      instance.fetchWarehouseBalance({
-                        projectId,
-                        warehouseId,
-                      });
                     },
                     error: (error: unknown) => {
                       toastService.showError(
@@ -415,12 +318,6 @@ export const StockMovementStore = signalStore(
                       toastService.showSuccess(
                         'Scarico prodotti registrato con successo'
                       );
-
-                      // Aggiorna automaticamente il saldo del magazzino
-                      instance.fetchWarehouseBalance({
-                        projectId,
-                        warehouseId,
-                      });
                     },
                     error: (error: unknown) => {
                       toastService.showError(
@@ -465,12 +362,6 @@ export const StockMovementStore = signalStore(
                       toastService.showSuccess(
                         'Rettifica inventario registrata con successo'
                       );
-
-                      // Aggiorna automaticamente il saldo del magazzino
-                      instance.fetchWarehouseBalance({
-                        projectId,
-                        warehouseId,
-                      });
                     },
                     error: (error: unknown) => {
                       toastService.showError(
@@ -512,21 +403,6 @@ export const StockMovementStore = signalStore(
                     toastService.showSuccess(
                       'Trasferimento prodotti registrato con successo'
                     );
-
-                    // Aggiorna automaticamente i saldi di entrambi i magazzini
-                    if (data.sourceWarehouseId) {
-                      instance.fetchWarehouseBalance({
-                        projectId,
-                        warehouseId: data.sourceWarehouseId,
-                      });
-                    }
-
-                    if (data.targetWarehouseId) {
-                      instance.fetchWarehouseBalance({
-                        projectId,
-                        warehouseId: data.targetWarehouseId,
-                      });
-                    }
                   },
                   error: (error: unknown) => {
                     toastService.showError(
@@ -545,7 +421,7 @@ export const StockMovementStore = signalStore(
           )
         ),
 
-        // 3. Operazioni Generali
+        // 3. Recupero Movimenti
 
         // Fetch project movements
         fetchProjectMovements: rxMethod<{
@@ -693,6 +569,8 @@ export const StockMovementStore = signalStore(
           )
         ),
 
+        // 4. Gestione Movimenti
+
         // Delete movement
         deleteMovement: rxMethod<{
           projectId: string;
@@ -701,10 +579,6 @@ export const StockMovementStore = signalStore(
           pipe(
             tap(() => patchState(store, { processing: true, error: null })),
             switchMap(({ projectId, id }) => {
-              // Recupera il movimento prima di eliminarlo per aggiornare il saldo del magazzino
-              const movement = instance.getMovementById(id);
-              const warehouseId = movement?.warehouseId;
-
               return stockMovementService.deleteMovement(projectId, id).pipe(
                 tapResponse({
                   next: () => {
@@ -733,14 +607,6 @@ export const StockMovementStore = signalStore(
                       processing: false,
                       error: null,
                     });
-
-                    // Aggiorna il saldo del magazzino se necessario
-                    if (warehouseId && projectId) {
-                      instance.fetchWarehouseBalance({
-                        projectId,
-                        warehouseId,
-                      });
-                    }
                   },
                   error: (error: unknown) => {
                     toastService.showError(
@@ -768,10 +634,6 @@ export const StockMovementStore = signalStore(
           pipe(
             tap(() => patchState(store, { processing: true, error: null })),
             switchMap(({ projectId, id, status }) => {
-              // Recupera il movimento prima di aggiornare lo stato
-              const movement = instance.getMovementById(id);
-              const warehouseId = movement?.warehouseId;
-
               return stockMovementService
                 .updateMovementStatus(projectId, id, { status })
                 .pipe(
@@ -803,14 +665,6 @@ export const StockMovementStore = signalStore(
                         processing: false,
                         error: null,
                       });
-
-                      // Aggiorna il saldo del magazzino se necessario
-                      if (warehouseId && projectId) {
-                        instance.fetchWarehouseBalance({
-                          projectId,
-                          warehouseId,
-                        });
-                      }
                     },
                     error: (error: unknown) => {
                       toastService.showError(

@@ -6,9 +6,7 @@ import { environment } from '../../../environments/environment';
 import {
   StockMovement,
   StockMovementDetail,
-  ProductBalance,
   WarehouseBalance,
-  CreateMovementFromInvoiceDto,
   InboundMovementDto,
   OutboundMovementDto,
   InventoryCheckDto,
@@ -47,17 +45,17 @@ export class StockMovementService {
   }
 
   /**
-   * Crea un movimento di stock associando una fattura a un magazzino
+   * Elabora una fattura creando un movimento di stock in un magazzino fisico
    */
-  createMovementFromInvoice(
+  processInvoiceToWarehouse(
     projectId: string,
     invoiceId: string,
     warehouseId: string,
-    data: CreateMovementFromInvoiceDto
+    data: any
   ): Observable<StockMovement> {
     return this.http
       .post<any>(
-        `${this.apiUrl}/partner/projects/${projectId}/invoices/${invoiceId}/stockmovements/warehouse/${warehouseId}`,
+        `${this.apiUrl}/partner/projects/${projectId}/invoices/${invoiceId}/process-to-warehouse/${warehouseId}`,
         data
       )
       .pipe(
@@ -83,7 +81,7 @@ export class StockMovementService {
       );
   }
 
-  // 2. Operazioni Magazzino (fisica)
+  // 2. Operazioni Magazzino
 
   /**
    * Registra l'ingresso di prodotti in un magazzino fisico
@@ -160,27 +158,10 @@ export class StockMovementService {
       );
   }
 
-  /**
-   * Recupera il saldo attuale di tutti i prodotti in un magazzino fisico
-   */
-  getWarehouseBalance(
-    projectId: string,
-    warehouseId: string
-  ): Observable<WarehouseBalance> {
-    return this.http
-      .get<any>(
-        `${this.apiUrl}/partner/projects/${projectId}/warehouses/${warehouseId}/balance`
-      )
-      .pipe(
-        map((response) => response.data),
-        catchError(this.handleError)
-      );
-  }
-
-  // 3. Operazioni Generali
+  // 3. Recupero Movimenti
 
   /**
-   * Recupera tutti i movimenti di stock associati al progetto
+   * Recupera tutti i movimenti di stock associati a un progetto
    */
   getProjectMovements(projectId: string): Observable<StockMovement[]> {
     return this.http
@@ -209,7 +190,8 @@ export class StockMovementService {
   }
 
   /**
-   * Recupera i dettagli di un movimento specifico
+   * Recupera un movimento specifico
+   * Nota: questo endpoint non è esplicitamente documentato, ma è presumibilmente necessario
    */
   getMovement(projectId: string, id: string): Observable<StockMovement> {
     return this.http
@@ -238,6 +220,8 @@ export class StockMovementService {
         catchError(this.handleError)
       );
   }
+
+  // 4. Gestione Movimenti
 
   /**
    * Elimina un movimento di stock e tutti i suoi dettagli
@@ -270,6 +254,18 @@ export class StockMovementService {
         map((response) => response.data),
         catchError(this.handleError)
       );
+  }
+
+  // 5. Endpoint Admin - Solo se necessario per l'applicazione partner
+
+  /**
+   * Recupera tutti i movimenti di stock (admin)
+   */
+  getAllMovements(): Observable<StockMovement[]> {
+    return this.http.get<any>(`${this.apiUrl}/admin/stockmovements`).pipe(
+      map((response) => response.data || []),
+      catchError(this.handleError)
+    );
   }
 
   private handleError(error: any): Observable<never> {

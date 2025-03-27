@@ -137,7 +137,7 @@ export class AssignmentComponent implements OnInit, OnChanges {
     const selectedIds = this.selectedInvoices.map(invoice => invoice.id);
     
     // Assegna ciascuna fattura selezionata al centro di costo
-    this.assignInvoicesToCostCenter(projectId, this.warehouse.id, selectedIds);
+    this.assignInvoicesToCostCenter(projectId, this.warehouse.id, selectedIds as string[]);
   
     this.closeDialog();
     this.invoicesAssigned.emit();

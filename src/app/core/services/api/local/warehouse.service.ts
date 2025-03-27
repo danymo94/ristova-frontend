@@ -8,6 +8,7 @@ import {
   CreateWarehouseDto,
   UpdateWarehouseDto,
   WarehouseType,
+  WarehouseBalance,
 } from '../../../models/warehouse.model';
 
 @Injectable({
@@ -18,11 +19,12 @@ export class WarehouseService {
 
   constructor(private http: HttpClient) {}
 
-  // Partner endpoints
+  // GET /partner/projects/:projectId/warehouses
   getPartnerProjectWarehouses(
     projectId: string,
     type?: WarehouseType,
-    search?: string
+    search?: string,
+    withStats: boolean = true
   ): Observable<Warehouse[]> {
     let url = `${this.apiUrl}/partner/projects/${projectId}/warehouses`;
 
@@ -30,6 +32,7 @@ export class WarehouseService {
     const params: Record<string, string> = {};
     if (type) params['type'] = type;
     if (search) params['search'] = search;
+    if (withStats !== undefined) params['withStats'] = withStats.toString();
 
     const queryString = new URLSearchParams(params).toString();
     if (queryString) {
@@ -42,14 +45,15 @@ export class WarehouseService {
     );
   }
 
+  // GET /partner/projects/:projectId/warehouses/:id
   getPartnerWarehouse(
     projectId: string,
     id: string,
-    withStats: boolean = false
+    withStats: boolean = true
   ): Observable<Warehouse> {
     let url = `${this.apiUrl}/partner/projects/${projectId}/warehouses/${id}`;
-    if (withStats) {
-      url += '?withStats=true';
+    if (withStats !== undefined) {
+      url += `?withStats=${withStats}`;
     }
 
     return this.http.get<any>(url).pipe(
@@ -58,6 +62,7 @@ export class WarehouseService {
     );
   }
 
+  // POST /partner/projects/:projectId/warehouses
   createWarehouse(
     projectId: string,
     warehouse: CreateWarehouseDto
@@ -73,6 +78,7 @@ export class WarehouseService {
       );
   }
 
+  // PUT /partner/projects/:projectId/warehouses/:id
   updateWarehouse(
     projectId: string,
     id: string,
@@ -89,6 +95,7 @@ export class WarehouseService {
       );
   }
 
+  // DELETE /partner/projects/:projectId/warehouses/:id
   deleteWarehouse(projectId: string, id: string): Observable<void> {
     return this.http
       .delete<any>(
@@ -100,6 +107,7 @@ export class WarehouseService {
       );
   }
 
+  // PATCH /partner/projects/:projectId/warehouses/:id/status
   updateWarehouseStatus(
     projectId: string,
     id: string,
@@ -109,6 +117,21 @@ export class WarehouseService {
       .patch<any>(
         `${this.apiUrl}/partner/projects/${projectId}/warehouses/${id}/status`,
         { isActive }
+      )
+      .pipe(
+        map((response) => response.data),
+        catchError(this.handleError)
+      );
+  }
+
+  // GET /partner/projects/:projectId/warehouses/:id/balance
+  getWarehouseBalance(
+    projectId: string,
+    id: string
+  ): Observable<WarehouseBalance> {
+    return this.http
+      .get<any>(
+        `${this.apiUrl}/partner/projects/${projectId}/warehouses/${id}/balance`
       )
       .pipe(
         map((response) => response.data),

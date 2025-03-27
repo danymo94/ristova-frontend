@@ -58,34 +58,7 @@ export interface StockMovementDetail {
   expiry?: string; // Data di scadenza (se applicabile)
 }
 
-export interface ProductBalance {
-  warehouseId: string;
-  projectId: string;
-  rawProductId: string;
-  currentQuantity: number;
-  lastMovementDate: string;
-  averageUnitCost: number;
-  totalValue: number;
-}
-
-export interface WarehouseBalance {
-  balance: ProductBalance[];
-  totalValue: number;
-  productCount: number;
-  warehouseId: string;
-}
-
 // DTOs per le richieste
-export interface CreateMovementFromInvoiceDto {
-  details: {
-    rawProductId: string;
-    quantity: number;
-    unitPrice: number;
-    totalPrice: number;
-    notes?: string;
-  }[];
-}
-
 export interface InboundMovementDto {
   movementType: StockMovementType;
   products: {
@@ -129,6 +102,21 @@ export interface TransferMovementDto {
 
 export interface UpdateMovementStatusDto {
   status: MovementStatus;
+}
+
+export interface WarehouseBalance {
+  balance: {
+    warehouseId: string;
+    projectId: string;
+    rawProductId: string;
+    currentQuantity: number;
+    lastMovementDate: string;
+    averageUnitCost: number;
+    totalValue: number;
+  }[];
+  totalValue: number;
+  productCount: number;
+  warehouseId: string;
 }
 
 export interface AssignInvoiceToCostCenterResponse {

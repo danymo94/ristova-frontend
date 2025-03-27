@@ -32,7 +32,6 @@ import {
 } from '../../../../../core/models/warehouse.model';
 import {
   WarehouseBalance,
-  ProductBalance,
 } from '../../../../../core/models/stock-movement.model';
 
 // Store
@@ -148,7 +147,7 @@ export class WarehouseViewComponent implements OnInit, OnChanges, OnDestroy {
       this.warehouseValue = balance.totalValue || 0;
       this.totalInValue =
         balance.balance?.reduce(
-          (sum: number, item: ProductBalance) => sum + item.totalValue,
+          (sum: number, item: any) => sum + item.totalValue,
           0
         ) || 0;
       this.totalOutValue = balance.productCount || 0;
