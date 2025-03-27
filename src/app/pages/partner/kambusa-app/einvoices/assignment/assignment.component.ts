@@ -1,3 +1,4 @@
+import { StockMovementStore } from './../../../../../core/store/stock-movement.signal-store';
 import {
   Component,
   OnInit,
@@ -15,7 +16,10 @@ import { TableModule } from 'primeng/table';
 import { ToastService } from '../../../../../core/services/toast.service';
 import { WarehouseStore } from '../../../../../core/store/warehouse.signal-store';
 import { Warehouse } from '../../../../../core/models/warehouse.model';
-import { EInvoice } from '../../../../../core/models/einvoice.model';
+import {
+  EInvoice,
+  InvoiceLine,
+} from '../../../../../core/models/einvoice.model';
 
 @Component({
   selector: 'app-assignment',
@@ -35,6 +39,7 @@ export class AssignmentComponent implements OnInit {
   @Input() projectId: string = '';
   @Input() suppliers: any[] = [];
 
+  private stockMovementStore = inject(StockMovementStore);
   // Dialog e variabili per conferma assegnazione a centro di costo
   costCenterAssignDialogVisible: boolean = false;
   selectedCostCenterId: string | null = null;
@@ -48,7 +53,7 @@ export class AssignmentComponent implements OnInit {
 
   // Dialog e variabili per selezione parziale delle righe
   partialSelectionDialogVisible: boolean = false;
-  selectedInvoiceLines: number[] = [];
+  selectedInvoiceLines: any[] = [];
 
   // Stato di elaborazione
   assigningToWarehouse: boolean = false;
@@ -112,16 +117,18 @@ export class AssignmentComponent implements OnInit {
       projectId: this.projectId,
     });
 
-    // Qui implementeresti la chiamata effettiva all'API
+    // Imposta lo stato di elaborazione
     this.assigningToWarehouse = true;
-    setTimeout(() => {
-      // Simuliamo una chiamata API
-      this.assigningToWarehouse = false;
-      this.toastService.showSuccess(
-        'Fattura assegnata al centro di costo con successo!'
-      );
-      this.closeCostCenterAssignDialog();
-    }, 1000);
+
+    // Chiamata allo stockMovementStore per assegnare la fattura al centro di costo
+    this.stockMovementStore.assignInvoiceToCostCenter({
+      projectId: this.projectId,
+      invoiceId: this.selectedInvoiceForCostCenter.id!,
+      costCenterId: this.selectedCostCenterId,
+    });
+
+    // Chiudiamo la dialog - il toast di successo verrà gestito dallo store
+    this.closeCostCenterAssignDialog();
   }
 
   closeCostCenterAssignDialog(): void {
@@ -195,12 +202,23 @@ export class AssignmentComponent implements OnInit {
       return;
     }
 
-    // Process the warehouse valuation with selected lines
-    this.processWarehouseValuation(
-      this.selectedInvoiceForWarehouse.id!,
-      this.selectedWarehouseId,
-      this.selectedInvoiceLines
+    const lineNumbers = this.selectedInvoiceLines.map(
+      (line) => line.lineNumber
     );
+
+    // Prepara i dati per l'invio all'API
+    const data = {
+      lineIndices: lineNumbers, // Indici delle righe selezionate
+    };
+
+    // Chiamata allo stockMovementStore per processare la fattura nel magazzino
+    this.stockMovementStore.processInvoiceToWarehouse({
+      projectId: this.projectId,
+      invoiceId: this.selectedInvoiceForWarehouse.id!,
+      warehouseId: this.selectedWarehouseId,
+      data: data,
+    });
+
     this.closePartialSelectionDialog();
   }
 
@@ -229,13 +247,27 @@ export class AssignmentComponent implements OnInit {
       projectId: this.projectId,
     });
 
-    // Qui implementeresti la chiamata effettiva all'API
+    // Prepara i dati per l'invio all'API
+    const data = {
+      lineIndices: selectedLines || [], // Se null, invia array vuoto per indicare valorizzazione completa
+    };
+
+    // Chiamata allo stockMovementStore per processare la fattura nel magazzino
     this.assigningToWarehouse = true;
-    setTimeout(() => {
-      // Simuliamo una chiamata API
-      this.assigningToWarehouse = false;
-      this.toastService.showSuccess('Magazzino valorizzato con successo!');
-    }, 1000);
+
+    this.stockMovementStore.processInvoiceToWarehouse({
+      projectId: this.projectId,
+      invoiceId: invoiceId,
+      warehouseId: warehouseId,
+      data: data,
+    });
+
+    // Rimuovo il timeout simulato e mi affido all'API effettiva
+    // Lo store dovrebbe gestire lo stato di caricamento e notifiche
+    this.assigningToWarehouse = false;
+    this.toastService.showSuccess(
+      'Richiesta di valorizzazione magazzino inviata'
+    );
   }
 
   // Helper per recuperare i dati del fornitore

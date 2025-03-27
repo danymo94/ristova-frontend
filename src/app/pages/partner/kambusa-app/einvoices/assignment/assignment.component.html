@@ -149,6 +149,7 @@
 
     <p-table
       [value]="selectedInvoiceForWarehouse.invoiceLines || []"
+      [(selection)]="selectedInvoiceLines"
       styleClass="p-datatable-sm"
       [scrollable]="true"
       [rowHover]="true"
@@ -167,12 +168,9 @@
         </tr>
       </ng-template>
       <ng-template pTemplate="body" let-line let-i="rowIndex">
-        <tr [ngClass]="{ 'selected-row': isLineSelected(i) }">
+        <tr>
           <td>
-            <p-tableCheckbox
-              [value]="i"
-              (onChange)="toggleLineSelection(i)"
-            ></p-tableCheckbox>
+            <p-tableCheckbox [value]="line"></p-tableCheckbox>
           </td>
           <td>{{ line.articleCode }}</td>
           <td>{{ line.description }}</td>
