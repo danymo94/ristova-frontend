@@ -8,6 +8,8 @@ import {
   computed,
   effect,
   ViewChild,
+  HostListener,
+  ElementRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -34,6 +36,9 @@ import {
   UpdatePaymentStatusDto,
 } from '../../../../core/models/einvoice.model';
 import { Warehouse } from '../../../../core/models/warehouse.model';
+import { XmlParserService } from '../../../../core/services/kambusa/xml-parser.service';
+import { PdfOcrService } from '../../../../core/services/kambusa/pdf-to-xml.service';
+import { CreateEInvoiceDto } from '../../../../core/models/einvoice.model';
 
 // Componenti scorporati
 import { UploadComponent } from './upload/upload.component';
@@ -84,7 +89,7 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
   };
   filteredInvoices: EInvoice[] = [];
   supplierOptions: SupplierOption[] = [];
-  
+
   // Nuovo flag per controllare se mostrare solo fatture non processate
   showOnlyUnprocessed: boolean = true;
 
@@ -92,6 +97,13 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
   showWarehouseSection: boolean = true;
   warehouseMode: 'normal' | 'dropTarget' = 'dropTarget';
   selectedWarehouse: Warehouse | null = null;
+
+  // Nuova proprietà per il filtro per magazzino/centro di costo
+  selectedWarehouseFilter: {
+    id: string;
+    name: string;
+    type: 'PHYSICAL' | 'COST_CENTER' | null;
+  } | null = null;
 
   // Dialog control
   uploadDialogVisible: boolean = false;
@@ -126,6 +138,8 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
   private supplierStore = inject(SupplierStore);
   private einvoiceStore = inject(EInvoiceStore);
   private warehouseStore = inject(WarehouseStore);
+  private xmlParserService = inject(XmlParserService);
+  private pdfOcrService = inject(PdfOcrService);
 
   // Store signals
   suppliers = this.supplierStore.suppliers;
@@ -159,6 +173,11 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
 
   @ViewChild(AssignmentComponent) assignmentComponent!: AssignmentComponent;
+
+  // Drag and drop file handling
+  isDraggingFile: boolean = false;
+  isDraggingOverDropZone: boolean = false;
+  dragCounter: number = 0; // Per gestire più eventi dragenter/dragleave
 
   constructor() {
     // Monitor selected project changes
@@ -215,9 +234,50 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
   }
 
   handleWarehouseSelected(warehouse: Warehouse): void {
-    this.selectedWarehouse = warehouse;
-    this.toastService.showInfo(`Magazzino selezionato: ${warehouse.name}`);
-    // Qui puoi implementare la logica per filtrare le fatture per questo magazzino
+    // Verifica se l'utente ha cliccato sullo stesso magazzino già selezionato
+    if (
+      this.selectedWarehouseFilter &&
+      this.selectedWarehouseFilter.id === warehouse.id
+    ) {
+      // Rimuovi il filtro se già selezionato (funziona come un toggle)
+      this.clearWarehouseFilter();
+      return;
+    }
+
+    // Imposta il nuovo filtro per magazzino/centro di costo
+    this.selectedWarehouseFilter = {
+      id: warehouse.id || '',
+      name: warehouse.name,
+      type: warehouse.type as 'PHYSICAL' | 'COST_CENTER',
+    };
+
+    // Rimuovi filtro per mostrare solo fatture non processate
+    // quando si filtra per magazzino, per mostrare tutte le fatture correlate
+    this.showOnlyUnprocessed = false;
+
+    // Resetta gli altri filtri
+    this.resetFiltersExceptWarehouse();
+
+    // Applica il filtro
+    this.applyFiltersAndSearch();
+
+    this.toastService.showInfo(`Filtro applicato: ${warehouse.name}`);
+  }
+
+  clearWarehouseFilter(): void {
+    this.selectedWarehouseFilter = null;
+    this.applyFiltersAndSearch();
+    this.toastService.showInfo('Filtro per magazzino/centro di costo rimosso');
+  }
+
+  resetFiltersExceptWarehouse(): void {
+    this.filters = {
+      supplierId: null,
+      dateRange: null,
+      minAmount: null,
+      maxAmount: null,
+    };
+    this.searchQuery = '';
   }
 
   handleInvoiceDropped(event: {
@@ -270,7 +330,7 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
     const warehouses = this.warehouseStore.warehouses();
     return warehouses?.find((w) => w.id === warehouseId);
   }
- 
+
   // Upload dialog
   openUploadDialog(): void {
     this.uploadDialogVisible = true;
@@ -320,7 +380,8 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
       this.filters.dateRange ||
       this.filters.minAmount ||
       this.filters.maxAmount ||
-      this.searchQuery
+      this.searchQuery ||
+      this.selectedWarehouseFilter
     );
   }
 
@@ -386,10 +447,29 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
     // Filtro aggiuntivo per mostrare solo fatture non processate
     if (this.showOnlyUnprocessed) {
       filtered = filtered.filter(
-        (invoice) => 
-          invoice.status?.costCenterStatus === 'not_assigned' && 
-          invoice.status?.inventoryStatus === 'not_processed'
+        (invoice) =>
+          invoice.status?.costCenterStatus === 'not_assigned' &&
+          invoice.status?.inventoryStatus === 'not_processed' &&
+          !invoice.processing
       );
+    }
+
+    // Nuovo filtro per magazzino/centro di costo
+    if (this.selectedWarehouseFilter) {
+      if (this.selectedWarehouseFilter.type === 'PHYSICAL') {
+        // Filtra per magazzino fisico (cerca nei inventoryIds)
+        filtered = filtered.filter((invoice) =>
+          invoice.status?.inventoryIds?.includes(
+            this.selectedWarehouseFilter!.id
+          )
+        );
+      } else if (this.selectedWarehouseFilter.type === 'COST_CENTER') {
+        // Filtra per centro di costo
+        filtered = filtered.filter(
+          (invoice) =>
+            invoice.status?.costCenterId === this.selectedWarehouseFilter!.id
+        );
+      }
     }
 
     this.filteredInvoices = filtered;
@@ -470,5 +550,211 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
       projectId,
       invoiceId: invoice.id,
     });
+  }
+
+  // Aggiunta degli event listeners per il drag and drop
+  @HostListener('dragover', ['$event'])
+  onDragOver(event: DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!this.isDraggingFile) {
+      return;
+    }
+
+    this.isDraggingOverDropZone = true;
+  }
+
+  @HostListener('dragenter', ['$event'])
+  onDragEnter(event: DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragCounter++;
+
+    if (event.dataTransfer && event.dataTransfer.items) {
+      const hasFiles = Array.from(event.dataTransfer.items).some(
+        (item) =>
+          item.kind === 'file' &&
+          (item.type === 'application/xml' || item.type === 'text/xml')
+      );
+
+      this.isDraggingFile = hasFiles;
+    }
+  }
+
+  @HostListener('dragleave', ['$event'])
+  onDragLeave(event: DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragCounter--;
+
+    if (this.dragCounter === 0) {
+      this.isDraggingFile = false;
+      this.isDraggingOverDropZone = false;
+    }
+  }
+
+  @HostListener('drop', ['$event'])
+  onDrop(event: DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragCounter = 0;
+    this.isDraggingFile = false;
+    this.isDraggingOverDropZone = false;
+
+    if (!event.dataTransfer) {
+      return;
+    }
+
+    const files = event.dataTransfer.files;
+    if (files.length > 0) {
+      this.handleDroppedFiles(files);
+    }
+  }
+
+  // Gestisce i file rilasciati
+  async handleDroppedFiles(files: FileList) {
+    const projectId = this.getSelectedProjectId();
+    if (!projectId) {
+      this.toastService.showError(
+        'Nessun progetto selezionato. Impossibile caricare i file.'
+      );
+      return;
+    }
+
+    const xmlFiles = Array.from(files).filter((file) =>
+      file.name.toLowerCase().endsWith('.xml')
+    );
+
+    if (xmlFiles.length === 0) {
+      this.toastService.showInfo(
+        'Nessun file XML rilevato. Sono supportati solo file XML di fatture elettroniche.'
+      );
+      return;
+    }
+
+    // Processiamo direttamente i file XML
+    this.toastService.showInfo(
+      `Elaborazione di ${xmlFiles.length} file XML in corso...`
+    );
+
+    try {
+      this.processingInvoiceId = 'processing'; // Indicatore generico per mostrare che c'è un'elaborazione in corso
+      this.progressPercent = 0;
+
+      for (let i = 0; i < xmlFiles.length; i++) {
+        const file = xmlFiles[i];
+        try {
+          const xmlContent = await this.xmlParserService.readFileAsText(file);
+          const parsedInvoice = this.xmlParserService.parseInvoice(
+            xmlContent,
+            file.name
+          );
+
+          // Verificare se esiste già un fornitore con quel codice fiscale
+          let supplierId = this.findSupplierIdByTaxCode(
+            parsedInvoice.supplierData.taxCode
+          );
+
+          if (!supplierId) {
+            // Creare un nuovo fornitore
+            await this.createSupplierAndWait(
+              projectId,
+              parsedInvoice.supplierData
+            );
+            supplierId = this.findSupplierIdByTaxCode(
+              parsedInvoice.supplierData.taxCode
+            );
+
+            if (!supplierId) {
+              throw new Error(
+                `Impossibile creare il fornitore: ${parsedInvoice.supplierData.name}`
+              );
+            }
+          }
+
+          // Verificare se la fattura esiste già
+          if (this.doesInvoiceExist(parsedInvoice.invoiceNumber, supplierId)) {
+            this.toastService.showWarn(
+              `La fattura ${parsedInvoice.invoiceNumber} esiste già per questo fornitore.`
+            );
+            continue;
+          }
+
+          // Creare la fattura
+          const invoiceDto: CreateEInvoiceDto = {
+            supplierId,
+            invoiceNumber: parsedInvoice.invoiceNumber,
+            invoiceDate: parsedInvoice.invoiceDate,
+            totalAmount: parsedInvoice.totalAmount,
+            invoiceLines: parsedInvoice.invoiceLines,
+          };
+
+          this.einvoiceStore.createInvoice({
+            projectId,
+            invoice: invoiceDto,
+          });
+
+          // Aggiorna il progresso
+          this.progressPercent = Math.round(((i + 1) / xmlFiles.length) * 100);
+        } catch (error) {
+          console.error(
+            `Errore nell'elaborazione del file ${file.name}:`,
+            error
+          );
+          this.toastService.showError(
+            `Errore nell'elaborazione di ${file.name}`
+          );
+        }
+      }
+
+      this.toastService.showSuccess(
+        `Elaborazione completata per ${xmlFiles.length} file.`
+      );
+      this.refreshInvoices();
+    } catch (error) {
+      console.error("Errore durante l'elaborazione dei file:", error);
+      this.toastService.showError(
+        "Si è verificato un errore durante l'elaborazione dei file."
+      );
+    } finally {
+      this.processingInvoiceId = null;
+      this.progressPercent = 0;
+    }
+  }
+
+  // Helper per verificare se una fattura esiste già
+  doesInvoiceExist(invoiceNumber: string, supplierId: string): boolean {
+    return this.invoicesArray().some(
+      (invoice) =>
+        invoice.invoiceNumber === invoiceNumber &&
+        invoice.supplierId === supplierId
+    );
+  }
+
+  // Helper per trovare l'ID del fornitore dal suo codice fiscale
+  findSupplierIdByTaxCode(taxCode: string): string | undefined {
+    const suppliersArray = this.suppliers();
+    if (suppliersArray && Array.isArray(suppliersArray)) {
+      const supplier = suppliersArray.find((sup) => sup.taxCode === taxCode);
+      return supplier?.id;
+    }
+    return undefined;
+  }
+
+  // Helper per creare un fornitore e attendere il completamento
+  private async createSupplierAndWait(
+    projectId: string,
+    supplierData: any
+  ): Promise<void> {
+    this.supplierStore.createOrAssociateSupplier({
+      projectId,
+      supplier: supplierData,
+    });
+
+    // Attendi che la creazione del fornitore sia completata
+    while (this.supplierLoading()) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
   }
 }

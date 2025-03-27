@@ -1,4 +1,17 @@
-<div class="container mx-auto p-3 sm:p-4 md:p-5">
+<div class="container mx-auto p-3 sm:p-4 md:p-5 relative">
+  <!-- Overlay che appare durante il drag dei file XML -->
+  <div
+    *ngIf="isDraggingFile"
+    class="file-drop-overlay"
+    [class.active]="isDraggingOverDropZone"
+  >
+    <div class="drop-container">
+      <i class="pi pi-file-export text-5xl mb-3"></i>
+      <h3>Rilascia i file XML qui</h3>
+      <p>Le fatture elettroniche verranno caricate automaticamente</p>
+    </div>
+  </div>
+
   <!-- Stato vuoto quando non c'è progetto selezionato -->
   @if (!selectedProject()) {
   <div class="empty-state">
@@ -61,7 +74,11 @@
         class="p-button-outlined"
         [class.p-button-info]="!showOnlyUnprocessed"
         (click)="toggleUnprocessedView()"
-        [pTooltip]="showOnlyUnprocessed ? 'Mostra tutte le fatture' : 'Mostra solo fatture da lavorare'"
+        [pTooltip]="
+          showOnlyUnprocessed
+            ? 'Mostra tutte le fatture'
+            : 'Mostra solo fatture da lavorare'
+        "
         tooltipPosition="bottom"
       ></button>
 
@@ -86,6 +103,31 @@
         pTooltip="Carica nuove fatture"
         tooltipPosition="bottom"
       ></button>
+
+      <!-- Indicatore filtro magazzino/centro di costo -->
+      <div
+        *ngIf="selectedWarehouseFilter"
+        class="filter-badge p-2 bg-blue-50 border-round flex align-items-center gap-2"
+      >
+        <span class="text-sm">
+          <i
+            *ngIf="selectedWarehouseFilter.type === 'PHYSICAL'"
+            class="pi pi-building mr-1"
+          ></i>
+          <i
+            *ngIf="selectedWarehouseFilter.type === 'COST_CENTER'"
+            class="pi pi-chart-pie mr-1"
+          ></i>
+          {{ selectedWarehouseFilter.name }}
+        </span>
+        <button
+          pButton
+          pRipple
+          icon="pi pi-times"
+          class="p-button-rounded p-button-text p-button-sm"
+          (click)="clearWarehouseFilter()"
+        ></button>
+      </div>
     </div>
   </div>
 
@@ -93,8 +135,16 @@
   <div *ngIf="showWarehouseSection" class="mb-5 warehouse-section">
     <div class="flex justify-between items-center mb-2">
       <h2 class="text-xl font-medium">Magazzini e Centri di Costo</h2>
-      <div class="text-sm text-gray-500" *ngIf="warehouseMode === 'dropTarget'">
-        Trascina le fatture sui magazzini per assegnarle
+      <div class="flex items-center gap-2">
+        <div
+          class="text-sm text-gray-500"
+          *ngIf="warehouseMode === 'dropTarget'"
+        >
+          Trascina le fatture sui magazzini per assegnarle
+        </div>
+        <div class="text-sm text-gray-500" *ngIf="!warehouseMode">
+          Clicca su un magazzino per filtrare le fatture
+        </div>
       </div>
     </div>
 
@@ -128,13 +178,17 @@
     <i class="pi pi-file-invoice"></i>
     <h3>Nessuna fattura trovata</h3>
     <p>
-      <span *ngIf="showOnlyUnprocessed">Non ci sono fatture da lavorare per questo progetto.</span>
-      <span *ngIf="!showOnlyUnprocessed">Non ci sono fatture elettroniche registrate per questo progetto o
-      corrispondenti ai filtri applicati.</span>
+      <span *ngIf="showOnlyUnprocessed"
+        >Non ci sono fatture da lavorare per questo progetto.</span
+      >
+      <span *ngIf="!showOnlyUnprocessed"
+        >Non ci sono fatture elettroniche registrate per questo progetto o
+        corrispondenti ai filtri applicati.</span
+      >
     </p>
     <div class="flex gap-2 justify-center mt-4">
       <button
-        *ngIf="showOnlyUnprocessed && (einvoices() && einvoices()!.length > 0)"
+        *ngIf="showOnlyUnprocessed && einvoices() && einvoices()!.length > 0"
         pButton
         pRipple
         icon="pi pi-eye"
@@ -275,5 +329,41 @@
 
   .selected-row {
     background-color: #e3f2fd;
+  }
+
+  /* Stili per il drop overlay */
+  .file-drop-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 100;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .file-drop-overlay.active {
+    opacity: 1;
+  }
+
+  .drop-container {
+    background-color: white;
+    padding: 3rem;
+    border-radius: 1rem;
+    text-align: center;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    border: 3px dashed #2196f3;
+    transition: all 0.3s ease;
+    transform: scale(0.9);
+    color: #2196f3;
+  }
+
+  .file-drop-overlay.active .drop-container {
+    transform: scale(1);
   }
 </style>
