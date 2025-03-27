@@ -68,19 +68,6 @@
       ></p-badge>
     </div>
 
-    <div
-      *ngIf="processingRawProducts && processingInvoiceId === invoice.id"
-      class="mt-3"
-    >
-      <p-progressBar
-        [value]="progressPercent"
-        [showValue]="true"
-      ></p-progressBar>
-      <div class="text-center text-sm text-gray-600 mt-1">
-        Elaborazione prodotti grezzi in corso...
-      </div>
-    </div>
-
     <ng-template pTemplate="footer">
       <div class="flex justify-between">
         <button
@@ -106,18 +93,6 @@
         ></button>
       </div>
       <div class="flex gap-1">
-        <button
-          pButton
-          [icon]="
-            hasRawProductsExtracted(invoice) ? 'pi pi-list' : 'pi pi-sync'
-          "
-          [label]="hasRawProductsExtracted(invoice) ? 'Prodotti' : 'Estrai'"
-          class="p-button-sm p-button-outlined"
-          [loading]="
-            processingRawProducts && processingInvoiceId === invoice.id
-          "
-          (click)="handleRawProductsAction()"
-        ></button>
         <button
           pButton
           icon="pi pi-credit-card"

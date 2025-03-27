@@ -51,15 +51,12 @@ export class ViewComponent {
   @Input() invoice: EInvoice | null = null;
   @Input() suppliers: Supplier[] = [];
   @Input() viewMode: 'card' | 'detail' = 'card';
-  @Input() processingRawProducts: boolean = false;
   @Input() processingInvoiceId: string | null = null;
   @Input() progressPercent: number = 0;
 
   @Output() onDetails = new EventEmitter<EInvoice>();
   @Output() onEdit = new EventEmitter<EInvoice>();
   @Output() onDelete = new EventEmitter<EInvoice>(); // Nuovo output per l'eliminazione
-  @Output() onExtractRawProducts = new EventEmitter<EInvoice>();
-  @Output() onShowRawProducts = new EventEmitter<string>();
   @Output() onUpdatePaymentStatus = new EventEmitter<{
     invoice: EInvoice;
     paymentData: UpdatePaymentStatusDto;
@@ -180,28 +177,6 @@ export class ViewComponent {
     if (!this.invoice) return;
     this.onDelete.emit(this.invoice);
     this.deleteDialogVisible = false;
-  }
-
-  extractRawProducts(): void {
-    if (this.invoice) {
-      this.onExtractRawProducts.emit(this.invoice);
-    }
-  }
-
-  showRawProducts(): void {
-    if (this.invoice?.id) {
-      this.onShowRawProducts.emit(this.invoice.id);
-    }
-  }
-
-  handleRawProductsAction(): void {
-    if (!this.invoice) return;
-
-    if (this.hasRawProductsExtracted(this.invoice)) {
-      this.showRawProducts();
-    } else {
-      this.extractRawProducts();
-    }
   }
 
   // Nuovi metodi per la gestione dei pagamenti

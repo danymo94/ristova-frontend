@@ -19,6 +19,8 @@ import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { TooltipModule } from 'primeng/tooltip';
 import { ProgressBarModule } from 'primeng/progressbar';
+import { RadioButtonModule } from 'primeng/radiobutton';
+import { CheckboxModule } from 'primeng/checkbox';
 import { Subject } from 'rxjs';
 
 import { ToastService } from '../../../../core/services/toast.service';
@@ -42,6 +44,7 @@ import {
   SupplierOption,
 } from './filter/filter.component';
 import { WarehousesComponent } from './warehouses/warehouses.component';
+import { AssignmentComponent } from './assignment/assignment.component';
 
 @Component({
   selector: 'app-einvoices',
@@ -58,11 +61,14 @@ import { WarehousesComponent } from './warehouses/warehouses.component';
     TooltipModule,
     ProgressBarModule,
     TableModule,
+    RadioButtonModule,
+    CheckboxModule,
     // Componenti scorporati
     UploadComponent,
     ViewComponent,
     FilterComponent,
     WarehousesComponent,
+    AssignmentComponent,
   ],
   templateUrl: './einvoices.component.html',
   styleUrls: ['./einvoices.component.scss'],
@@ -88,9 +94,22 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
   uploadDialogVisible: boolean = false;
   detailsDialogVisible: boolean = false;
   filterDialogVisible: boolean = false;
-  rawProductsDialogVisible: boolean = false;
   selectedInvoice: EInvoice | null = null;
-  selectedInvoiceForRawProducts: EInvoice | null = null;
+
+  // Dialog e variabili per conferma assegnazione a centro di costo
+  costCenterAssignDialogVisible: boolean = false;
+  selectedCostCenterId: string | null = null;
+  selectedInvoiceForCostCenter: EInvoice | null = null;
+
+  // Dialog e variabili per valorizzazione magazzino
+  warehouseValuationDialogVisible: boolean = false;
+  selectedWarehouseId: string | null = null;
+  selectedInvoiceForWarehouse: EInvoice | null = null;
+  valuationType: 'total' | 'partial' = 'total';
+
+  // Dialog e variabili per selezione parziale delle righe
+  partialSelectionDialogVisible: boolean = false;
+  selectedInvoiceLines: number[] = [];
 
   // Processing state
   processingRawProducts: boolean = false;
@@ -103,7 +122,6 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
   private projectStore = inject(ProjectStore);
   private supplierStore = inject(SupplierStore);
   private einvoiceStore = inject(EInvoiceStore);
-  private rawProductStore = inject(RawProductStore);
   private warehouseStore = inject(WarehouseStore);
 
   // Store signals
@@ -113,10 +131,6 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
   supplierLoading = this.supplierStore.loading;
   einvoiceLoading = this.einvoiceStore.loading;
   warehouseLoading = this.warehouseStore.loading;
-  rawProductLoading = this.rawProductStore.loading;
-  processingEmbeddings = this.rawProductStore.processingEmbeddings;
-  invoiceRawProducts = this.rawProductStore.invoiceRawProducts;
-  extractingFromInvoice = this.rawProductStore.extractingFromInvoice;
 
   error = computed(
     () =>
@@ -140,6 +154,8 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
   );
 
   private destroy$ = new Subject<void>();
+
+  @ViewChild(AssignmentComponent) assignmentComponent!: AssignmentComponent;
 
   constructor() {
     // Monitor selected project changes
@@ -217,17 +233,190 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Implementa qui la chiamata per assegnare la fattura al magazzino
+    // Ottieni l'invoice dal suo ID
+    const invoice = this.getInvoiceById(invoiceId);
+    if (!invoice) {
+      this.toastService.showError('Fattura non trovata');
+      return;
+    }
+
+    // Ottieni il warehouse dal suo ID
+    const warehouse = this.getWarehouseById(warehouseId);
+    if (!warehouse) {
+      this.toastService.showError('Magazzino non trovato');
+      return;
+    }
+
+    // Invia i dati al componente assignment per la gestione
+    if (this.assignmentComponent) {
+      this.assignmentComponent.handleInvoiceDropped({
+        invoiceId,
+        warehouseId,
+        invoice,
+        warehouse,
+      });
+    } else {
+      this.toastService.showError(
+        'Componente di assegnazione non inizializzato'
+      );
+    }
+  }
+
+  // Nuovo metodo per ottenere un warehouse dal suo ID
+  getWarehouseById(warehouseId: string): Warehouse | undefined {
+    const warehouses = this.warehouseStore.warehouses();
+    return warehouses?.find((w) => w.id === warehouseId);
+  }
+
+  // Metodo per la gestione dell'assegnazione al centro di costo
+  openCostCenterAssignDialog(invoice: EInvoice, costCenterId: string): void {
+    this.selectedInvoiceForCostCenter = invoice;
+    this.selectedCostCenterId = costCenterId;
+    this.costCenterAssignDialogVisible = true;
+  }
+
+  confirmCostCenterAssignment(): void {
+    if (!this.selectedInvoiceForCostCenter || !this.selectedCostCenterId) {
+      this.toastService.showError("Dati incompleti per l'assegnazione");
+      return;
+    }
+
+    const projectId = this.getSelectedProjectId();
+    if (!projectId) {
+      this.toastService.showError('Nessun progetto selezionato');
+      return;
+    }
+
+    // Log per debug
+    console.log('Assegnazione fattura a centro di costo:', {
+      invoiceId: this.selectedInvoiceForCostCenter.id,
+      costCenterId: this.selectedCostCenterId,
+    });
+
+    // Qui implementeresti la chiamata effettiva all'API
     this.assigningToWarehouse = true;
     setTimeout(() => {
       // Simuliamo una chiamata API
       this.assigningToWarehouse = false;
-      let string =
-        'Fattura assegnata al magazzino con successo! ' +
-        invoiceId +
-        ' ' +
-        warehouseId;
-      this.toastService.showSuccess(string);
+      this.toastService.showSuccess(
+        'Fattura assegnata al centro di costo con successo!'
+      );
+      this.closeCostCenterAssignDialog();
+      // Refresh dei dati
+      this.refreshInvoices();
+    }, 1000);
+  }
+
+  closeCostCenterAssignDialog(): void {
+    this.costCenterAssignDialogVisible = false;
+    this.selectedInvoiceForCostCenter = null;
+    this.selectedCostCenterId = null;
+  }
+
+  // Metodo per la gestione della valorizzazione del magazzino
+  openWarehouseValuationDialog(invoice: EInvoice, warehouseId: string): void {
+    this.selectedInvoiceForWarehouse = invoice;
+    this.selectedWarehouseId = warehouseId;
+    this.valuationType = 'total';
+    this.warehouseValuationDialogVisible = true;
+  }
+
+  confirmWarehouseValuation(): void {
+    if (!this.selectedInvoiceForWarehouse || !this.selectedWarehouseId) {
+      this.toastService.showError('Dati incompleti per la valorizzazione');
+      return;
+    }
+
+    if (this.valuationType === 'total') {
+      // Valorizzazione totale
+      this.processWarehouseValuation(
+        this.selectedInvoiceForWarehouse.id!,
+        this.selectedWarehouseId,
+        null
+      );
+    } else {
+      // Valorizzazione parziale - apri dialog per selezionare le righe
+      this.openPartialSelectionDialog();
+    }
+  }
+
+  closeWarehouseValuationDialog(): void {
+    this.warehouseValuationDialogVisible = false;
+    this.selectedInvoiceForWarehouse = null;
+    this.selectedWarehouseId = null;
+  }
+
+  // Metodi per la selezione parziale delle righe
+  openPartialSelectionDialog(): void {
+    this.selectedInvoiceLines = [];
+    this.partialSelectionDialogVisible = true;
+    this.warehouseValuationDialogVisible = false; // Nascondi la prima dialog
+  }
+
+  toggleLineSelection(lineIndex: number): void {
+    const index = this.selectedInvoiceLines.indexOf(lineIndex);
+    if (index === -1) {
+      this.selectedInvoiceLines.push(lineIndex);
+    } else {
+      this.selectedInvoiceLines.splice(index, 1);
+    }
+  }
+
+  isLineSelected(lineIndex: number): boolean {
+    return this.selectedInvoiceLines.includes(lineIndex);
+  }
+
+  confirmPartialSelection(): void {
+    if (!this.selectedInvoiceForWarehouse || !this.selectedWarehouseId) {
+      this.toastService.showError('Dati incompleti per la valorizzazione');
+      return;
+    }
+
+    if (this.selectedInvoiceLines.length === 0) {
+      this.toastService.showWarn('Seleziona almeno una riga della fattura');
+      return;
+    }
+
+    // Process the warehouse valuation with selected lines
+    this.processWarehouseValuation(
+      this.selectedInvoiceForWarehouse.id!,
+      this.selectedWarehouseId,
+      this.selectedInvoiceLines
+    );
+    this.closePartialSelectionDialog();
+  }
+
+  closePartialSelectionDialog(): void {
+    this.partialSelectionDialogVisible = false;
+    this.selectedInvoiceLines = [];
+  }
+
+  // Metodo comune per elaborare la valorizzazione del magazzino
+  processWarehouseValuation(
+    invoiceId: string,
+    warehouseId: string,
+    selectedLines: number[] | null
+  ): void {
+    const projectId = this.getSelectedProjectId();
+    if (!projectId) {
+      this.toastService.showError('Nessun progetto selezionato');
+      return;
+    }
+
+    // Log per debug
+    console.log('Valorizzazione magazzino:', {
+      invoiceId,
+      warehouseId,
+      selectedLines,
+      isPartial: !!selectedLines,
+    });
+
+    // Qui implementeresti la chiamata effettiva all'API
+    this.assigningToWarehouse = true;
+    setTimeout(() => {
+      // Simuliamo una chiamata API
+      this.assigningToWarehouse = false;
+      this.toastService.showSuccess('Magazzino valorizzato con successo!');
       // Refresh dei dati
       this.refreshInvoices();
     }, 1000);
@@ -374,72 +563,6 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
     );
   }
 
-  // Raw products handling
-  createRawProducts(invoice: EInvoice): void {
-    if (!invoice.id) {
-      this.toastService.showError('ID fattura mancante');
-      return;
-    }
-
-    const projectId = this.getSelectedProjectId();
-    if (!projectId) {
-      this.toastService.showError('Nessun progetto selezionato');
-      return;
-    }
-
-    this.processingRawProducts = true;
-    this.processingInvoiceId = invoice.id;
-    this.progressPercent = 0;
-
-    // Utilizziamo il nuovo metodo del rawProductStore per l'estrazione batch
-    this.rawProductStore.extractRawProductsFromInvoice({
-      projectId,
-      invoiceId: invoice.id,
-    });
-
-    // Mostriamo una barra di progresso simulata mentre il backend elabora
-    const interval = setInterval(() => {
-      if (this.progressPercent < 90) {
-        this.progressPercent += 5;
-      }
-    }, 300);
-
-    // Controllo periodico per verificare se l'elaborazione è completata
-    const checkInterval = setInterval(() => {
-      if (!this.extractingFromInvoice()) {
-        clearInterval(interval);
-        clearInterval(checkInterval);
-        this.progressPercent = 100;
-        setTimeout(() => {
-          this.processingRawProducts = false;
-          this.processingInvoiceId = null;
-          this.progressPercent = 0;
-          this.refreshInvoices(); // Aggiorniamo le fatture per mostrare lo stato aggiornato
-        }, 500);
-      }
-    }, 500);
-  }
-
-  loadInvoiceRawProducts(invoiceId: string): void {
-    const projectId = this.getSelectedProjectId();
-    if (!projectId) {
-      this.toastService.showError('Nessun progetto selezionato');
-      return;
-    }
-
-    // Trova la fattura corrispondente all'id
-    const invoice = this.getInvoiceById(invoiceId);
-    if (invoice) {
-      this.selectedInvoiceForRawProducts = invoice;
-      this.rawProductStore.fetchInvoiceRawProducts({ projectId, invoiceId });
-    }
-
-    // Chiudiamo il dialog dei dettagli se è aperto
-    if (this.detailsDialogVisible) {
-      this.closeDetailsDialog();
-    }
-  }
-
   handleInvoiceDelete(invoice: EInvoice): void {
     this.deleteInvoice(invoice);
   }
@@ -450,22 +573,6 @@ export class EinvoicesComponent implements OnInit, OnDestroy {
   private getInvoiceById(id: string): EInvoice | undefined {
     const invoicesArray = this.invoicesArray();
     return invoicesArray.find((invoice) => invoice.id === id);
-  }
-
-  closeRawProductsDialog(): void {
-    this.rawProductsDialogVisible = false;
-    this.selectedInvoiceForRawProducts = null;
-    this.rawProductStore.clearInvoiceRawProducts();
-  }
-
-  generateEmbeddings(): void {
-    const projectId = this.getSelectedProjectId();
-    if (!projectId) {
-      this.toastService.showError('Nessun progetto selezionato');
-      return;
-    }
-
-    this.rawProductStore.generateEmbeddings({ projectId });
   }
 
   // Gestione dello stato di pagamento

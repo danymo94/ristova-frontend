@@ -86,6 +86,7 @@
       </div>
     </div>
 
+    <!-- Componente Warehouses e Assignment -->
     <div class="">
       <app-warehouses
         [projectId]="getSelectedProjectId()!"
@@ -93,6 +94,12 @@
         (onWarehouseSelected)="handleWarehouseSelected($event)"
         (onInvoiceDropped)="handleInvoiceDropped($event)"
       ></app-warehouses>
+
+      <!-- Componente di assegnazione -->
+      <app-assignment
+        [projectId]="getSelectedProjectId()!"
+        [suppliers]="suppliersArray()"
+      ></app-assignment>
     </div>
   </div>
 
@@ -134,16 +141,11 @@
         [invoice]="invoice"
         [suppliers]="suppliersArray()"
         viewMode="card"
-        [processingRawProducts]="
-          processingRawProducts || extractingFromInvoice()
-        "
         [processingInvoiceId]="processingInvoiceId"
         [progressPercent]="progressPercent"
         (onDetails)="viewInvoiceDetails($event)"
         (onEdit)="editInvoice($event)"
         (onDelete)="handleInvoiceDelete($event)"
-        (onExtractRawProducts)="createRawProducts($event)"
-        (onShowRawProducts)="loadInvoiceRawProducts($event!)"
         (onUpdatePaymentStatus)="handleUpdatePaymentStatus($event)"
         (onDrag)="warehouseMode = 'dropTarget'"
       ></app-einvoice-view>
@@ -220,117 +222,6 @@
   ></app-einvoice-filter>
 </p-dialog>
 
-<!-- Dialog per visualizzazione dei prodotti grezzi -->
-<p-dialog
-  header="Prodotti Grezzi della Fattura"
-  [(visible)]="rawProductsDialogVisible"
-  [modal]="true"
-  [style]="{ width: '80%', maxWidth: '1200px' }"
-  [draggable]="false"
-  [resizable]="false"
->
-  <div *ngIf="selectedInvoiceForRawProducts" class="p-fluid">
-    <div class="mb-4">
-      <h3 class="text-lg">
-        Fattura: {{ selectedInvoiceForRawProducts.invoiceNumber }} -
-        {{ selectedInvoiceForRawProducts.invoiceDate | date : "dd/MM/yyyy" }}
-      </h3>
-      <p>
-        Fornitore:
-        {{ getSupplierName(selectedInvoiceForRawProducts.supplierId) }}
-      </p>
-    </div>
-
-    <!-- Loading indicator -->
-    <div *ngIf="rawProductLoading()" class="flex justify-center my-4">
-      <i class="pi pi-spin pi-spinner text-3xl text-primary"></i>
-      <span class="ml-2">Caricamento prodotti grezzi...</span>
-    </div>
-
-    <!-- Table of raw products -->
-    <p-table
-      *ngIf="
-        !rawProductLoading() &&
-        invoiceRawProducts() &&
-        invoiceRawProducts()!.length > 0
-      "
-      [value]="invoiceRawProducts()!"
-      [paginator]="true"
-      [rows]="10"
-      [rowsPerPageOptions]="[10, 25, 50]"
-      styleClass="p-datatable-sm"
-    >
-      <ng-template pTemplate="header">
-        <tr>
-          <th>Codice</th>
-          <th>Descrizione</th>
-          <th>U.M.</th>
-          <th>Quantità</th>
-          <th>Prezzo Unitario</th>
-          <th>Totale</th>
-          <th>IVA</th>
-        </tr>
-      </ng-template>
-      <ng-template pTemplate="body" let-product>
-        <tr>
-          <td>{{ product.productCode }}</td>
-          <td>{{ product.description }}</td>
-          <td>{{ product.unitOfMeasure }}</td>
-          <td class="text-right">{{ product.totalQuantity }}</td>
-          <td class="text-right">
-            {{ product.averageUnitPrice | currency : "EUR" }}
-          </td>
-          <td class="text-right">
-            {{ product.totalPrice | currency : "EUR" }}
-          </td>
-          <td class="text-right">{{ product.vatRate }}%</td>
-        </tr>
-      </ng-template>
-      <ng-template pTemplate="emptymessage">
-        <tr>
-          <td colspan="7" class="text-center p-4">
-            Nessun prodotto grezzo trovato
-          </td>
-        </tr>
-      </ng-template>
-    </p-table>
-
-    <div
-      *ngIf="
-        !rawProductLoading() &&
-        (!invoiceRawProducts() || invoiceRawProducts()!.length === 0)
-      "
-      class="text-center p-4"
-    >
-      <i class="pi pi-exclamation-circle text-3xl text-amber-500 mb-3"></i>
-      <p>Nessun prodotto grezzo trovato per questa fattura.</p>
-    </div>
-  </div>
-
-  <ng-template pTemplate="footer">
-    <button
-      pButton
-      label="Chiudi"
-      icon="pi pi-times"
-      class="p-button-text"
-      (click)="closeRawProductsDialog()"
-    ></button>
-    <button
-      pButton
-      label="Genera Embeddings"
-      icon="pi pi-sitemap"
-      [loading]="processingEmbeddings()"
-      [disabled]="
-        processingEmbeddings() ||
-        rawProductLoading() ||
-        !invoiceRawProducts() ||
-        invoiceRawProducts()!.length === 0
-      "
-      (click)="generateEmbeddings()"
-    ></button>
-  </ng-template>
-</p-dialog>
-
 <style>
   .empty-state {
     padding: 3rem 1rem;
@@ -360,5 +251,7 @@
       0 4px 6px -2px rgba(0, 0, 0, 0.05);
   }
 
-
+  .selected-row {
+    background-color: #e3f2fd;
+  }
 </style>

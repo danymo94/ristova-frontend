@@ -1,0 +1,9 @@
+.selected-row {
+    background-color: #e3f2fd;
+}
+
+:host ::ng-deep {
+    .p-dialog-content {
+        padding: 1.5rem;
+    }
+}
