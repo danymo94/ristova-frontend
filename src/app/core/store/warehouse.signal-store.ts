@@ -1,4 +1,4 @@
-import { computed, inject } from '@angular/core';
+import { computed, inject, signal } from '@angular/core';
 import {
   signalStore,
   patchState,
@@ -13,30 +13,60 @@ import {
   UpdateWarehouseDto,
   WarehouseType,
   WarehouseBalance,
+  WarehouseInventory,
+  WarehouseStats,
+  WarehouseProductInventory,
+  WarehouseMovementSummary,
 } from '../models/warehouse.model';
 import { WarehouseService } from '../services/api/local/warehouse.service';
-import { Router } from '@angular/router';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
-import { pipe, switchMap, tap, EMPTY } from 'rxjs';
+import { pipe, switchMap, tap, of, Observable } from 'rxjs';
 import { tapResponse } from '@ngrx/operators';
 import { ToastService } from '../services/toast.service';
 import { AuthService } from '../services/auth.service';
-import { ProjectStore } from './project.signal-store';
 
+/**
+ * Filtri per i warehouse
+ */
+export interface WarehouseFilters {
+  type?: WarehouseType;
+  search?: string;
+  isActive?: boolean;
+}
+
+/**
+ * Stato dello store warehouse
+ */
 export interface WarehouseState {
+  // Dati principali
   warehouses: Warehouse[] | null;
   filteredWarehouses: Warehouse[] | null;
   selectedWarehouse: Warehouse | null;
-  warehouseBalance: WarehouseBalance | null;
+
+  // Dati aggiuntivi per il warehouse selezionato
+  selectedWarehouseStats: WarehouseStats | null;
+  selectedWarehouseInventory: WarehouseInventory | null;
+  selectedWarehouseMovements: WarehouseMovementSummary | null;
+
+  // Filtri attivi
+  filters: WarehouseFilters;
+
+  // Stato dell'interfaccia
   loading: boolean;
   error: string | null;
 }
 
+/**
+ * Stato iniziale
+ */
 const initialState: WarehouseState = {
   warehouses: null,
   filteredWarehouses: null,
   selectedWarehouse: null,
-  warehouseBalance: null,
+  selectedWarehouseStats: null,
+  selectedWarehouseInventory: null,
+  selectedWarehouseMovements: null,
+  filters: {},
   loading: false,
   error: null,
 };
@@ -45,424 +75,971 @@ export const WarehouseStore = signalStore(
   { providedIn: 'root' },
   withState(initialState),
 
-  withComputed(({}) => ({})),
+  withComputed(
+    ({ warehouses, filteredWarehouses, filters, selectedWarehouse }) => ({
+      /**
+       * Conteggio totale dei warehouse
+       */
+      warehousesCount: computed(() => {
+        const whs = warehouses();
+        return whs ? whs.length : 0;
+      }),
+
+      /**
+       * Conteggio dei warehouse filtrati
+       */
+      filteredCount: computed(() => {
+        const filtered = filteredWarehouses();
+        return filtered ? filtered.length : 0;
+      }),
+
+      /**
+       * Elenco dei soli warehouse di tipo fisico
+       */
+      physicalWarehouses: computed(() => {
+        const whs = warehouses();
+        return whs ? whs.filter((w) => w.type === 'PHYSICAL') : [];
+      }),
+
+      /**
+       * Elenco dei soli centri di costo
+       */
+      costCenters: computed(() => {
+        const whs = warehouses();
+        return whs ? whs.filter((w) => w.type === 'COST_CENTER') : [];
+      }),
+
+      /**
+       * Indica se ci sono filtri attivi
+       */
+      hasActiveFilters: computed(() => {
+        const currentFilters = filters();
+        return (
+          Object.keys(currentFilters).length > 0 &&
+          Object.values(currentFilters).some((val) => val !== undefined)
+        );
+      }),
+
+      /**
+       * Indica se il warehouse selezionato è di tipo fisico
+       */
+      isSelectedWarehousePhysical: computed(() => {
+        const selected = selectedWarehouse();
+        return selected ? selected.type === 'PHYSICAL' : false;
+      }),
+
+      /**
+       * Indica se il warehouse selezionato è un centro di costo
+       */
+      isSelectedWarehouseCostCenter: computed(() => {
+        const selected = selectedWarehouse();
+        return selected ? selected.type === 'COST_CENTER' : false;
+      }),
+
+      /**
+       * Indica se il warehouse selezionato è attivo
+       */
+      isSelectedWarehouseActive: computed(() => {
+        const selected = selectedWarehouse();
+        return selected ? selected.isActive : false;
+      }),
+    })
+  ),
 
   withMethods(
     (
       store,
       warehouseService = inject(WarehouseService),
-      projectStore = inject(ProjectStore),
       authService = inject(AuthService),
-      toastService = inject(ToastService),
-      router = inject(Router)
-    ) => ({
-      // Utility method to get warehouse by ID
-      getWarehouseById(id: string) {
-        const currentWarehouses = store.warehouses();
-        return currentWarehouses
-          ? currentWarehouses.find((warehouse) => warehouse.id === id)
-          : null;
-      },
-
-      // Filter warehouses by type
-      filterByType(type?: WarehouseType) {
+      toastService = inject(ToastService)
+    ) => {
+      /**
+       * Funzione privata per l'applicazione dei filtri
+       */
+      function applyFilters(filters: WarehouseFilters) {
         const warehouses = store.warehouses();
         if (!warehouses) return;
 
-        if (!type) {
-          patchState(store, { filteredWarehouses: warehouses });
-          return;
+        let result = [...warehouses];
+
+        // Filtro per tipo
+        if (filters.type) {
+          result = result.filter((w) => w.type === filters.type);
         }
 
-        const filtered = warehouses.filter((w) => w.type === type);
-        patchState(store, { filteredWarehouses: filtered });
-      },
-
-      // Filter warehouses by search term
-      filterBySearch(search?: string) {
-        const warehouses = store.warehouses();
-        if (!warehouses) return;
-
-        if (!search || search.trim() === '') {
-          patchState(store, { filteredWarehouses: warehouses });
-          return;
+        // Filtro per termine di ricerca
+        if (filters.search && filters.search.trim() !== '') {
+          const search = filters.search.toLowerCase().trim();
+          result = result.filter(
+            (w) =>
+              w.name.toLowerCase().includes(search) ||
+              (w.description && w.description.toLowerCase().includes(search))
+          );
         }
 
-        const searchLower = search.toLowerCase();
-        const filtered = warehouses.filter(
-          (w) =>
-            w.name.toLowerCase().includes(searchLower) ||
-            w.description?.toLowerCase().includes(searchLower)
-        );
-        patchState(store, { filteredWarehouses: filtered });
-      },
+        // Filtro per stato attivo
+        if (filters.isActive !== undefined) {
+          result = result.filter((w) => w.isActive === filters.isActive);
+        }
 
-      // Fetch project warehouses (based on role)
-      fetchProjectWarehouses: rxMethod<{
-        projectId: string;
-        type?: WarehouseType;
-        search?: string;
-        withStats?: boolean;
-      }>(
-        pipe(
-          tap(() => patchState(store, { loading: true, error: null })),
-          switchMap(({ projectId, type, search, withStats }) => {
-            const role = authService.userRole();
-            const request =
-              role === 'admin'
-                ? warehouseService.getAdminProjectWarehouses(
-                    projectId,
-                    type,
-                    search
-                  )
-                : warehouseService.getPartnerProjectWarehouses(
-                    projectId,
-                    type,
-                    search,
-                    withStats
-                  );
+        patchState(store, { filteredWarehouses: result });
+      }
 
-            return request.pipe(
-              tapResponse({
-                next: (warehouses) => {
-                  console.log('Fetched warehouses', warehouses);
-                  patchState(store, {
-                    warehouses,
-                    filteredWarehouses: warehouses,
-                    loading: false,
-                    error: null,
-                  });
-                },
-                error: (error: unknown) => {
-                  patchState(store, {
-                    loading: false,
-                    error:
-                      (error as Error)?.message || 'Failed to fetch warehouses',
-                  });
-                  toastService.showError(
-                    (error as Error)?.message ||
-                      'Errore nel caricamento dei magazzini'
-                  );
-                },
-              })
-            );
-          })
-        )
-      ),
+      return {
+        /**
+         * Recupera tutti i warehouse di un progetto
+         */
+        fetchWarehouses: rxMethod<{
+          projectId: string;
+        }>(
+          pipe(
+            tap(() => patchState(store, { loading: true, error: null })),
+            switchMap(({ projectId }) => {
+              const role = authService.userRole();
+              // Impostiamo withStats=true per avere sempre le statistiche di base
+              const options = { withStats: true };
 
-      // Get specific warehouse
-      fetchWarehouse: rxMethod<{
-        projectId: string;
-        id: string;
-        withStats?: boolean;
-      }>(
-        pipe(
-          tap(() => patchState(store, { loading: true, error: null })),
-          switchMap(({ projectId, id, withStats }) => {
-            const role = authService.userRole();
-            const request =
-              role === 'admin'
-                ? warehouseService.getAdminWarehouse(projectId, id, withStats)
-                : warehouseService.getPartnerWarehouse(
-                    projectId,
-                    id,
-                    withStats
-                  );
-
-            return request.pipe(
-              tapResponse({
-                next: (warehouse) => {
-                  patchState(store, {
-                    selectedWarehouse: warehouse,
-                    loading: false,
-                    error: null,
-                  });
-
-                  // Se il warehouse è già presente nell'array, aggiorniamo anche quello
-                  const currentWarehouses = store.warehouses();
-                  if (currentWarehouses) {
-                    const index = currentWarehouses.findIndex(
-                      (w) => w.id === id
+              const request =
+                role === 'admin'
+                  ? warehouseService.getAdminProjectWarehouses(
+                      projectId,
+                      options
+                    )
+                  : warehouseService.getPartnerProjectWarehouses(
+                      projectId,
+                      options
                     );
-                    if (index !== -1) {
-                      const updatedWarehouses = [...currentWarehouses];
-                      updatedWarehouses[index] = warehouse;
-                      patchState(store, { warehouses: updatedWarehouses });
-                    }
-                  }
-                },
-                error: (error: unknown) => {
-                  patchState(store, {
-                    loading: false,
-                    error:
-                      (error as Error)?.message || 'Failed to fetch warehouse',
-                  });
-                  toastService.showError(
-                    (error as Error)?.message ||
-                      'Errore nel caricamento del magazzino'
-                  );
-                },
-              })
-            );
-          })
-        )
-      ),
 
-      // Fetch warehouse balance
-      fetchWarehouseBalance: rxMethod<{
-        projectId: string;
-        warehouseId: string;
-      }>(
-        pipe(
-          tap(() => patchState(store, { loading: true, error: null })),
-          switchMap(({ projectId, warehouseId }) => {
-            return warehouseService
-              .getWarehouseBalance(projectId, warehouseId)
-              .pipe(
+              return request.pipe(
                 tapResponse({
-                  next: (balance) => {
+                  next: (warehouses) => {
                     patchState(store, {
-                      warehouseBalance: balance,
+                      warehouses,
+                      filteredWarehouses: warehouses,
                       loading: false,
                       error: null,
                     });
+
+                    // Riapplica i filtri correnti se presenti
+                    if (Object.keys(store.filters()).length > 0) {
+                      applyFilters(store.filters());
+                    }
                   },
                   error: (error: unknown) => {
                     patchState(store, {
                       loading: false,
                       error:
                         (error as Error)?.message ||
-                        'Failed to fetch warehouse balance',
+                        'Failed to fetch warehouses',
                     });
                     toastService.showError(
                       (error as Error)?.message ||
-                        'Errore nel caricamento del bilancio del magazzino'
+                        'Errore nel caricamento dei magazzini'
                     );
                   },
                 })
               );
-          })
-        )
-      ),
-
-      // Create warehouse
-      createWarehouse: rxMethod<{
-        projectId: string;
-        warehouse: CreateWarehouseDto;
-      }>(
-        pipe(
-          tap(() => patchState(store, { loading: true, error: null })),
-          switchMap(({ projectId, warehouse }) =>
-            warehouseService.createWarehouse(projectId, warehouse).pipe(
-              tapResponse({
-                next: (createdWarehouse) => {
-                  toastService.showSuccess('Magazzino creato con successo');
-
-                  // Update warehouses array
-                  const currentWarehouses = store.warehouses() || [];
-                  patchState(store, {
-                    warehouses: [...currentWarehouses, createdWarehouse],
-                    filteredWarehouses: [
-                      ...currentWarehouses,
-                      createdWarehouse,
-                    ],
-                    loading: false,
-                    error: null,
-                  });
-                },
-                error: (error: unknown) => {
-                  toastService.showError(
-                    (error as Error)?.message ||
-                      'Errore nella creazione del magazzino'
-                  );
-                  patchState(store, {
-                    loading: false,
-                    error:
-                      (error as Error)?.message || 'Failed to create warehouse',
-                  });
-                },
-              })
-            )
+            })
           )
-        )
-      ),
+        ),
 
-      // Update warehouse
-      updateWarehouse: rxMethod<{
-        projectId: string;
-        id: string;
-        warehouse: UpdateWarehouseDto;
-      }>(
-        pipe(
-          tap(() => patchState(store, { loading: true, error: null })),
-          switchMap(({ projectId, id, warehouse }) =>
-            warehouseService.updateWarehouse(projectId, id, warehouse).pipe(
-              tapResponse({
-                next: (updatedWarehouse) => {
-                  toastService.showSuccess('Magazzino aggiornato con successo');
+        /**
+         * Recupera i warehouse filtrati per tipo
+         */
+        fetchWarehousesByType: rxMethod<{
+          projectId: string;
+          type: WarehouseType;
+        }>(
+          pipe(
+            tap(() => patchState(store, { loading: true, error: null })),
+            tap(({ type }) =>
+              patchState(store, { filters: { ...store.filters(), type } })
+            ),
+            switchMap(({ projectId, type }) => {
+              const role = authService.userRole();
+              const options = { type, withStats: true };
 
-                  // Update warehouses array
-                  const currentWarehouses = store.warehouses() || [];
-                  const updatedWarehouses = currentWarehouses.map((w) =>
-                    w.id === id ? updatedWarehouse : w
-                  );
+              const request =
+                role === 'admin'
+                  ? warehouseService.getAdminProjectWarehouses(
+                      projectId,
+                      options
+                    )
+                  : warehouseService.getPartnerProjectWarehouses(
+                      projectId,
+                      options
+                    );
 
-                  patchState(store, {
-                    warehouses: updatedWarehouses,
-                    filteredWarehouses: store.filteredWarehouses()
-                      ? store
-                          .filteredWarehouses()!
-                          .map((w) => (w.id === id ? updatedWarehouse : w))
-                      : null,
-                    selectedWarehouse:
-                      store.selectedWarehouse()?.id === id
-                        ? updatedWarehouse
-                        : store.selectedWarehouse(),
-                    loading: false,
-                    error: null,
-                  });
-                },
-                error: (error: unknown) => {
-                  toastService.showError(
-                    (error as Error)?.message ||
-                      "Errore nell'aggiornamento del magazzino"
-                  );
-                  patchState(store, {
-                    loading: false,
-                    error:
-                      (error as Error)?.message || 'Failed to update warehouse',
-                  });
-                },
-              })
-            )
-          )
-        )
-      ),
-
-      // Delete warehouse
-      deleteWarehouse: rxMethod<{ projectId: string; id: string }>(
-        pipe(
-          tap(() => patchState(store, { loading: true, error: null })),
-          switchMap(({ projectId, id }) =>
-            warehouseService.deleteWarehouse(projectId, id).pipe(
-              tapResponse({
-                next: () => {
-                  toastService.showSuccess('Magazzino eliminato con successo');
-
-                  // Update warehouses array by filtering out the deleted warehouse
-                  const currentWarehouses = store.warehouses() || [];
-                  const filteredWarehouses = currentWarehouses.filter(
-                    (w) => w.id !== id
-                  );
-
-                  patchState(store, {
-                    warehouses: filteredWarehouses,
-                    filteredWarehouses: store.filteredWarehouses()
-                      ? store.filteredWarehouses()!.filter((w) => w.id !== id)
-                      : null,
-                    selectedWarehouse:
-                      store.selectedWarehouse()?.id === id
-                        ? null
-                        : store.selectedWarehouse(),
-                    loading: false,
-                    error: null,
-                  });
-                },
-                error: (error: unknown) => {
-                  toastService.showError(
-                    (error as Error)?.message ||
-                      "Errore nell'eliminazione del magazzino"
-                  );
-                  patchState(store, {
-                    loading: false,
-                    error:
-                      (error as Error)?.message || 'Failed to delete warehouse',
-                  });
-                },
-              })
-            )
-          )
-        )
-      ),
-
-      // Update warehouse status (active/inactive)
-      updateWarehouseStatus: rxMethod<{
-        projectId: string;
-        id: string;
-        isActive: boolean;
-      }>(
-        pipe(
-          tap(() => patchState(store, { loading: true, error: null })),
-          switchMap(({ projectId, id, isActive }) =>
-            warehouseService
-              .updateWarehouseStatus(projectId, id, isActive)
-              .pipe(
+              return request.pipe(
                 tapResponse({
-                  next: (updatedWarehouse) => {
-                    const statusMessage = isActive ? 'attivato' : 'disattivato';
-                    toastService.showSuccess(
-                      `Magazzino ${statusMessage} con successo`
-                    );
-
-                    // Update warehouses array
-                    const currentWarehouses = store.warehouses() || [];
-                    const updatedWarehouses = currentWarehouses.map((w) =>
-                      w.id === id ? { ...w, isActive } : w
-                    );
-
+                  next: (warehouses) => {
                     patchState(store, {
-                      warehouses: updatedWarehouses,
-                      filteredWarehouses: store.filteredWarehouses()
-                        ? store
-                            .filteredWarehouses()!
-                            .map((w) => (w.id === id ? { ...w, isActive } : w))
-                        : null,
-                      selectedWarehouse:
-                        store.selectedWarehouse()?.id === id
-                          ? { ...store.selectedWarehouse()!, isActive }
-                          : store.selectedWarehouse(),
+                      warehouses,
+                      filteredWarehouses: warehouses,
                       loading: false,
                       error: null,
                     });
                   },
                   error: (error: unknown) => {
+                    patchState(store, {
+                      loading: false,
+                      error:
+                        (error as Error)?.message ||
+                        'Failed to fetch warehouses',
+                    });
                     toastService.showError(
                       (error as Error)?.message ||
-                        `Errore nell'aggiornamento dello stato del magazzino`
+                        'Errore nel caricamento dei magazzini'
+                    );
+                  },
+                })
+              );
+            })
+          )
+        ),
+
+        /**
+         * Recupera i dettagli completi di un warehouse specifico
+         */
+        fetchWarehouseDetails: rxMethod<{
+          projectId: string;
+          warehouseId: string;
+        }>(
+          pipe(
+            tap(() => patchState(store, { loading: true, error: null })),
+            switchMap(({ projectId, warehouseId }) => {
+              const role = authService.userRole();
+              // Otteniamo il warehouse con statistiche di base
+              const request =
+                role === 'admin'
+                  ? warehouseService.getAdminWarehouse(
+                      projectId,
+                      warehouseId,
+                      true
+                    )
+                  : warehouseService.getPartnerWarehouse(
+                      projectId,
+                      warehouseId,
+                      true
+                    );
+
+              return request.pipe(
+                tapResponse({
+                  next: (warehouse) => {
+                    patchState(store, {
+                      selectedWarehouse: warehouse,
+                      loading: false,
+                      error: null,
+                    });
+
+                    // Aggiorniamo anche il warehouse nella lista se è presente
+                    const currentWarehouses = store.warehouses();
+                    if (currentWarehouses) {
+                      const updatedWarehouses = currentWarehouses.map((w) =>
+                        w.id === warehouseId ? warehouse : w
+                      );
+                      patchState(store, { warehouses: updatedWarehouses });
+
+                      // Riapplica i filtri se necessario
+                      if (Object.keys(store.filters()).length > 0) {
+                        applyFilters(store.filters());
+                      }
+                    }
+                  },
+                  error: (error: unknown) => {
+                    patchState(store, {
+                      loading: false,
+                      error:
+                        (error as Error)?.message ||
+                        'Failed to fetch warehouse',
+                    });
+                    toastService.showError(
+                      (error as Error)?.message ||
+                        'Errore nel caricamento del magazzino'
+                    );
+                  },
+                })
+              );
+            })
+          )
+        ),
+
+        /**
+         * Carica le statistiche dettagliate di un warehouse
+         */
+        fetchWarehouseStats: rxMethod<{
+          projectId: string;
+          warehouseId: string;
+        }>(
+          pipe(
+            tap(() => patchState(store, { loading: true, error: null })),
+            switchMap(({ projectId, warehouseId }) => {
+              return warehouseService
+                .getWarehouseStats(projectId, warehouseId)
+                .pipe(
+                  tapResponse({
+                    next: (stats) => {
+                      patchState(store, {
+                        selectedWarehouseStats: stats,
+                        loading: false,
+                        error: null,
+                      });
+                    },
+                    error: (error: unknown) => {
+                      patchState(store, {
+                        loading: false,
+                        error:
+                          (error as Error)?.message ||
+                          'Failed to fetch warehouse stats',
+                      });
+                      toastService.showError(
+                        (error as Error)?.message ||
+                          'Errore nel caricamento delle statistiche'
+                      );
+                    },
+                  })
+                );
+            })
+          )
+        ),
+
+        /**
+         * Carica l'inventario di un warehouse fisico
+         */
+        fetchWarehouseInventory: rxMethod<{
+          projectId: string;
+          warehouseId: string;
+        }>(
+          pipe(
+            tap(() => patchState(store, { loading: true, error: null })),
+            switchMap(({ projectId, warehouseId }) => {
+              // Verifica se il warehouse corrente è di tipo fisico
+              const currentWarehouse = store.selectedWarehouse();
+              if (currentWarehouse && currentWarehouse.type !== 'PHYSICAL') {
+                toastService.showWarn(
+                  "L'inventario è disponibile solo per magazzini fisici"
+                );
+                patchState(store, { loading: false });
+                return of(null);
+              }
+
+              return warehouseService
+                .getWarehouseInventory(projectId, warehouseId)
+                .pipe(
+                  tapResponse({
+                    next: (inventory) => {
+                      patchState(store, {
+                        selectedWarehouseInventory: inventory,
+                        loading: false,
+                        error: null,
+                      });
+                    },
+                    error: (error: unknown) => {
+                      patchState(store, {
+                        loading: false,
+                        error:
+                          (error as Error)?.message ||
+                          'Failed to fetch warehouse inventory',
+                      });
+                      toastService.showError(
+                        (error as Error)?.message ||
+                          "Errore nel caricamento dell'inventario"
+                      );
+                    },
+                  })
+                );
+            })
+          )
+        ),
+
+        /**
+         * Carica il riepilogo dei movimenti di un warehouse
+         */
+        fetchWarehouseMovementSummary: rxMethod<{
+          projectId: string;
+          warehouseId: string;
+        }>(
+          pipe(
+            tap(() => patchState(store, { loading: true, error: null })),
+            switchMap(({ projectId, warehouseId }) => {
+              return warehouseService
+                .getWarehouseMovementSummary(projectId, warehouseId)
+                .pipe(
+                  tapResponse({
+                    next: (summary) => {
+                      patchState(store, {
+                        selectedWarehouseMovements: summary,
+                        loading: false,
+                        error: null,
+                      });
+                    },
+                    error: (error: unknown) => {
+                      patchState(store, {
+                        loading: false,
+                        error:
+                          (error as Error)?.message ||
+                          'Failed to fetch movement summary',
+                      });
+                      toastService.showError(
+                        (error as Error)?.message ||
+                          'Errore nel caricamento dei movimenti'
+                      );
+                    },
+                  })
+                );
+            })
+          )
+        ),
+
+        /**
+         * Carica i dettagli di inventario di un prodotto specifico
+         */
+        fetchProductInventory: rxMethod<{
+          projectId: string;
+          warehouseId: string;
+          rawProductId: string;
+        }>(
+          pipe(
+            tap(() => patchState(store, { loading: true, error: null })),
+            switchMap(({ projectId, warehouseId, rawProductId }) => {
+              // Verifica se il warehouse corrente è di tipo fisico
+              const currentWarehouse = store.selectedWarehouse();
+              if (currentWarehouse && currentWarehouse.type !== 'PHYSICAL') {
+                toastService.showWarn(
+                  "L'inventario prodotto è disponibile solo per magazzini fisici"
+                );
+                patchState(store, { loading: false });
+                return of(null);
+              }
+
+              return warehouseService
+                .getWarehouseProductInventory(
+                  projectId,
+                  warehouseId,
+                  rawProductId
+                )
+                .pipe(
+                  tapResponse({
+                    next: (productInventory) => {
+                      // Aggiorniamo l'inventario nel modo più efficiente possibile
+                      const currentInventory =
+                        store.selectedWarehouseInventory();
+                      if (currentInventory) {
+                        const updatedProducts = currentInventory.products.map(
+                          (p) =>
+                            p.rawProductId === rawProductId
+                              ? {
+                                  ...p,
+                                  quantity: productInventory.quantity,
+                                  value: productInventory.value,
+                                  avgCost: productInventory.avgCost,
+                                }
+                              : p
+                        );
+
+                        patchState(store, {
+                          selectedWarehouseInventory: {
+                            ...currentInventory,
+                            products: updatedProducts,
+                            lastUpdated: new Date().toISOString(),
+                          },
+                        });
+                      }
+
+                      patchState(store, {
+                        loading: false,
+                        error: null,
+                      });
+                    },
+                    error: (error: unknown) => {
+                      patchState(store, {
+                        loading: false,
+                        error:
+                          (error as Error)?.message ||
+                          'Failed to fetch product inventory',
+                      });
+                      toastService.showError(
+                        (error as Error)?.message ||
+                          'Errore nel caricamento dei dati del prodotto'
+                      );
+                    },
+                  })
+                );
+            })
+          )
+        ),
+
+        /**
+         * Crea un nuovo warehouse
+         */
+        createWarehouse: rxMethod<{
+          projectId: string;
+          warehouse: CreateWarehouseDto;
+        }>(
+          pipe(
+            tap(() => patchState(store, { loading: true, error: null })),
+            switchMap(({ projectId, warehouse }) =>
+              warehouseService.createWarehouse(projectId, warehouse).pipe(
+                tapResponse({
+                  next: (createdWarehouse) => {
+                    toastService.showSuccess('Magazzino creato con successo');
+
+                    // Aggiorniamo la lista dei warehouse
+                    const currentWarehouses = store.warehouses() || [];
+                    const updatedWarehouses = [
+                      ...currentWarehouses,
+                      createdWarehouse,
+                    ];
+
+                    patchState(store, {
+                      warehouses: updatedWarehouses,
+                      loading: false,
+                      error: null,
+                    });
+
+                    // Riapplica i filtri se necessario
+                    if (Object.keys(store.filters()).length > 0) {
+                      applyFilters(store.filters());
+                    } else {
+                      patchState(store, {
+                        filteredWarehouses: updatedWarehouses,
+                      });
+                    }
+                  },
+                  error: (error: unknown) => {
+                    toastService.showError(
+                      (error as Error)?.message ||
+                        'Errore nella creazione del magazzino'
                     );
                     patchState(store, {
                       loading: false,
                       error:
                         (error as Error)?.message ||
-                        'Failed to update warehouse status',
+                        'Failed to create warehouse',
                     });
                   },
                 })
               )
+            )
           )
-        )
-      ),
+        ),
 
-      // Select warehouse
-      selectWarehouse: (warehouse: Warehouse) => {
-        patchState(store, { selectedWarehouse: warehouse });
-      },
+        /**
+         * Aggiorna un warehouse esistente
+         */
+        updateWarehouse: rxMethod<{
+          projectId: string;
+          warehouseId: string;
+          warehouse: UpdateWarehouseDto;
+        }>(
+          pipe(
+            tap(() => patchState(store, { loading: true, error: null })),
+            switchMap(({ projectId, warehouseId, warehouse }) =>
+              warehouseService
+                .updateWarehouse(projectId, warehouseId, warehouse)
+                .pipe(
+                  tapResponse({
+                    next: (updatedWarehouse) => {
+                      toastService.showSuccess(
+                        'Magazzino aggiornato con successo'
+                      );
 
-      // Clear selected warehouse
-      clearSelectedWarehouse: () => {
-        patchState(store, { selectedWarehouse: null });
-      },
+                      // Aggiorniamo la lista dei warehouse
+                      const currentWarehouses = store.warehouses();
+                      if (currentWarehouses) {
+                        const updatedWarehouses = currentWarehouses.map((w) =>
+                          w.id === warehouseId ? updatedWarehouse : w
+                        );
 
-      // Clear warehouse balance
-      clearWarehouseBalance: () => {
-        patchState(store, { warehouseBalance: null });
-      },
+                        patchState(store, {
+                          warehouses: updatedWarehouses,
+                          selectedWarehouse:
+                            store.selectedWarehouse()?.id === warehouseId
+                              ? updatedWarehouse
+                              : store.selectedWarehouse(),
+                          loading: false,
+                          error: null,
+                        });
 
-      // Clear errors
-      clearWarehouseErrors: () => {
-        patchState(store, { error: null });
-      },
-    })
+                        // Riapplica i filtri se necessario
+                        if (Object.keys(store.filters()).length > 0) {
+                          applyFilters(store.filters());
+                        } else {
+                          patchState(store, {
+                            filteredWarehouses: updatedWarehouses,
+                          });
+                        }
+                      }
+                    },
+                    error: (error: unknown) => {
+                      toastService.showError(
+                        (error as Error)?.message ||
+                          "Errore nell'aggiornamento del magazzino"
+                      );
+                      patchState(store, {
+                        loading: false,
+                        error:
+                          (error as Error)?.message ||
+                          'Failed to update warehouse',
+                      });
+                    },
+                  })
+                )
+            )
+          )
+        ),
+
+        /**
+         * Elimina un warehouse
+         */
+        deleteWarehouse: rxMethod<{
+          projectId: string;
+          warehouseId: string;
+        }>(
+          pipe(
+            tap(() => patchState(store, { loading: true, error: null })),
+            switchMap(({ projectId, warehouseId }) =>
+              warehouseService.deleteWarehouse(projectId, warehouseId).pipe(
+                tapResponse({
+                  next: () => {
+                    toastService.showSuccess(
+                      'Magazzino eliminato con successo'
+                    );
+
+                    // Aggiorniamo le liste rimuovendo il warehouse eliminato
+                    const currentWarehouses = store.warehouses();
+                    if (currentWarehouses) {
+                      const updatedWarehouses = currentWarehouses.filter(
+                        (w) => w.id !== warehouseId
+                      );
+
+                      patchState(store, {
+                        warehouses: updatedWarehouses,
+                        selectedWarehouse:
+                          store.selectedWarehouse()?.id === warehouseId
+                            ? null
+                            : store.selectedWarehouse(),
+                        loading: false,
+                        error: null,
+                      });
+
+                      // Riapplica i filtri se necessario
+                      if (Object.keys(store.filters()).length > 0) {
+                        applyFilters(store.filters());
+                      } else {
+                        patchState(store, {
+                          filteredWarehouses: updatedWarehouses,
+                        });
+                      }
+                    }
+                  },
+                  error: (error: unknown) => {
+                    toastService.showError(
+                      (error as Error)?.message ||
+                        "Errore nell'eliminazione del magazzino"
+                    );
+                    patchState(store, {
+                      loading: false,
+                      error:
+                        (error as Error)?.message ||
+                        'Failed to delete warehouse',
+                    });
+                  },
+                })
+              )
+            )
+          )
+        ),
+
+        /**
+         * Aggiorna lo stato (attivo/inattivo) di un warehouse
+         */
+        updateWarehouseStatus: rxMethod<{
+          projectId: string;
+          warehouseId: string;
+          isActive: boolean;
+        }>(
+          pipe(
+            tap(() => patchState(store, { loading: true, error: null })),
+            switchMap(({ projectId, warehouseId, isActive }) =>
+              warehouseService
+                .updateWarehouseStatus(projectId, warehouseId, isActive)
+                .pipe(
+                  tapResponse({
+                    next: (updatedWarehouse) => {
+                      const statusMessage = isActive
+                        ? 'attivato'
+                        : 'disattivato';
+                      toastService.showSuccess(
+                        `Magazzino ${statusMessage} con successo`
+                      );
+
+                      // Aggiorniamo le liste
+                      const currentWarehouses = store.warehouses();
+                      if (currentWarehouses) {
+                        const updatedWarehouses = currentWarehouses.map((w) =>
+                          w.id === warehouseId ? updatedWarehouse : w
+                        );
+
+                        patchState(store, {
+                          warehouses: updatedWarehouses,
+                          selectedWarehouse:
+                            store.selectedWarehouse()?.id === warehouseId
+                              ? updatedWarehouse
+                              : store.selectedWarehouse(),
+                          loading: false,
+                          error: null,
+                        });
+
+                        // Riapplica i filtri se necessario
+                        if (Object.keys(store.filters()).length > 0) {
+                          applyFilters(store.filters());
+                        } else {
+                          patchState(store, {
+                            filteredWarehouses: updatedWarehouses,
+                          });
+                        }
+                      }
+                    },
+                    error: (error: unknown) => {
+                      toastService.showError(
+                        (error as Error)?.message ||
+                          "Errore nell'aggiornamento dello stato del magazzino"
+                      );
+                      patchState(store, {
+                        loading: false,
+                        error:
+                          (error as Error)?.message ||
+                          'Failed to update warehouse status',
+                      });
+                    },
+                  })
+                )
+            )
+          )
+        ),
+
+        /**
+         * Carica tutti i dati per un warehouse selezionato
+         */
+        loadWarehouseCompleteDetails: rxMethod<{
+          projectId: string;
+          warehouseId: string;
+        }>(
+          pipe(
+            tap(() => patchState(store, { loading: true, error: null })),
+            switchMap(({ projectId, warehouseId }) => {
+              // Prima carichiamo i dettagli di base del warehouse
+              const role = authService.userRole();
+              const request =
+                role === 'admin'
+                  ? warehouseService.getAdminWarehouse(
+                      projectId,
+                      warehouseId,
+                      true
+                    )
+                  : warehouseService.getPartnerWarehouse(
+                      projectId,
+                      warehouseId,
+                      true
+                    );
+
+              return request.pipe(
+                tapResponse({
+                  next: (warehouse) => {
+                    patchState(store, {
+                      selectedWarehouse: warehouse,
+                      loading: false,
+                    });
+
+                    // Aggiorniamo anche il warehouse nella lista se è presente
+                    const currentWarehouses = store.warehouses();
+                    if (currentWarehouses) {
+                      const updatedWarehouses = currentWarehouses.map((w) =>
+                        w.id === warehouseId ? warehouse : w
+                      );
+                      patchState(store, { warehouses: updatedWarehouses });
+
+                      // Riapplica i filtri se necessario
+                      if (Object.keys(store.filters()).length > 0) {
+                        applyFilters(store.filters());
+                      }
+                    }
+
+                    // Ora carichiamo le statistiche
+                    warehouseService
+                      .getWarehouseStats(projectId, warehouseId)
+                      .pipe(
+                        tapResponse({
+                          next: (stats) => {
+                            patchState(store, {
+                              selectedWarehouseStats: stats,
+                            });
+
+                            // Se è un warehouse fisico, carichiamo anche l'inventario
+                            if (warehouse && warehouse.type === 'PHYSICAL') {
+                              warehouseService
+                                .getWarehouseInventory(projectId, warehouseId)
+                                .pipe(
+                                  tapResponse({
+                                    next: (inventory) => {
+                                      patchState(store, {
+                                        selectedWarehouseInventory: inventory,
+                                      });
+
+                                      // Infine carichiamo il riepilogo movimenti
+                                      loadMovementSummary();
+                                    },
+                                    error: (error: unknown) => {
+                                      toastService.showError(
+                                        (error as Error)?.message ||
+                                          "Errore nel caricamento dell'inventario"
+                                      );
+                                      // Anche se fallisce l'inventario, tentiamo di caricare i movimenti
+                                      loadMovementSummary();
+                                    },
+                                  })
+                                )
+                                .subscribe();
+                            } else {
+                              // Se non è un warehouse fisico, carichiamo solo i movimenti
+                              loadMovementSummary();
+                            }
+                          },
+                          error: (error: unknown) => {
+                            toastService.showError(
+                              (error as Error)?.message ||
+                                'Errore nel caricamento delle statistiche'
+                            );
+                          },
+                        })
+                      )
+                      .subscribe();
+                  },
+                  error: (error: unknown) => {
+                    patchState(store, {
+                      loading: false,
+                      error:
+                        (error as Error)?.message ||
+                        'Failed to fetch warehouse',
+                    });
+                    toastService.showError(
+                      (error as Error)?.message ||
+                        'Errore nel caricamento del magazzino'
+                    );
+                  },
+                })
+              );
+
+              // Funzione helper per caricare il riepilogo movimenti
+              function loadMovementSummary() {
+                warehouseService
+                  .getWarehouseMovementSummary(projectId, warehouseId)
+                  .pipe(
+                    tapResponse({
+                      next: (summary) => {
+                        patchState(store, {
+                          selectedWarehouseMovements: summary,
+                          loading: false,
+                        });
+                      },
+                      error: (error: unknown) => {
+                        patchState(store, {
+                          loading: false,
+                          error:
+                            (error as Error)?.message ||
+                            'Failed to fetch movement summary',
+                        });
+                        toastService.showError(
+                          (error as Error)?.message ||
+                            'Errore nel caricamento dei movimenti'
+                        );
+                      },
+                    })
+                  )
+                  .subscribe();
+              }
+            })
+          )
+        ),
+        
+        /**
+         * Seleziona un warehouse come corrente
+         */
+        selectWarehouse(warehouse: Warehouse) {
+          patchState(store, { selectedWarehouse: warehouse });
+        },
+
+        /**
+         * Filtra i warehouse in base ai criteri specificati
+         */
+        setFilters(filters: WarehouseFilters) {
+          patchState(store, { filters });
+          applyFilters(filters);
+        },
+
+        /**
+         * Filtra i warehouse per tipo
+         */
+        filterByType(type?: WarehouseType) {
+          const currentFilters = store.filters();
+          this.setFilters({ ...currentFilters, type });
+        },
+
+        /**
+         * Filtra i warehouse per termine di ricerca
+         */
+        filterBySearch(search?: string) {
+          const currentFilters = store.filters();
+          this.setFilters({ ...currentFilters, search });
+        },
+
+        /**
+         * Filtra i warehouse per stato attivo
+         */
+        filterByActiveStatus(isActive?: boolean) {
+          const currentFilters = store.filters();
+          this.setFilters({ ...currentFilters, isActive });
+        },
+
+        /**
+         * Pulisce tutti i filtri
+         */
+        clearFilters() {
+          patchState(store, { filters: {} });
+          const warehouses = store.warehouses();
+          patchState(store, { filteredWarehouses: warehouses });
+        },
+
+        /**
+         * Ottiene un warehouse per ID
+         */
+        getWarehouseById(id: string): Warehouse | null {
+          const warehouses = store.warehouses();
+          if (!warehouses) return null;
+          return warehouses.find((w) => w.id === id) || null;
+        },
+
+        /**
+         * Pulisce lo stato del warehouse selezionato
+         */
+        clearSelectedWarehouse() {
+          patchState(store, {
+            selectedWarehouse: null,
+            selectedWarehouseStats: null,
+            selectedWarehouseInventory: null,
+            selectedWarehouseMovements: null,
+          });
+        },
+
+        /**
+         * Pulisce gli errori
+         */
+        clearErrors() {
+          patchState(store, { error: null });
+        },
+      };
+    }
   ),
 
   withHooks({

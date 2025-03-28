@@ -61,8 +61,8 @@ export class WarehouseInventoryComponent {
   showProductDetailsDialog = false;
 
   // Chart data
-  chartData: any;
-  chartOptions: any;
+  chartData: any = { labels: [], datasets: [] };
+  chartOptions: any = {};
 
   ngOnInit() {
     this.initChartData();

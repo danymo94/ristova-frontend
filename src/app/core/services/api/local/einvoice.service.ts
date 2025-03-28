@@ -8,13 +8,8 @@ import {
   CreateEInvoiceDto,
   UpdateEInvoiceDto,
   UpdatePaymentStatusDto,
-  AssignCostCenterDto,
-  ProcessInventoryDto,
 } from '../../../models/einvoice.model';
-import {
-  AssignInvoiceToCostCenterResponse,
-  StockMovement,
-} from '../../../models/stock-movement.model';
+import { StockMovement } from '../../../models/stock-movement.model';
 
 @Injectable({
   providedIn: 'root',
@@ -24,7 +19,11 @@ export class EinvoiceService {
 
   constructor(private http: HttpClient) {}
 
-  // Partner endpoints
+  // ===== PARTNER ENDPOINTS =====
+  
+  /**
+   * Recupera tutte le fatture elettroniche associate a un progetto specifico
+   */
   getPartnerProjectInvoices(projectId: string): Observable<EInvoice[]> {
     return this.http
       .get<any>(`${this.apiUrl}/partner/projects/${projectId}/einvoices`)
@@ -34,6 +33,9 @@ export class EinvoiceService {
       );
   }
 
+  /**
+   * Recupera tutte le fatture associate al partner autenticato
+   */
   getAllPartnerInvoices(): Observable<EInvoice[]> {
     return this.http.get<any>(`${this.apiUrl}/partner/einvoices`).pipe(
       map((response) => response.data || []),
@@ -41,6 +43,9 @@ export class EinvoiceService {
     );
   }
 
+  /**
+   * Recupera i dettagli di una specifica fattura elettronica
+   */
   getPartnerInvoice(
     projectId: string,
     invoiceId: string
@@ -55,6 +60,9 @@ export class EinvoiceService {
       );
   }
 
+  /**
+   * Crea una nuova fattura elettronica associata a un progetto
+   */
   createInvoice(
     projectId: string,
     invoice: CreateEInvoiceDto
@@ -70,6 +78,9 @@ export class EinvoiceService {
       );
   }
 
+  /**
+   * Aggiorna una fattura elettronica esistente
+   */
   updateInvoice(
     projectId: string,
     invoiceId: string,
@@ -86,6 +97,9 @@ export class EinvoiceService {
       );
   }
 
+  /**
+   * Elimina una fattura elettronica esistente
+   */
   deleteInvoice(projectId: string, invoiceId: string): Observable<any> {
     return this.http
       .delete<any>(
@@ -97,7 +111,9 @@ export class EinvoiceService {
       );
   }
 
-  // Payment status updating
+  /**
+   * Aggiorna lo stato di pagamento di una fattura
+   */
   updatePaymentStatus(
     projectId: string,
     invoiceId: string,
@@ -114,19 +130,18 @@ export class EinvoiceService {
       );
   }
 
-  // Nuovi metodi per l'assegnazione e l'elaborazione delle fatture
-
   /**
    * Assegna una fattura a un centro di costo
+   * Crea un movimento di tipo EXPENSE
    */
   assignInvoiceToCostCenter(
     projectId: string,
     invoiceId: string,
     costCenterId: string
-  ): Observable<AssignInvoiceToCostCenterResponse> {
+  ): Observable<StockMovement> {
     return this.http
       .post<any>(
-        `${this.apiUrl}/partner/projects/${projectId}/invoices/${invoiceId}/costcenter/${costCenterId}`,
+        `${this.apiUrl}/partner/projects/${projectId}/einvoices/${invoiceId}/costcenter/${costCenterId}`,
         {}
       )
       .pipe(
@@ -137,17 +152,18 @@ export class EinvoiceService {
 
   /**
    * Elabora una fattura creando un movimento di stock in un magazzino fisico
+   * Se lineIndices è specificato, elabora solo le righe indicate
    */
   processInvoiceToWarehouse(
     projectId: string,
     invoiceId: string,
     warehouseId: string,
-    data: any
+    options?: { lineIndices?: number[] }
   ): Observable<StockMovement> {
     return this.http
       .post<any>(
-        `${this.apiUrl}/partner/projects/${projectId}/invoices/${invoiceId}/process-to-warehouse/${warehouseId}`,
-        data
+        `${this.apiUrl}/partner/projects/${projectId}/einvoices/${invoiceId}/process-to-warehouse/${warehouseId}`,
+        options || {}
       )
       .pipe(
         map((response) => response.data),
@@ -155,7 +171,11 @@ export class EinvoiceService {
       );
   }
 
-  // Admin endpoints (mantenuti solo quelli essenziali)
+  // ===== ADMIN ENDPOINTS =====
+  
+  /**
+   * Recupera tutte le fatture elettroniche associate a un progetto specifico (solo admin)
+   */
   getAdminProjectInvoices(projectId: string): Observable<EInvoice[]> {
     return this.http
       .get<any>(`${this.apiUrl}/admin/projects/${projectId}/einvoices`)
@@ -164,7 +184,22 @@ export class EinvoiceService {
         catchError(this.handleError)
       );
   }
+  
+  /**
+   * Recupera tutte le fatture elettroniche nel sistema (solo admin)
+   */
+  getAllAdminInvoices(): Observable<EInvoice[]> {
+    return this.http
+      .get<any>(`${this.apiUrl}/admin/einvoices`)
+      .pipe(
+        map((response) => response.data || []),
+        catchError(this.handleError)
+      );
+  }
 
+  /**
+   * Gestisce gli errori delle richieste API
+   */
   private handleError(error: any): Observable<never> {
     console.error('API error', error);
     throw error.error?.message || error.message || 'API request failed';

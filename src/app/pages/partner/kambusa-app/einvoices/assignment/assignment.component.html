@@ -154,7 +154,7 @@
       <div>
         <span class="font-medium">Righe disponibili:</span>
         {{ getUnprocessedLines().length }} di
-        {{ selectedInvoiceForWarehouse.invoiceLines?.length || 0 }}
+        {{ selectedInvoiceForWarehouse.invoiceLines.length || 0 }}
       </div>
       <div *ngIf="hasProcessedLines()" class="text-sm text-gray-600">
         <i class="pi pi-info-circle mr-1"></i>

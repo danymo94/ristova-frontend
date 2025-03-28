@@ -2,19 +2,23 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
-import { environment } from '../../../environments/environment';
+import { environment } from '../../../../../environments/environment';
 import {
   StockMovement,
   StockMovementDetail,
-  WarehouseBalance,
+  StockMovementType,
+  MovementStatus,
   InboundMovementDto,
   OutboundMovementDto,
   InventoryCheckDto,
   TransferMovementDto,
   UpdateMovementStatusDto,
-  AssignInvoiceToCostCenterResponse,
-} from '../../../models/stock-movement.model';
+  WarehouseInventorySummary,
+} from '../../../../core/models/stock-movement.model';
 
+/**
+ * Servizio per la gestione delle operazioni di magazzino (stock movements)
+ */
 @Injectable({
   providedIn: 'root',
 })
@@ -23,46 +27,15 @@ export class StockMovementService {
 
   constructor(private http: HttpClient) {}
 
-  // 1. Operazioni con Fatture - RIMOSSE E SPOSTATE IN EINVOICE SERVICE
-
-  /**
-   * Recupera tutti i movimenti di stock associati a una specifica fattura
-   */
-  getInvoiceMovements(
-    projectId: string,
-    invoiceId: string
-  ): Observable<StockMovement[]> {
-    return this.http
-      .get<any>(
-        `${this.apiUrl}/partner/projects/${projectId}/invoices/${invoiceId}/stockmovements`
-      )
-      .pipe(
-        map((response) => response.data || []),
-        catchError(this.handleError)
-      );
-  }
-
-    /**
-   * Recupera tutti i movimenti di stock associati a una specifica fattura
-   */
-    getInventoryByWarehouse(
-      projectId: string,
-      warehouseId: string
-    ): Observable<any[]> {
-      return this.http
-        .get<any>(
-          `${this.apiUrl}/partner/projects/${projectId}/warehouses/${warehouseId}/inventory`        )
-        .pipe(
-          map((response) => response.data || []),
-          catchError(this.handleError)
-        );
-    }
-  
-
-  // 2. Operazioni Magazzino
+  // ========== OPERAZIONI MAGAZZINO ==========
 
   /**
    * Registra l'ingresso di prodotti in un magazzino fisico
+   * 
+   * @param projectId ID del progetto
+   * @param warehouseId ID del magazzino fisico
+   * @param data Dati del movimento in ingresso
+   * @returns Movimento di stock creato
    */
   createInboundMovement(
     projectId: string,
@@ -82,6 +55,11 @@ export class StockMovementService {
 
   /**
    * Registra l'uscita di prodotti da un magazzino fisico
+   * 
+   * @param projectId ID del progetto
+   * @param warehouseId ID del magazzino fisico
+   * @param data Dati del movimento in uscita
+   * @returns Movimento di stock creato
    */
   createOutboundMovement(
     projectId: string,
@@ -100,7 +78,12 @@ export class StockMovementService {
   }
 
   /**
-   * Crea un movimento di rettifica inventario
+   * Crea un movimento di rettifica inventario per allineare le quantità fisiche con quelle nel sistema
+   * 
+   * @param projectId ID del progetto
+   * @param warehouseId ID del magazzino fisico
+   * @param data Dati della rettifica con quantità attese e quantità effettive
+   * @returns Movimento di rettifica inventario creato
    */
   createInventoryCheck(
     projectId: string,
@@ -120,6 +103,10 @@ export class StockMovementService {
 
   /**
    * Trasferisce prodotti da un magazzino fisico a un altro
+   * 
+   * @param projectId ID del progetto
+   * @param data Dati del trasferimento con magazzino origine, destinazione e prodotti
+   * @returns Movimento di trasferimento creato
    */
   createTransferMovement(
     projectId: string,
@@ -136,10 +123,13 @@ export class StockMovementService {
       );
   }
 
-  // 3. Recupero Movimenti
+  // ========== RECUPERO MOVIMENTI ==========
 
   /**
    * Recupera tutti i movimenti di stock associati a un progetto
+   * 
+   * @param projectId ID del progetto
+   * @returns Lista di movimenti di stock
    */
   getProjectMovements(projectId: string): Observable<StockMovement[]> {
     return this.http
@@ -152,6 +142,10 @@ export class StockMovementService {
 
   /**
    * Recupera tutti i movimenti di stock associati a un magazzino specifico
+   * 
+   * @param projectId ID del progetto
+   * @param warehouseId ID del magazzino
+   * @returns Lista di movimenti di stock del magazzino
    */
   getWarehouseMovements(
     projectId: string,
@@ -168,8 +162,32 @@ export class StockMovementService {
   }
 
   /**
-   * Recupera un movimento specifico
-   * Nota: questo endpoint non è esplicitamente documentato, ma è presumibilmente necessario
+   * Recupera tutti i movimenti di stock associati a una specifica fattura
+   * 
+   * @param projectId ID del progetto
+   * @param invoiceId ID della fattura
+   * @returns Lista di movimenti associati alla fattura
+   */
+  getInvoiceMovements(
+    projectId: string,
+    invoiceId: string
+  ): Observable<StockMovement[]> {
+    return this.http
+      .get<any>(
+        `${this.apiUrl}/partner/projects/${projectId}/invoices/${invoiceId}/stockmovements`
+      )
+      .pipe(
+        map((response) => response.data || []),
+        catchError(this.handleError)
+      );
+  }
+
+  /**
+   * Recupera un movimento specifico per ID
+   * 
+   * @param projectId ID del progetto
+   * @param id ID del movimento di stock
+   * @returns Dettagli del movimento
    */
   getMovement(projectId: string, id: string): Observable<StockMovement> {
     return this.http
@@ -183,7 +201,11 @@ export class StockMovementService {
   }
 
   /**
-   * Recupera i dettagli di un movimento specifico
+   * Recupera i dettagli (righe) di un movimento specifico
+   * 
+   * @param projectId ID del progetto
+   * @param id ID del movimento di stock
+   * @returns Lista di dettagli del movimento
    */
   getMovementDetails(
     projectId: string,
@@ -199,10 +221,35 @@ export class StockMovementService {
       );
   }
 
-  // 4. Gestione Movimenti
+  /**
+   * Recupera l'inventario completo di un magazzino specifico
+   * 
+   * @param projectId ID del progetto
+   * @param warehouseId ID del magazzino
+   * @returns Dati dell'inventario del magazzino
+   */
+  getWarehouseInventory(
+    projectId: string,
+    warehouseId: string
+  ): Observable<any> {
+    return this.http
+      .get<any>(
+        `${this.apiUrl}/partner/projects/${projectId}/warehouses/${warehouseId}/inventory`
+      )
+      .pipe(
+        map((response) => response.data),
+        catchError(this.handleError)
+      );
+  }
+
+  // ========== GESTIONE MOVIMENTI ==========
 
   /**
    * Elimina un movimento di stock e tutti i suoi dettagli
+   * 
+   * @param projectId ID del progetto
+   * @param id ID del movimento di stock
+   * @returns Observable<void>
    */
   deleteMovement(projectId: string, id: string): Observable<void> {
     return this.http
@@ -217,6 +264,12 @@ export class StockMovementService {
 
   /**
    * Aggiorna lo stato di un movimento di stock
+   * Stati possibili: draft, confirmed, cancelled
+   * 
+   * @param projectId ID del progetto
+   * @param id ID del movimento di stock
+   * @param data Dati di aggiornamento stato
+   * @returns Movimento con stato aggiornato
    */
   updateMovementStatus(
     projectId: string,
@@ -234,18 +287,42 @@ export class StockMovementService {
       );
   }
 
-  // 5. Endpoint Admin - Solo se necessario per l'applicazione partner
+  // ========== ENDPOINT ADMIN ==========
 
   /**
-   * Recupera tutti i movimenti di stock (admin)
+   * Recupera tutti i movimenti di stock nel sistema (solo per admin)
+   * 
+   * @returns Lista di tutti i movimenti
    */
   getAllMovements(): Observable<StockMovement[]> {
-    return this.http.get<any>(`${this.apiUrl}/admin/stockmovements`).pipe(
-      map((response) => response.data || []),
-      catchError(this.handleError)
-    );
+    return this.http
+      .get<any>(`${this.apiUrl}/admin/stockmovements`)
+      .pipe(
+        map((response) => response.data || []),
+        catchError(this.handleError)
+      );
   }
 
+  /**
+   * Recupera un riepilogo dell'inventario di tutti i magazzini (solo per admin)
+   * 
+   * @returns Riepilogo degli inventari di tutti i magazzini
+   */
+  getWarehousesInventorySummary(): Observable<WarehouseInventorySummary[]> {
+    return this.http
+      .get<any>(`${this.apiUrl}/admin/warehouses/inventory/summary`)
+      .pipe(
+        map((response) => response.data || []),
+        catchError(this.handleError)
+      );
+  }
+
+  /**
+   * Gestisce gli errori delle chiamate API
+   * 
+   * @param error L'errore generato dalla chiamata HTTP
+   * @returns Observable che lancia l'errore
+   */
   private handleError(error: any): Observable<never> {
     console.error('API error', error);
     throw error.error?.message || error.message || 'API request failed';

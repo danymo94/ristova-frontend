@@ -115,7 +115,7 @@ export class EditComponent implements OnInit {
 
     this.warehouseStore.updateWarehouse({
       projectId,
-      id: this.warehouse.id,
+      warehouseId: this.warehouse.id,
       warehouse: this.editingWarehouse,
     });
 

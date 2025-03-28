@@ -110,7 +110,7 @@ export class WarehousesComponent implements OnInit, OnChanges {
   }
 
   loadWarehouses(): void {
-    this.warehouseStore.fetchProjectWarehouses({
+    this.warehouseStore.fetchWarehouses({
       projectId: this.projectId,
     });
   }

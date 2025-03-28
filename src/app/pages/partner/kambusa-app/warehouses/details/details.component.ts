@@ -48,15 +48,28 @@ export class DetailsComponent implements OnInit {
 
   loadWarehouseDetails(): void {
     if (!this.warehouse) return;
-
+  
     const projectId = this.projectStore.selectedProject()?.id;
     if (projectId && this.warehouse.type === 'PHYSICAL') {
       // Carica i dettagli estesi del magazzino incluse le statistiche se è un magazzino fisico
-      this.warehouseStore.fetchWarehouse({
+      this.warehouseStore.fetchWarehouseDetails({
         projectId,
-        id: this.warehouse.id ?? '',
-        withStats: true,
+        warehouseId: this.warehouse.id ?? '',
       });
+      
+      // Carichiamo anche le statistiche
+      if (this.warehouse.id) {
+        this.warehouseStore.fetchWarehouseStats({
+          projectId,
+          warehouseId: this.warehouse.id
+        });
+        
+        // Per i magazzini fisici, carichiamo anche l'inventario
+        this.warehouseStore.fetchWarehouseInventory({
+          projectId,
+          warehouseId: this.warehouse.id
+        });
+      }
     }
   }
 

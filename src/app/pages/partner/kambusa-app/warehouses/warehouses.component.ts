@@ -78,12 +78,37 @@ export class WarehousesComponent implements OnInit, OnDestroy {
   filteredWarehouses = this.warehouseStore.filteredWarehouses;
   selectedWarehouse = this.warehouseStore.selectedWarehouse;
   invoices = this.einvoiceStore.invoices;
-  warehouseBalance = this.warehouseStore.warehouseBalance;
+  warehouseInventory = this.warehouseStore.selectedWarehouseInventory;
 
   // Loading states
   loading = computed(
     () => this.warehouseStore.loading() || this.einvoiceStore.loading()
   );
+
+  warehouseBalance = computed(() => {
+    const inventory = this.warehouseInventory();
+    if (!inventory) return null;
+    
+    return {
+      warehouseId: inventory.warehouseId,
+      warehouseName: this.selectedWarehouse()?.name || '',
+      type: this.selectedWarehouse()?.type || 'PHYSICAL',
+      projectId: inventory.projectId,
+      items: inventory.products.map(p => ({
+        warehouseId: inventory.warehouseId,
+        projectId: inventory.projectId,
+        rawProductId: p.rawProductId,
+        currentQuantity: p.quantity,
+        lastMovementDate: p.lastMovementDate || new Date().toISOString(),
+        averageUnitCost: p.avgCost,
+        totalValue: p.value
+      })),
+      totalItems: inventory.products.length,
+      totalQuantity: inventory.products.reduce((sum, p) => sum + p.quantity, 0),
+      totalValue: inventory.products.reduce((sum, p) => sum + p.value, 0),
+      lastUpdate: inventory.lastUpdated
+    };
+  });
 
   // Local state
   viewMode: 'grid' | 'list' = 'grid';
@@ -108,7 +133,7 @@ export class WarehousesComponent implements OnInit, OnDestroy {
     effect(() => {
       const projectId = this.selectedProject()?.id;
       if (projectId) {
-        this.warehouseStore.fetchProjectWarehouses({ projectId });
+        this.warehouseStore.fetchWarehouses({ projectId });
         this.loadUnassignedInvoices();
       }
     });
@@ -127,10 +152,9 @@ export class WarehousesComponent implements OnInit, OnDestroy {
   }
 
   loadData(projectId: string): void {
-    this.warehouseStore.fetchProjectWarehouses({
+    this.warehouseStore.fetchWarehouses({
       projectId,
-      withStats: true, // Richiedi statistiche per i magazzini
-    });
+    }); 
     this.loadUnassignedInvoices();
   }
 
@@ -281,7 +305,7 @@ export class WarehousesComponent implements OnInit, OnDestroy {
 
     this.warehouseStore.deleteWarehouse({
       projectId,
-      id: selectedWarehouse.id,
+      warehouseId: selectedWarehouse.id,
     });
 
     this.deleteDialogVisible = false;
@@ -303,7 +327,7 @@ export class WarehousesComponent implements OnInit, OnDestroy {
 
     this.warehouseStore.updateWarehouseStatus({
       projectId,
-      id: warehouse.id,
+      warehouseId: warehouse.id,
       isActive: !warehouse.isActive,
     });
   }

@@ -33,11 +33,14 @@ import { WarehouseInventoryComponent } from './warehouse-inventory/warehouse-inv
 import {
   Warehouse,
   WarehouseType,
+  WarehouseBalance,
+  WarehouseInventory,
 } from '../../../../core/models/warehouse.model';
 import {
   StockMovement,
   StockMovementType,
   MovementStatus,
+  StockMovementDetail,
 } from '../../../../core/models/stock-movement.model';
 import { ToastService } from '../../../../core/services/toast.service';
 
@@ -81,6 +84,8 @@ export class StockMovementsComponent implements OnInit {
   warehouses = this.warehouseStore.warehouses;
   stockMovements = this.stockMovementStore.movements;
   selectedMovement = this.stockMovementStore.selectedMovement;
+  movementDetails = this.stockMovementStore.movementDetails;
+  warehouseInventory = this.warehouseStore.selectedWarehouseInventory;
 
   // Stato del componente
   viewType: 'warehouse' | 'costcenter' = 'warehouse';
@@ -103,7 +108,39 @@ export class StockMovementsComponent implements OnInit {
     () => this.warehouseStore.loading() || this.stockMovementStore.loading()
   );
 
-  hasSelectedWarehouse = computed(() => this.selectedWarehouse);
+  hasSelectedWarehouse = computed(() => this.selectedWarehouse !== null);
+
+  // Computed signal per convertire WarehouseInventory in WarehouseBalance
+  warehouseBalanceAdapter = computed(() => {
+    const inventory = this.warehouseStore.selectedWarehouseInventory();
+    const warehouse = this.selectedWarehouse;
+
+    if (!inventory || !warehouse) return null;
+
+    // Adattatore per convertire WarehouseInventory in WarehouseBalance
+    const balance: WarehouseBalance = {
+      warehouseId: inventory.warehouseId,
+      warehouseName: warehouse.name,
+      type: warehouse.type,
+      projectId: inventory.projectId,
+      // Converti i prodotti in WarehouseBalanceItem[]
+      items: inventory.products.map((product) => ({
+        warehouseId: inventory.warehouseId,
+        projectId: inventory.projectId,
+        rawProductId: product.rawProductId,
+        currentQuantity: product.quantity,
+        lastMovementDate: product.lastMovementDate || new Date().toISOString(),
+        averageUnitCost: product.avgCost,
+        totalValue: product.value,
+      })),
+      totalItems: inventory.products.length,
+      totalQuantity: inventory.products.reduce((sum, p) => sum + p.quantity, 0),
+      totalValue: inventory.products.reduce((sum, p) => sum + p.value, 0),
+      lastUpdate: inventory.lastUpdated,
+    };
+
+    return balance;
+  });
 
   // Opzioni per i filtri
   movementTypeOptions = [
@@ -140,6 +177,8 @@ export class StockMovementsComponent implements OnInit {
       const projectId = this.selectedProject()?.id;
       if (projectId) {
         this.loadWarehouses(projectId);
+        // Carica anche i prodotti all'avvio
+        this.loadRawProducts(projectId);
       }
     });
   }
@@ -148,15 +187,21 @@ export class StockMovementsComponent implements OnInit {
     const projectId = this.getSelectedProjectId();
     if (projectId) {
       this.loadWarehouses(projectId);
+      // Carica anche i prodotti all'avvio
+      this.loadRawProducts(projectId);
     }
   }
 
   private loadWarehouses(projectId: string) {
     // Carica tutti i magazzini/centri di costo per il progetto
-    this.warehouseStore.fetchProjectWarehouses({
+    this.warehouseStore.fetchWarehouses({
       projectId,
-      withStats: true,
     });
+  }
+
+  private loadRawProducts(projectId: string) {
+    // Carica tutti i prodotti del progetto per averli già disponibili
+    this.rawProductStore.fetchProjectRawProducts({ projectId });
   }
 
   getSelectedProjectId(): string | null {
@@ -164,10 +209,8 @@ export class StockMovementsComponent implements OnInit {
   }
 
   onWarehouseSelected(warehouse: Warehouse) {
-    this.warehouseStore.clearWarehouseBalance();
-
-    this.warehouseStore.selectWarehouse(warehouse);
     this.selectedWarehouse = warehouse;
+    this.warehouseStore.selectWarehouse(warehouse);
 
     const projectId = this.getSelectedProjectId();
     if (projectId && warehouse.id) {
@@ -179,8 +222,7 @@ export class StockMovementsComponent implements OnInit {
 
       // Carica il bilancio di magazzino solo per i magazzini fisici
       if (warehouse.type === 'PHYSICAL') {
-        console.log('Carica il bilancio del magazzino');
-        this.warehouseStore.fetchWarehouseBalance({
+        this.warehouseStore.fetchWarehouseInventory({
           projectId,
           warehouseId: warehouse.id,
         });
@@ -194,10 +236,15 @@ export class StockMovementsComponent implements OnInit {
 
     // Resetta il magazzino selezionato quando si cambia vista
     this.selectedWarehouse = null;
-    this.stockMovementStore.resetState();
+    this.warehouseStore.clearSelectedWarehouse();
   }
 
   openNewMovementDialog() {
+    // Carica i prodotti per il progetto corrente
+    const projectId = this.getSelectedProjectId();
+    if (projectId) {
+      this.rawProductStore.fetchProjectRawProducts({ projectId });
+    }
     this.showNewMovementDialog = true;
   }
 
@@ -209,11 +256,19 @@ export class StockMovementsComponent implements OnInit {
     this.closeNewMovementDialog();
     this.toastService.showSuccess('Movimento creato con successo');
 
-    // Aggiorna i movimenti per il magazzino selezionato
-    if (this.selectedWarehouse?.id && this.getSelectedProjectId()) {
-      this.stockMovementStore.fetchWarehouseMovements({
-        projectId: this.getSelectedProjectId()!,
-        warehouseId: this.selectedWarehouse.id,
+    // Il movimento è già stato aggiornato nel store dallo wizard
+    // Ricarica il bilancio del magazzino corrente
+    const projectId = this.getSelectedProjectId();
+    const warehouseId = this.selectedWarehouse?.id;
+
+    if (
+      projectId &&
+      warehouseId &&
+      this.selectedWarehouse?.type === 'PHYSICAL'
+    ) {
+      this.warehouseStore.fetchWarehouseInventory({
+        projectId,
+        warehouseId,
       });
     }
   }
@@ -229,17 +284,47 @@ export class StockMovementsComponent implements OnInit {
   }
 
   applyFilters() {
-    const projectId = this.getSelectedProjectId();
-    const warehouseId = this.selectedWarehouse?.id;
+    // Aggiorna i filtri manualmente
+    if (this.filterByType || this.filterByStatus || this.searchQuery) {
+      const filteredMovements = (this.stockMovements() || []).filter(
+        (movement) => {
+          // Filtro per tipo
+          if (
+            this.filterByType &&
+            movement.movementType !== this.filterByType
+          ) {
+            return false;
+          }
 
-    if (projectId && warehouseId) {
-      // Qui dovremmo implementare una logica per filtrare i movimenti
-      // In una implementazione reale, probabilmente passeremmo i filtri all'API
-      // Per ora, recuperiamo tutti i movimenti e filtriamo lato client
-      this.stockMovementStore.fetchWarehouseMovements({
-        projectId,
-        warehouseId,
-      });
+          // Filtro per stato
+          if (this.filterByStatus && movement.status !== this.filterByStatus) {
+            return false;
+          }
+
+          // Filtro per testo ricerca
+          if (this.searchQuery) {
+            const query = this.searchQuery.toLowerCase();
+            const matchesReference =
+              movement.reference &&
+              movement.reference.toLowerCase().includes(query);
+            const matchesNotes =
+              movement.notes && movement.notes.toLowerCase().includes(query);
+            const matchesDocumentNumber =
+              movement.documentNumber &&
+              movement.documentNumber.toLowerCase().includes(query);
+
+            if (!matchesReference && !matchesNotes && !matchesDocumentNumber) {
+              return false;
+            }
+          }
+
+          return true;
+        }
+      );
+
+      // Non abbiamo setFilters, quindi gestiamo il filtro manualmente
+      // Potrebbe richiedere un segnale aggiuntivo nel componente
+      // o una variabile di stato per memorizzare i movimenti filtrati
     }
   }
 
@@ -247,11 +332,9 @@ export class StockMovementsComponent implements OnInit {
     this.filterByType = null;
     this.filterByStatus = null;
     this.searchQuery = '';
-    this.applyFilters();
-  }
 
-  changeTab(index: number) {
-    this.activeTabIndex = index;
+    // Aggiorna la UI reimpostando i filtri
+    // Poiché non possiamo utilizzare clearFilters dello store
   }
 
   changeViewMode(mode: 'movements' | 'inventory') {
@@ -262,7 +345,7 @@ export class StockMovementsComponent implements OnInit {
     if (mode === 'inventory' && this.selectedWarehouse?.type === 'PHYSICAL') {
       const projectId = this.getSelectedProjectId();
       if (projectId && this.selectedWarehouse.id) {
-        this.warehouseStore.fetchWarehouseBalance({
+        this.warehouseStore.fetchWarehouseInventory({
           projectId,
           warehouseId: this.selectedWarehouse.id,
         });

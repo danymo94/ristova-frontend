@@ -83,7 +83,7 @@
             <div class="grid grid-cols-2 gap-2">
               <div class="stat-item text-center">
                 <div class="stat-value font-medium">
-                  {{ warehouse.statistics?.totalStock?.toFixed(2) || 0 }}
+                  {{ warehouse.statistics.totalStock?.toFixed(2) || 0 }}
                 </div>
                 <div class="stat-label text-xs text-gray-500">
                   Giacenza totale
@@ -92,7 +92,7 @@
               <div class="stat-item text-center">
                 <div class="stat-value text-sm font-medium">
                   {{
-                    (warehouse.statistics?.lastMovementDate
+                    (warehouse.statistics.lastMovementDate
                       | date : "dd/MM/yy") || "N/A"
                   }}
                 </div>

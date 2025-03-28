@@ -64,6 +64,13 @@ export class MovementDetailsComponent {
     this.loadProducts();
   }
 
+  ngOnChanges() {
+    // Ricarica i prodotti quando cambiano i dettagli
+    if (this.movementDetails) {
+      this.loadProducts();
+    }
+  }
+
   private async loadProducts() {
     if (!this.movementDetails) return;
 
@@ -93,7 +100,10 @@ export class MovementDetailsComponent {
     if (!this.movement || !this.movement.id) return;
 
     const projectId = this.projectStore.selectedProject()?.id;
-    if (!projectId) return;
+    if (!projectId) {
+      this.toastService.showError('Nessun progetto selezionato');
+      return;
+    }
 
     this.confirmationService.confirm({
       message:
@@ -113,7 +123,10 @@ export class MovementDetailsComponent {
     if (!this.movement || !this.movement.id) return;
 
     const projectId = this.projectStore.selectedProject()?.id;
-    if (!projectId) return;
+    if (!projectId) {
+      this.toastService.showError('Nessun progetto selezionato');
+      return;
+    }
 
     this.confirmationService.confirm({
       message:
@@ -190,6 +203,21 @@ export class MovementDetailsComponent {
 
   getDirectionColor(direction: MovementDetailDirection): string {
     return direction === 'IN' ? 'text-green-500' : 'text-red-500';
+  }
+
+  getRawProductName(rawProductId: string): string {
+    return (
+      this.productNames.get(rawProductId) ||
+      `Prodotto (${rawProductId.substring(0, 8)})`
+    );
+  }
+
+  canConfirmMovement(): boolean {
+    return this.movement?.status === 'draft';
+  }
+
+  canCancelMovement(): boolean {
+    return this.movement?.status === 'draft';
   }
 
   closeDetails() {

@@ -56,19 +56,19 @@
           <div *ngIf="warehouse.location" class="text-sm">
             <p class="mb-1">
               <strong>Indirizzo:</strong>
-              {{ warehouse.location?.address || "-" }}
+              {{ warehouse.location.address || "-" }}
             </p>
             <p class="mb-1">
               <strong>Città:</strong>
-              {{ warehouse.location?.city || "-" }}
+              {{ warehouse.location.city || "-" }}
             </p>
             <p class="mb-1">
               <strong>CAP:</strong>
-              {{ warehouse.location?.postalCode || "-" }}
+              {{ warehouse.location.postalCode || "-" }}
             </p>
             <p>
               <strong>Paese:</strong>
-              {{ warehouse.location?.country || "-" }}
+              {{ warehouse.location.country || "-" }}
             </p>
           </div>
         </div>
@@ -80,15 +80,15 @@
           <div *ngIf="warehouse.responsible" class="text-sm">
             <p class="mb-1">
               <strong>Nome:</strong>
-              {{ warehouse.responsible?.name || "Non specificato" }}
+              {{ warehouse.responsible.name || "Non specificato" }}
             </p>
             <p class="mb-1">
               <strong>Telefono:</strong>
-              {{ warehouse.responsible?.phone || "Non specificato" }}
+              {{ warehouse.responsible.phone || "Non specificato" }}
             </p>
             <p>
               <strong>Email:</strong>
-              {{ warehouse.responsible?.email || "Non specificato" }}
+              {{ warehouse.responsible.email || "Non specificato" }}
             </p>
           </div>
         </div>
@@ -105,7 +105,7 @@
           >
             <span class="block text-gray-600 text-sm">Prodotti</span>
             <span class="block text-lg font-bold">{{
-              warehouse.statistics?.productCount || 0
+              warehouse.statistics.productCount || 0
             }}</span>
           </div>
           <div
@@ -113,7 +113,7 @@
           >
             <span class="block text-gray-600 text-sm">Stock Totale</span>
             <span class="block text-lg font-bold">{{
-              warehouse.statistics?.totalStock?.toFixed(2)
+              warehouse.statistics.totalStock?.toFixed(2)
             }}</span>
           </div>
           <div
@@ -121,7 +121,7 @@
           >
             <span class="block text-gray-600 text-sm">Valore</span>
             <span class="block text-lg font-bold">{{
-              warehouse.statistics?.stockValue?.toFixed(2) | currency : "EUR"
+              warehouse.statistics.stockValue?.toFixed(2) | currency : "EUR"
             }}</span>
           </div>
         </div>
@@ -130,8 +130,8 @@
           <span>
             Ultimo movimento:
             {{
-              warehouse.statistics?.lastMovementDate
-                ? (warehouse.statistics?.lastMovementDate | date : "dd/MM/yyyy")
+              warehouse.statistics.lastMovementDate
+                ? (warehouse.statistics.lastMovementDate | date : "dd/MM/yyyy")
                 : "N/A"
             }}
           </span>

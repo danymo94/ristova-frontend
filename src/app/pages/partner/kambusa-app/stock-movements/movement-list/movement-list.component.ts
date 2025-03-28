@@ -52,16 +52,21 @@ export class MovementListComponent {
   }
 
   confirmDelete(movement: StockMovement) {
+    if (!movement.id) return;
+
+    const projectId = this.projectStore.selectedProject()?.id;
+    if (!projectId) {
+      this.toastService.showError('Nessun progetto selezionato');
+      return;
+    }
+
     this.confirmationService.confirm({
       message: 'Sei sicuro di voler eliminare questo movimento?',
       accept: () => {
-        const projectId = this.projectStore.selectedProject()?.id;
-        if (projectId && movement.id) {
-          this.stockMovementStore.deleteMovement({
-            projectId,
-            id: movement.id,
-          });
-        }
+        this.stockMovementStore.deleteMovement({
+          projectId,
+          id: movement.id!,
+        });
       },
     });
   }
@@ -91,7 +96,9 @@ export class MovementListComponent {
     }
   }
 
-  getMovementTypeSeverity(type: StockMovementType): 'success' | 'info' | 'warn' | 'danger' | 'secondary' {
+  getMovementTypeSeverity(
+    type: StockMovementType
+  ): 'success' | 'info' | 'warn' | 'danger' | 'secondary' {
     switch (type) {
       case StockMovementType.PURCHASE:
         return 'success';
@@ -140,5 +147,10 @@ export class MovementListComponent {
       default:
         return 'warn';
     }
+  }
+
+  canDeleteMovement(movement: StockMovement): boolean {
+    // Si possono eliminare solo i movimenti in stato bozza o cancellati
+    return movement.status === 'draft' || movement.status === 'cancelled';
   }
 }

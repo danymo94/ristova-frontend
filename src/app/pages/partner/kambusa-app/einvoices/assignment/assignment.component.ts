@@ -66,7 +66,7 @@ export class AssignmentComponent implements OnInit {
 
   ngOnInit(): void {
     if (this.projectId) {
-      this.warehouseStore.fetchProjectWarehouses({ projectId: this.projectId });
+      this.warehouseStore.fetchWarehouses({ projectId: this.projectId });
     }
   }
 
@@ -261,7 +261,7 @@ export class AssignmentComponent implements OnInit {
       projectId: this.projectId,
       invoiceId: this.selectedInvoiceForWarehouse.id!,
       warehouseId: this.selectedWarehouseId,
-      data: data,
+      lineIndices: data.lineIndices,
     });
 
     // Chiudiamo immediatamente la dialog
@@ -303,7 +303,7 @@ export class AssignmentComponent implements OnInit {
       projectId: this.projectId,
       invoiceId: invoiceId,
       warehouseId: warehouseId,
-      data: data,
+      lineIndices: data.lineIndices  // Usa direttamente lineIndices, se disponibile nel tuo data
     });
 
     // Non è più necessario il messaggio di conferma, viene gestito dallo store
