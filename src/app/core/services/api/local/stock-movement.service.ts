@@ -23,46 +23,7 @@ export class StockMovementService {
 
   constructor(private http: HttpClient) {}
 
-  // 1. Operazioni con Fatture
-
-  /**
-   * Assegna una fattura a un centro di costo
-   */
-  assignInvoiceToCostCenter(
-    projectId: string,
-    invoiceId: string,
-    costCenterId: string
-  ): Observable<AssignInvoiceToCostCenterResponse> {
-    return this.http
-      .post<any>(
-        `${this.apiUrl}/partner/projects/${projectId}/invoices/${invoiceId}/costcenter/${costCenterId}`,
-        {}
-      )
-      .pipe(
-        map((response) => response.data),
-        catchError(this.handleError)
-      );
-  }
-
-  /**
-   * Elabora una fattura creando un movimento di stock in un magazzino fisico
-   */
-  processInvoiceToWarehouse(
-    projectId: string,
-    invoiceId: string,
-    warehouseId: string,
-    data: any
-  ): Observable<StockMovement> {
-    return this.http
-      .post<any>(
-        `${this.apiUrl}/partner/projects/${projectId}/invoices/${invoiceId}/process-to-warehouse/${warehouseId}`,
-        data
-      )
-      .pipe(
-        map((response) => response.data),
-        catchError(this.handleError)
-      );
-  }
+  // 1. Operazioni con Fatture - RIMOSSE E SPOSTATE IN EINVOICE SERVICE
 
   /**
    * Recupera tutti i movimenti di stock associati a una specifica fattura
@@ -80,6 +41,23 @@ export class StockMovementService {
         catchError(this.handleError)
       );
   }
+
+    /**
+   * Recupera tutti i movimenti di stock associati a una specifica fattura
+   */
+    getInventoryByWarehouse(
+      projectId: string,
+      warehouseId: string
+    ): Observable<any[]> {
+      return this.http
+        .get<any>(
+          `${this.apiUrl}/partner/projects/${projectId}/warehouses/${warehouseId}/inventory`        )
+        .pipe(
+          map((response) => response.data || []),
+          catchError(this.handleError)
+        );
+    }
+  
 
   // 2. Operazioni Magazzino
 

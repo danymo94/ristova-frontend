@@ -133,7 +133,6 @@
     <app-warehouse-view
       *ngFor="let warehouse of filteredWarehouses()"
       [warehouse]="warehouse"
-      [warehouseBalance]="getWarehouseBalance(warehouse.id || '')"
       viewMode="card"
       (onDetails)="handleWarehouseDetails($event)"
       (onEdit)="handleWarehouseEdit($event)"
@@ -259,15 +258,7 @@
   (onEdit)="handleEditFromDetails($event)"
 ></app-warehouse-details>
 
-<!-- Utilizziamo il componente AssignmentComponent per l'assegnazione fatture -->
-<app-warehouse-assignment
-  [warehouse]="selectedWarehouse()"
-  [(visible)]="assignInvoicesDialogVisible"
-  [unassignedInvoices]="unassignedInvoices"
-  [loading]="loading()"
-  (visibleChange)="handleAssignDialogVisibilityChange($event)"
-  (invoicesAssigned)="handleInvoicesAssigned()"
-></app-warehouse-assignment>
+
 
 <!-- Dialog di conferma eliminazione migliorata visivamente -->
 <p-dialog

@@ -1,21 +1,11 @@
 <div class="stock-movements-container p-3">
-  <!-- Header con titolo e tipo di vista -->
+  <!-- Header con titolo -->
   <div
     class="flex flex-column md:flex-row justify-content-between align-items-center mb-4"
   >
     <h1 class="text-2xl font-bold mb-3 md:mb-0">Movimenti di Magazzino</h1>
 
-    <p-selectButton
-      [options]="viewOptions"
-      [(ngModel)]="viewType"
-      optionLabel="label"
-      optionValue="value"
-    >
-      <ng-template let-item pTemplate>
-        <i [class]="item.icon" class="mr-2"></i>
-        {{ item.label }}
-      </ng-template>
-    </p-selectButton>
+    <!-- Rimosso il p-selectButton -->
   </div>
 
   <!-- Stato vuoto quando non c'è progetto selezionato -->
@@ -30,13 +20,8 @@
 
   <div *ngIf="selectedProject()" class="grid">
     <!-- Colonna sinistra: Selezione magazzino/centro di costo -->
-    <div class="col-12 md:col-3">
-      <div class="card p-0">
-        <div class="p-3 font-bold bg-gray-100 border-bottom-1 border-gray-200">
-          <span *ngIf="viewType === 'warehouse'">Magazzini</span>
-          <span *ngIf="viewType === 'costcenter'">Centri di Costo</span>
-        </div>
-        <div class="p-0">
+    <div class="col-12 md:col-4">
+
           <app-warehouse-selector
             [warehouses]="warehouses()"
             [loading]="isLoading()"
@@ -45,17 +30,17 @@
             "
             [selectedWarehouseId]="selectedWarehouse?.id"
             (warehouseSelected)="onWarehouseSelected($event)"
+            (warehouseTypeChange)="onWarehouseTypeChange($event)"
           ></app-warehouse-selector>
-        </div>
-      </div>
+
     </div>
 
     <!-- Colonna destra: Contenuto principale -->
-    <div class="col-12 md:col-9">
+    <div class="col-12 ">
       <!-- Quando non è stato selezionato un magazzino/centro di costo -->
       <div
-        *ngIf="!hasSelectedWarehouse"
-        class="card flex align-items-center justify-content-center min-h-20rem"
+        *ngIf="!selectedWarehouse"
+        class="card flex items-center justify-center min-h-20rem"
       >
         <div class="text-center p-5">
           <i class="pi pi-arrow-left text-5xl text-gray-400 mb-3"></i>
@@ -71,9 +56,8 @@
       </div>
 
       <!-- Quando è stato selezionato un magazzino/centro di costo -->
-      <div *ngIf="hasSelectedWarehouse">
-        <div class="card mb-3">
-          <div class="flex justify-content-between align-items-center">
+      <div *ngIf="selectedWarehouse">
+          <div class="flex justify-between align-center p-4">
             <h2 class="text-xl m-0">
               <i
                 *ngIf="viewType === 'warehouse'"
@@ -85,98 +69,103 @@
               ></i>
               {{ selectedWarehouse?.name }}
             </h2>
-            <button
-              pButton
-              icon="pi pi-plus"
-              label="Nuovo Movimento"
-              (click)="openNewMovementDialog()"
-              class="p-button-primary"
-            ></button>
-          </div>
+            <div class="flex gap-2 align-items-center mt-2 md:mt-0">
+                <p-selectButton 
+                    [options]="viewModeOptions" 
+                    [(ngModel)]="activeViewMode" 
+                    optionLabel="label" 
+                    optionValue="value">
+                </p-selectButton>
+    
+                <button
+                    pButton
+                    icon="pi pi-plus"
+                    label="Nuovo Movimento"
+                    (click)="openNewMovementDialog()"
+                    class="p-button-primary ml-2"
+                ></button>
+            </div>
+
         </div>
+    <!-- Contenuto in base alla vista selezionata -->
+    <div class="p-4 mb-6">
+        <!-- Vista Movimenti -->
+        <div *ngIf="activeViewMode === 'movements'">
+            <div class="mb-3 flex flex-column md:flex-row align-items-center justify-content-between gap-3">
+                <!-- Filtri -->
+                <div class="p-inputgroup flex-1 md:max-w-20rem">
+                    <input
+                        type="text"
+                        pInputText
+                        [(ngModel)]="searchQuery"
+                        placeholder="Cerca movimenti..."
+                        class="w-full"
+                    />
+                </div>
 
-        <!-- Tab View per movimenti e inventario -->
-        <p-tabView [(activeIndex)]="activeTabIndex">
-          <!-- Tab Movimenti -->
-          <p-tabPanel header="Movimenti">
-            <div
-              class="mb-3 flex flex-column md:flex-row align-items-center justify-content-between gap-3"
-            >
-              <!-- Filtri -->
-              <div class="p-inputgroup flex-1 md:max-w-20rem">
-                <span class="p-inputgroup-addon">
-                  <i class="pi pi-search"></i>
-                </span>
-                <input
-                  type="text"
-                  pInputText
-                  [(ngModel)]="searchQuery"
-                  placeholder="Cerca movimenti..."
-                  class="w-full"
-                />
-                <button
-                  *ngIf="searchQuery"
-                  pButton
-                  icon="pi pi-times"
-                  class="p-button-outlined"
-                  (click)="searchQuery = ''; applyFilters()"
-                ></button>
-              </div>
+                <div class="flex gap-2">
+                    <p-dropdown
+                        [options]="movementTypeOptions"
+                        [(ngModel)]="filterByType"
+                        placeholder="Tipo movimento"
+                        [showClear]="true"
+                        optionLabel="label"
+                        optionValue="value"
+                        styleClass="w-10rem"
+                        (onChange)="applyFilters()"
+                    ></p-dropdown>
 
-              <div class="flex gap-2">
-                <p-dropdown
-                  [options]="movementTypeOptions"
-                  [(ngModel)]="filterByType"
-                  placeholder="Tipo movimento"
-                  [showClear]="true"
-                  optionLabel="label"
-                  optionValue="value"
-                  styleClass="w-10rem"
-                  (onChange)="applyFilters()"
-                ></p-dropdown>
+                    <p-dropdown
+                        [options]="movementStatusOptions"
+                        [(ngModel)]="filterByStatus"
+                        placeholder="Stato"
+                        [showClear]="true"
+                        optionLabel="label"
+                        optionValue="value"
+                        styleClass="w-10rem"
+                        (onChange)="applyFilters()"
+                    ></p-dropdown>
 
-                <p-dropdown
-                  [options]="movementStatusOptions"
-                  [(ngModel)]="filterByStatus"
-                  placeholder="Stato"
-                  [showClear]="true"
-                  optionLabel="label"
-                  optionValue="value"
-                  styleClass="w-10rem"
-                  (onChange)="applyFilters()"
-                ></p-dropdown>
-
-                <button
-                  pButton
-                  icon="pi pi-filter-slash"
-                  class="p-button-outlined"
-                  (click)="clearFilters()"
-                  [disabled]="!filterByType && !filterByStatus && !searchQuery"
-                  pTooltip="Cancella filtri"
-                ></button>
-              </div>
+                    <button
+                        pButton
+                        icon="pi pi-filter-slash"
+                        class="p-button-outlined"
+                        (click)="clearFilters()"
+                        [disabled]="!filterByType && !filterByStatus && !searchQuery"
+                        pTooltip="Cancella filtri"
+                    ></button>
+                </div>
             </div>
 
             <!-- Lista movimenti -->
             <app-movement-list
-              [movements]="stockMovements()"
-              [loading]="isLoading()"
-              [warehouseType]="
-                viewType === 'warehouse' ? 'PHYSICAL' : 'COST_CENTER'
-              "
-              (movementSelected)="onMovementSelected($event)"
+                [movements]="stockMovements()"
+                [loading]="isLoading()"
+                [warehouseType]="viewType === 'warehouse' ? 'PHYSICAL' : 'COST_CENTER'"
+                (movementSelected)="onMovementSelected($event)"
             ></app-movement-list>
-          </p-tabPanel>
+        </div>
 
-          <!-- Tab Inventario -->
-          <p-tabPanel header="Inventario">
+        <!-- Vista Inventario - visibile solo per magazzini fisici -->
+        <div *ngIf="activeViewMode === 'inventory' && selectedWarehouse?.type === 'PHYSICAL'">
             <app-warehouse-inventory
-              [warehouse]="selectedWarehouse"
-              [warehouseBalance]="warehouseStore.warehouseBalance()"
-              [loading]="isLoading()"
+                [warehouse]="selectedWarehouse"
+                [warehouseBalance]="warehouseStore.warehouseBalance()"
+                [loading]="isLoading()"
             ></app-warehouse-inventory>
-          </p-tabPanel>
-        </p-tabView>
+        </div>
+
+        <!-- Messaggio per i centri di costo quando si prova ad accedere all'inventario -->
+        <div *ngIf="activeViewMode === 'inventory' && selectedWarehouse?.type !== 'PHYSICAL'" 
+             class="text-center p-5">
+            <i class="pi pi-exclamation-triangle text-5xl text-yellow-500 mb-3"></i>
+            <h3 class="text-xl mb-2">Inventario non disponibile</h3>
+            <p class="text-gray-600">
+                L'inventario è disponibile solo per i magazzini fisici, non per i centri di costo.
+            </p>
+        </div>
+    </div>
+
       </div>
     </div>
   </div>

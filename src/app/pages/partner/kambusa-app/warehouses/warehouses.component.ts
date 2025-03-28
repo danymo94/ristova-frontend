@@ -40,7 +40,6 @@ import { WarehouseViewComponent } from './view/view.component';
 import { NewComponent } from './new/new.component';
 import { DetailsComponent } from './details/details.component';
 import { EditComponent } from './edit/edit.component';
-import { AssignmentComponent } from './assignment/assignment.component';
 
 @Component({
   selector: 'app-warehouses',
@@ -63,7 +62,6 @@ import { AssignmentComponent } from './assignment/assignment.component';
     NewComponent,
     DetailsComponent,
     EditComponent,
-    AssignmentComponent,
   ],
   templateUrl: './warehouses.component.html',
 })
@@ -308,23 +306,6 @@ export class WarehousesComponent implements OnInit, OnDestroy {
       id: warehouse.id,
       isActive: !warehouse.isActive,
     });
-  }
-
-  // Aggiornamento del componente per recuperare il bilancio di un magazzino
-  getWarehouseBalance(warehouseId: string): WarehouseBalance | null {
-    const balance = this.warehouseBalance();
-    if (!balance || balance.warehouseId !== warehouseId) {
-      // Se non abbiamo un bilancio per questo magazzino, ne richiediamo uno
-      const projectId = this.selectedProject()?.id;
-      if (projectId && warehouseId) {
-        this.warehouseStore.fetchWarehouseBalance({
-          projectId,
-          warehouseId,
-        });
-      }
-      return null;
-    }
-    return balance;
   }
 
   getWarehouseTypeLabel(type: WarehouseType): string {

@@ -1,4 +1,3 @@
-import { StockMovementStore } from './../../../../../core/store/stock-movement.signal-store';
 import {
   Component,
   OnInit,
@@ -20,6 +19,7 @@ import {
   EInvoice,
   InvoiceLine,
 } from '../../../../../core/models/einvoice.model';
+import { EInvoiceStore } from '../../../../../core/store/einvoice.signal-store';
 
 @Component({
   selector: 'app-assignment',
@@ -39,7 +39,9 @@ export class AssignmentComponent implements OnInit {
   @Input() projectId: string = '';
   @Input() suppliers: any[] = [];
 
-  private stockMovementStore = inject(StockMovementStore);
+  // Sostituito StockMovementStore con EInvoiceStore
+  private einvoiceStore = inject(EInvoiceStore);
+
   // Dialog e variabili per conferma assegnazione a centro di costo
   costCenterAssignDialogVisible: boolean = false;
   selectedCostCenterId: string | null = null;
@@ -117,17 +119,17 @@ export class AssignmentComponent implements OnInit {
       projectId: this.projectId,
     });
 
-    // Imposta lo stato di elaborazione
-    this.assigningToWarehouse = true;
+    // Non impostiamo più il flag assigningToWarehouse perché è gestito dallo store
+    // attraverso il flag processing sulla fattura
 
-    // Chiamata allo stockMovementStore per assegnare la fattura al centro di costo
-    this.stockMovementStore.assignInvoiceToCostCenter({
+    // Chiamata all'einvoiceStore
+    this.einvoiceStore.assignInvoiceToCostCenter({
       projectId: this.projectId,
       invoiceId: this.selectedInvoiceForCostCenter.id!,
       costCenterId: this.selectedCostCenterId,
     });
 
-    // Chiudiamo la dialog - il toast di successo verrà gestito dallo store
+    // Chiudiamo immediatamente la dialog per permettere all'utente di continuare
     this.closeCostCenterAssignDialog();
   }
 
@@ -248,21 +250,21 @@ export class AssignmentComponent implements OnInit {
       (line) => line.lineNumber
     );
 
-
     // Prepara i dati per l'invio all'API
     const data = {
       lineIndices: lineNumbers, // Indici delle righe selezionate
     };
 
-    // Chiamata allo stockMovementStore per processare la fattura nel magazzino
-    this.assigningToWarehouse = true;
-    this.stockMovementStore.processInvoiceToWarehouse({
+    // Chiamata all'einvoiceStore - non impostiamo più assigningToWarehouse
+    // perché è gestito attraverso il flag processing sulla fattura
+    this.einvoiceStore.processInvoiceToWarehouse({
       projectId: this.projectId,
       invoiceId: this.selectedInvoiceForWarehouse.id!,
       warehouseId: this.selectedWarehouseId,
       data: data,
     });
 
+    // Chiudiamo immediatamente la dialog
     this.closePartialSelectionDialog();
   }
 
@@ -296,22 +298,17 @@ export class AssignmentComponent implements OnInit {
       lineIndices: selectedLines || [], // Se null, invia array vuoto per indicare valorizzazione completa
     };
 
-    // Chiamata allo stockMovementStore per processare la fattura nel magazzino
-    this.assigningToWarehouse = true;
-
-    this.stockMovementStore.processInvoiceToWarehouse({
+    // Chiamata all'einvoiceStore - non impostiamo più assigningToWarehouse
+    this.einvoiceStore.processInvoiceToWarehouse({
       projectId: this.projectId,
       invoiceId: invoiceId,
       warehouseId: warehouseId,
       data: data,
     });
 
-    // Rimuovo il timeout simulato e mi affido all'API effettiva
-    // Lo store dovrebbe gestire lo stato di caricamento e notifiche
-    this.assigningToWarehouse = false;
-    this.toastService.showSuccess(
-      'Richiesta di valorizzazione magazzino inviata'
-    );
+    // Non è più necessario il messaggio di conferma, viene gestito dallo store
+    // e non dobbiamo impostare assigningToWarehouse = false perché è gestito
+    // tramite il flag processing sulle fatture
   }
 
   // Helper per recuperare i dati del fornitore

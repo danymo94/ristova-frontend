@@ -30,7 +30,10 @@ import { MovementDetailsComponent } from './movement-details/movement-details.co
 import { NewMovementWizardComponent } from './new-movement-wizard/new-movement-wizard.component';
 import { WarehouseInventoryComponent } from './warehouse-inventory/warehouse-inventory.component';
 
-import { Warehouse } from '../../../../core/models/warehouse.model';
+import {
+  Warehouse,
+  WarehouseType,
+} from '../../../../core/models/warehouse.model';
 import {
   StockMovement,
   StockMovementType,
@@ -100,7 +103,7 @@ export class StockMovementsComponent implements OnInit {
     () => this.warehouseStore.loading() || this.stockMovementStore.loading()
   );
 
-  hasSelectedWarehouse = computed(() => !!this.selectedWarehouse);
+  hasSelectedWarehouse = computed(() => this.selectedWarehouse);
 
   // Opzioni per i filtri
   movementTypeOptions = [
@@ -123,10 +126,12 @@ export class StockMovementsComponent implements OnInit {
     { label: 'Annullato', value: 'cancelled' },
   ];
 
-  // Opzioni per la selezione della vista
-  viewOptions = [
-    { icon: 'pi pi-building', label: 'Magazzini', value: 'warehouse' },
-    { icon: 'pi pi-chart-pie', label: 'Centri di Costo', value: 'costcenter' },
+  activeViewMode: 'movements' | 'inventory' = 'movements';
+
+  // Aggiungere le opzioni per la selezione della vista
+  viewModeOptions = [
+    { label: 'Movimenti', value: 'movements', icon: 'pi pi-list' },
+    { label: 'Inventario', value: 'inventory', icon: 'pi pi-box' },
   ];
 
   constructor() {
@@ -159,6 +164,9 @@ export class StockMovementsComponent implements OnInit {
   }
 
   onWarehouseSelected(warehouse: Warehouse) {
+    this.warehouseStore.clearWarehouseBalance();
+
+    this.warehouseStore.selectWarehouse(warehouse);
     this.selectedWarehouse = warehouse;
 
     const projectId = this.getSelectedProjectId();
@@ -169,16 +177,20 @@ export class StockMovementsComponent implements OnInit {
         warehouseId: warehouse.id,
       });
 
-      // Carica anche il bilancio di magazzino
-      this.warehouseStore.fetchWarehouseBalance({
-        projectId,
-        warehouseId: warehouse.id,
-      });
+      // Carica il bilancio di magazzino solo per i magazzini fisici
+      if (warehouse.type === 'PHYSICAL') {
+        console.log('Carica il bilancio del magazzino');
+        this.warehouseStore.fetchWarehouseBalance({
+          projectId,
+          warehouseId: warehouse.id,
+        });
+      }
     }
   }
 
-  changeView(type: 'warehouse' | 'costcenter') {
-    this.viewType = type;
+  onWarehouseTypeChange(type: WarehouseType) {
+    // Aggiorniamo il tipo di visualizzazione
+    this.viewType = type === 'PHYSICAL' ? 'warehouse' : 'costcenter';
 
     // Resetta il magazzino selezionato quando si cambia vista
     this.selectedWarehouse = null;
@@ -240,5 +252,21 @@ export class StockMovementsComponent implements OnInit {
 
   changeTab(index: number) {
     this.activeTabIndex = index;
+  }
+
+  changeViewMode(mode: 'movements' | 'inventory') {
+    this.activeViewMode = mode;
+
+    // Se si passa alla vista inventario e il magazzino è di tipo fisico,
+    // assicuriamoci che il bilancio sia caricato
+    if (mode === 'inventory' && this.selectedWarehouse?.type === 'PHYSICAL') {
+      const projectId = this.getSelectedProjectId();
+      if (projectId && this.selectedWarehouse.id) {
+        this.warehouseStore.fetchWarehouseBalance({
+          projectId,
+          warehouseId: this.selectedWarehouse.id,
+        });
+      }
+    }
   }
 }

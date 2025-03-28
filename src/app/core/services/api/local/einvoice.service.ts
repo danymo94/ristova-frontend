@@ -11,6 +11,10 @@ import {
   AssignCostCenterDto,
   ProcessInventoryDto,
 } from '../../../models/einvoice.model';
+import {
+  AssignInvoiceToCostCenterResponse,
+  StockMovement,
+} from '../../../models/stock-movement.model';
 
 @Injectable({
   providedIn: 'root',
@@ -103,6 +107,47 @@ export class EinvoiceService {
       .put<any>(
         `${this.apiUrl}/partner/projects/${projectId}/einvoices/${invoiceId}/payment-status`,
         paymentStatusData
+      )
+      .pipe(
+        map((response) => response.data),
+        catchError(this.handleError)
+      );
+  }
+
+  // Nuovi metodi per l'assegnazione e l'elaborazione delle fatture
+
+  /**
+   * Assegna una fattura a un centro di costo
+   */
+  assignInvoiceToCostCenter(
+    projectId: string,
+    invoiceId: string,
+    costCenterId: string
+  ): Observable<AssignInvoiceToCostCenterResponse> {
+    return this.http
+      .post<any>(
+        `${this.apiUrl}/partner/projects/${projectId}/invoices/${invoiceId}/costcenter/${costCenterId}`,
+        {}
+      )
+      .pipe(
+        map((response) => response.data),
+        catchError(this.handleError)
+      );
+  }
+
+  /**
+   * Elabora una fattura creando un movimento di stock in un magazzino fisico
+   */
+  processInvoiceToWarehouse(
+    projectId: string,
+    invoiceId: string,
+    warehouseId: string,
+    data: any
+  ): Observable<StockMovement> {
+    return this.http
+      .post<any>(
+        `${this.apiUrl}/partner/projects/${projectId}/invoices/${invoiceId}/process-to-warehouse/${warehouseId}`,
+        data
       )
       .pipe(
         map((response) => response.data),

@@ -49,7 +49,7 @@
             <div class="value-box bg-blue-50 p-2 rounded-md">
               <div class="value-label text-sm text-gray-600">Valore Totale</div>
               <div class="value-amount font-bold">
-                {{ warehouseValue | currency : "EUR" }}
+                {{  warehouse.statistics?.stockValue | currency : "EUR" }}
               </div>
             </div>
             <div class="value-box bg-gray-50 p-2 rounded-md">

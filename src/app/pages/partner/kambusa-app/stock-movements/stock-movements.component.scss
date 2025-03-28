@@ -1,5 +1,21 @@
 .stock-movements-container {
     min-height: calc(100vh - 120px);
+
+    .card {
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        background-color: white;
+    }
+
+    .empty-state {
+        i {
+            opacity: 0.6;
+        }
+    }
+
+    .min-h-20rem {
+        min-height: 20rem;
+    }
 }
 
 .min-h-20rem {
@@ -29,4 +45,3 @@
         transform: translateY(-2px);
     }
 }
-

@@ -14,6 +14,7 @@ import {
   UpdatePaymentStatusDto,
   AssignCostCenterDto,
   ProcessInventoryDto,
+  InvoiceStatus,
 } from '../models/einvoice.model';
 import { EinvoiceService } from '../services/api/local/einvoice.service';
 import { Router } from '@angular/router';
@@ -22,6 +23,10 @@ import { pipe, switchMap, catchError, of, tap } from 'rxjs';
 import { tapResponse } from '@ngrx/operators';
 import { ToastService } from '../services/toast.service';
 import { AuthService } from '../services/auth.service';
+import {
+  AssignInvoiceToCostCenterResponse,
+  StockMovement,
+} from '../models/stock-movement.model';
 
 export interface EInvoiceState {
   invoices: EInvoice[] | null;
@@ -277,6 +282,260 @@ export const EInvoiceStore = signalStore(
                 })
               );
           })
+        )
+      ),
+
+      // Nuovi metodi per l'assegnazione e l'elaborazione delle fatture
+
+      // Assign invoice to cost center
+      assignInvoiceToCostCenter: rxMethod<{
+        projectId: string;
+        invoiceId: string;
+        costCenterId: string;
+      }>(
+        pipe(
+          tap(({ invoiceId }) => {
+            patchState(store, { loading: true, error: null });
+
+            // Imposta il flag processing sulla fattura selezionata e nella lista
+            const currentInvoice = store.selectedInvoice();
+            const currentInvoices = store.invoices();
+
+            if (currentInvoice && currentInvoice.id === invoiceId) {
+              patchState(store, {
+                selectedInvoice: { ...currentInvoice, processing: true },
+              });
+            }
+
+            if (currentInvoices) {
+              const updatedInvoices = currentInvoices.map((inv) =>
+                inv.id === invoiceId ? { ...inv, processing: true } : inv
+              );
+              patchState(store, { invoices: updatedInvoices });
+            }
+
+            // Rilascia immediatamente il loading globale
+            patchState(store, { loading: false });
+          }),
+          switchMap(({ projectId, invoiceId, costCenterId }) =>
+            einvoiceService
+              .assignInvoiceToCostCenter(projectId, invoiceId, costCenterId)
+              .pipe(
+                tapResponse({
+                  next: (response: AssignInvoiceToCostCenterResponse) => {
+                    // Aggiorna la fattura corrente se necessario
+                    const currentInvoice = store.selectedInvoice();
+                    if (currentInvoice && currentInvoice.id === invoiceId) {
+                      // Creiamo un nuovo oggetto status per evitare problemi di tipizzazione
+                      const updatedStatus: InvoiceStatus = {
+                        ...currentInvoice.status,
+                        costCenterStatus: 'assigned',
+                        costCenterId: costCenterId,
+                        costCenterAssignDate: new Date().toISOString(),
+                      };
+
+                      const updatedInvoice: EInvoice = {
+                        ...currentInvoice,
+                        status: updatedStatus,
+                        processing: false, // Rimuovi il flag processing
+                      };
+
+                      patchState(store, {
+                        selectedInvoice: updatedInvoice,
+                      });
+                    }
+
+                    // Aggiorna anche la lista delle fatture se presente
+                    const currentInvoices = store.invoices();
+                    if (currentInvoices) {
+                      const updatedInvoices = currentInvoices.map((inv) => {
+                        if (inv.id === invoiceId) {
+                          const updatedStatus: InvoiceStatus = {
+                            ...inv.status,
+                            costCenterStatus: 'assigned',
+                            costCenterId: costCenterId,
+                            costCenterAssignDate: new Date().toISOString(),
+                          };
+                          return {
+                            ...inv,
+                            status: updatedStatus,
+                            processing: false, // Rimuovi il flag processing
+                          };
+                        }
+                        return inv;
+                      });
+
+                      patchState(store, { invoices: updatedInvoices });
+                    }
+
+                    patchState(store, { error: null });
+                    toastService.showSuccess(
+                      'Fattura assegnata al centro di costo con successo'
+                    );
+                  },
+                  error: (error: unknown) => {
+                    // In caso di errore, rimuovi comunque il flag processing
+                    const currentInvoices = store.invoices();
+                    if (currentInvoices) {
+                      const updatedInvoices = currentInvoices.map((inv) =>
+                        inv.id === invoiceId
+                          ? { ...inv, processing: false }
+                          : inv
+                      );
+                      patchState(store, { invoices: updatedInvoices });
+                    }
+
+                    toastService.showError(
+                      "Errore nell'assegnazione della fattura al centro di costo"
+                    );
+                    patchState(store, {
+                      error:
+                        (error as Error)?.message ||
+                        "Errore nell'assegnazione della fattura al centro di costo",
+                    });
+                  },
+                })
+              )
+          )
+        )
+      ),
+
+      // Process invoice to warehouse
+      processInvoiceToWarehouse: rxMethod<{
+        projectId: string;
+        invoiceId: string;
+        warehouseId: string;
+        data: any;
+      }>(
+        pipe(
+          tap(({ projectId, invoiceId, warehouseId, data }) => {
+            patchState(store, { loading: true, error: null });
+
+            // Imposta il flag processing sulla fattura selezionata e nella lista
+            const currentInvoice = store.selectedInvoice();
+            const currentInvoices = store.invoices();
+
+            if (currentInvoice && currentInvoice.id === invoiceId) {
+              patchState(store, {
+                selectedInvoice: { ...currentInvoice, processing: true },
+              });
+            }
+
+            if (currentInvoices) {
+              const updatedInvoices = currentInvoices.map((inv) =>
+                inv.id === invoiceId ? { ...inv, processing: true } : inv
+              );
+              patchState(store, { invoices: updatedInvoices });
+            }
+
+            // Rilascia immediatamente il loading globale
+            patchState(store, { loading: false });
+          }),
+          switchMap(({ projectId, invoiceId, warehouseId, data }) =>
+            einvoiceService
+              .processInvoiceToWarehouse(
+                projectId,
+                invoiceId,
+                warehouseId,
+                data
+              )
+              .pipe(
+                tapResponse({
+                  next: (movement: StockMovement) => {
+                    // Aggiorna la fattura corrente se necessario
+                    const currentInvoice = store.selectedInvoice();
+                    if (currentInvoice && currentInvoice.id === invoiceId) {
+                      // Determina il nuovo stato dell'inventario in modo tipizzato
+                      const newInventoryStatus:
+                        | 'not_processed'
+                        | 'processed'
+                        | 'partially_processed' =
+                        currentInvoice.status.inventoryStatus ===
+                        'not_processed'
+                          ? 'processed'
+                          : 'partially_processed';
+
+                      // Creiamo un nuovo oggetto status per evitare problemi di tipizzazione
+                      const updatedStatus: InvoiceStatus = {
+                        ...currentInvoice.status,
+                        inventoryStatus: newInventoryStatus,
+                        inventoryIds: [
+                          ...(currentInvoice.status.inventoryIds || []),
+                          warehouseId,
+                        ],
+                        inventoryProcessDate: new Date().toISOString(),
+                      };
+
+                      const updatedInvoice: EInvoice = {
+                        ...currentInvoice,
+                        status: updatedStatus,
+                        processing: false, // Rimuovi il flag processing
+                      };
+
+                      patchState(store, {
+                        selectedInvoice: updatedInvoice,
+                      });
+                    }
+
+                    // Aggiorna anche la lista delle fatture se presente
+                    const currentInvoices = store.invoices();
+                    if (currentInvoices) {
+                      const updatedInvoices = currentInvoices.map((inv) => {
+                        if (inv.id === invoiceId) {
+                          const newInventoryStatus =
+                            inv.status.inventoryStatus === 'not_processed'
+                              ? ('processed' as const)
+                              : ('partially_processed' as const);
+
+                          const updatedStatus: InvoiceStatus = {
+                            ...inv.status,
+                            inventoryStatus: newInventoryStatus,
+                            inventoryIds: [
+                              ...(inv.status.inventoryIds || []),
+                              warehouseId,
+                            ],
+                            inventoryProcessDate: new Date().toISOString(),
+                          };
+
+                          return {
+                            ...inv,
+                            status: updatedStatus,
+                            processing: false, // Rimuovi il flag processing
+                          };
+                        }
+                        return inv;
+                      });
+
+                      patchState(store, { invoices: updatedInvoices });
+                    }
+
+                    patchState(store, { error: null });
+                    toastService.showSuccess('Movimento creato con successo');
+                  },
+                  error: (error: unknown) => {
+                    // In caso di errore, rimuovi comunque il flag processing
+                    const currentInvoices = store.invoices();
+                    if (currentInvoices) {
+                      const updatedInvoices = currentInvoices.map((inv) =>
+                        inv.id === invoiceId
+                          ? { ...inv, processing: false }
+                          : inv
+                      );
+                      patchState(store, { invoices: updatedInvoices });
+                    }
+
+                    toastService.showError(
+                      'Errore nella creazione del movimento'
+                    );
+                    patchState(store, {
+                      error:
+                        (error as Error)?.message ||
+                        'Errore nella creazione del movimento',
+                    });
+                  },
+                })
+              )
+          )
         )
       ),
 
