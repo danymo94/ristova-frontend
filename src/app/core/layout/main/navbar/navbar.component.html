@@ -1,18 +1,42 @@
 <nav
-  class="w-full bg-primary-500 h-14 px-4 flex justify-between items-center text-neutral-50"
+  class="w-full bg-primary-500 h-14 px-0 flex justify-between items-center text-neutral-50"
 >
-  <div class="flex items-center">
-    <button
-      *ngIf="isAuthenticated()"
+  <div class="flex items-center lg:w-1/6 justify-center">
+    <!-- All'interno del bottone del burger menu -->
+    <div
       (click)="toggleSidebar()"
-      class="mr-4 focus:outline-none"
+      class="flex items-center justify-center w-10 h-fit rounded-full cursor-pointer transition-all duration-200"
+      [@toggleAnimation]="toggleState"
+      tabindex="0"
+      role="button"
+      aria-label="Toggle sidebar"
     >
-      <i class="pi pi-bars text-lg"></i>
-    </button>
-    <img src="assets/white.png" class="h-14 mt-2">
+      <!-- Burger animato -->
+      <div class="flex flex-col justify-end mb-1 items-end w-6 h-6">
+        <span
+          class="block h-0.5 w-6 rounded-full bg-neutral-50 transition-all duration-300 ease-out origin-center"
+          [ngClass]="{ 'rotate-45 translate-y-1.5': isSidebarOpen() }"
+        ></span>
+        <span
+          class="block h-0.5 rounded-full bg-neutral-50 my-1 transition-all duration-300 ease-out"
+          [ngClass]="{
+            'opacity-0 w-0': isSidebarOpen(),
+            'w-5 ml-1': !isSidebarOpen()
+          }"
+        ></span>
+        <span
+          class="block h-0.5 rounded-full bg-neutral-50 transition-all duration-300 ease-out origin-center"
+          [ngClass]="{
+            'w-6 -rotate-45 -translate-y-1.5': isSidebarOpen(),
+            'w-4 ml-2': !isSidebarOpen()
+          }"
+        ></span>
+      </div>
+    </div>
+    <img src="assets/white.png" class="h-6" />
   </div>
 
-  <div class="flex items-center gap-3">
+  <div class="flex items-center gap-3 p-4">
     <!-- Project selector - Solo per i partner -->
     @if(isAuthenticated() && role() === 'partner' && projects() &&
     projects()!.length > 0) {

@@ -110,7 +110,6 @@ export class MovementDetailsComponent {
         "Sei sicuro di voler confermare questo movimento? L'operazione non può essere annullata.",
       accept: () => {
         this.stockMovementStore.updateMovementStatus({
-          projectId,
           id: this.movement!.id!,
           status: 'confirmed',
         });
@@ -133,7 +132,6 @@ export class MovementDetailsComponent {
         "Sei sicuro di voler annullare questo movimento? L'operazione non può essere annullata.",
       accept: () => {
         this.stockMovementStore.updateMovementStatus({
-          projectId,
           id: this.movement!.id!,
           status: 'cancelled',
         });

@@ -8,6 +8,7 @@ import { Project } from '../../../models/project.model';
 import { InputTextModule } from 'primeng/inputtext';
 import { RippleModule } from 'primeng/ripple';
 import { PopoverModule } from 'primeng/popover';
+import { trigger, state, style, animate, transition } from '@angular/animations';
 
 @Component({
   selector: 'app-navbar',
@@ -19,6 +20,18 @@ import { PopoverModule } from 'primeng/popover';
     InputTextModule,
     RippleModule,
     PopoverModule,
+  ],
+  animations: [
+    trigger('toggleAnimation', [
+      // Stato per il menu chiuso (hamburger)
+      state('closed', style({ transform: 'rotate(0)' })),
+      // Stato per il menu aperto (freccia)  
+      state('open', style({ transform: 'rotate(360)' })),
+      // Transizione con effetto molla quando si apre
+      transition('closed => open', animate('400ms cubic-bezier(0.68, -0.55, 0.27, 1.55)')),
+      // Transizione con effetto molla quando si chiude
+      transition('open => closed', animate('400ms cubic-bezier(0.68, -0.55, 0.27, 1.55)')),
+    ]),
   ],
   templateUrl: './navbar.component.html',
 })
@@ -43,6 +56,8 @@ export class NavbarComponent {
   filteredProjects = signal<Project[] | null>(null);
 
   constructor() {
+    this.projectStore.fetchPartnerProjects();
+
     // Effect per aggiornare i progetti filtrati quando cambiano i progetti
     effect(() => {
       this.filteredProjects.set(this.projects());
@@ -64,6 +79,10 @@ export class NavbarComponent {
     if (this.isAuthenticated() && this.role() === 'partner') {
       this.projectStore.fetchPartnerProjects();
     }
+  }
+
+  get toggleState() {
+    return this.isSidebarOpen() ? 'open' : 'closed';
   }
 
   toggleSidebar() {

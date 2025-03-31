@@ -14,6 +14,19 @@ export const basePreset = definePreset(Lara, {
       lg: '8px',
       xl: '12px',
     },
+    ristova: {
+      primary: '#2A3F54',       // Blu Teal Scuro
+      accent: '#CDA95B',        // Oro Sabbia
+      dark: '#1A1A1A',          // Grigio Carbone
+      light: '#F4F4F4',         // Grigio Perla
+      white: '#FFFFFF',         // Bianco
+      // Versioni più chiare/scure del primario per hover states
+      primaryLight: '#3A516A',
+      primaryDark: '#1A2D3E',
+      // Versioni più chiare/scure dell'accento
+      accentLight: '#D9BA7A',
+      accentDark: '#B89445',
+    },
     emerald: {
       50: '#ecfdf5',
       100: '#d1fae5',
@@ -304,9 +317,9 @@ export const basePreset = definePreset(Lara, {
   semantic: {
     transitionDuration: '0.2s',
     focusRing: {
-      width: '1px',
+      width: '2px',
       style: 'solid',
-      color: '{primary.color}',
+      color: '{ristova.accent}',
       offset: '2px',
       shadow: 'none',
     },
@@ -314,18 +327,18 @@ export const basePreset = definePreset(Lara, {
     iconSize: '1rem',
     anchorGutter: '2px',
     primary: {
-      50: "#E8F6F1",
-      100: "#C5EBE1",
-      200: "#9EDFCF",
-      300: "#76D3BD",
-      400: "#58C9AF",
-      500: "#3BBFA1",
-      600: "#35AF94",
-      700: "#2D9B83",
-      800: "#268873",
-      900: "#1A6657",
-      950: "#0d3329"
-  },
+      50:  "#E8EDF2",
+      100: "#C5D0DB",
+      200: "#9CB1C4",
+      300: "#7491AC",
+      400: "#577A9C",
+      500: "#2A3F54",      
+      600: "#243748",
+      700: "#1E2E3C",
+      800: "#182430",
+      900: "#121A24",
+      950: "#0B0F14"
+    },
     formField: {
       paddingX: '0.75rem',
       paddingY: '0.5rem',
@@ -414,30 +427,30 @@ export const basePreset = definePreset(Lara, {
     colorScheme: {
       light: {
         surface: {
-          0: '#ffffff',
-          50: '#f8fafc',
-          100: '#f1f5f9',
-          200: '#e2e8f0',
-          300: '#cbd5e1',
-          400: '#94a3b8',
-          500: '#64748b',
-          600: '#475569',
-          700: '#334155',
-          800: '#1e293b',
-          900: '#0f172a',
-          950: '#020617',
+          0: '{ristova.white}',
+          50: '{ristova.light}',
+          100: '#E8EDF2',
+          200: '#D1DAE2',
+          300: '#B3C2D1',
+          400: '#94A8BB',
+          500: '#7590AA',
+          600: '#577A9C',
+          700: '#2A3F54',
+          800: '#243748',
+          900: '#182430',
+          950: '#0B0F14',
         },
         primary: {
-          color: '{primary.500}',
-          contrastColor: '#ffffff',
-          hoverColor: '{primary.600}',
-          activeColor: '{primary.700}',
+          color: '{ristova.primary}',
+          contrastColor: '{ristova.white}',
+          hoverColor: '{ristova.primaryLight}',
+          activeColor: '{ristova.primaryDark}',
         },
         highlight: {
-          background: '{primary.50}',
-          focusBackground: '{primary.100}',
-          color: '{primary.700}',
-          focusColor: '{primary.800}',
+          background: '{ristova.accent}',
+          focusBackground: '{ristova.accentLight}',
+          color: '{ristova.dark}',
+          focusColor: '{ristova.dark}',
         },
         mask: {
           background: 'rgba(0,0,0,0.4)',

@@ -87,7 +87,7 @@ export const StockMovementStore = signalStore(
   { providedIn: 'root' },
   withState(initialState),
   
-  withComputed(({ movements, filteredMovements, selectedMovement, filters }) => ({
+  withComputed(({ movements, filteredMovements, selectedMovement, filters, totalOutboundValue, totalInboundValue }) => ({
     /**
      * Conteggio totale dei movimenti disponibili
      */
@@ -182,7 +182,7 @@ export const StockMovementStore = signalStore(
      * Restituisce il saldo netto (entrate - uscite)
      */
     netValue: computed(() => {
-      return store.totalInboundValue() - store.totalOutboundValue();
+      return totalInboundValue() - totalOutboundValue();
     }),
   })),
   
@@ -886,7 +886,7 @@ export const StockMovementStore = signalStore(
       /**
        * Pulisce gli errori
        */
-      clearError() {
+      clearErrors() {
         patchState(store, { error: null });
       }
     };

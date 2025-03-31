@@ -544,8 +544,6 @@ export class NewMovementWizardComponent implements OnInit, OnDestroy {
     }
 
     this.stockMovementStore.createInboundMovement({
-      projectId,
-      warehouseId,
       data: params.data,
     });
   }
@@ -562,8 +560,6 @@ export class NewMovementWizardComponent implements OnInit, OnDestroy {
     }
 
     this.stockMovementStore.createOutboundMovement({
-      projectId,
-      warehouseId,
       data: params.data,
     });
   }
@@ -577,7 +573,6 @@ export class NewMovementWizardComponent implements OnInit, OnDestroy {
     }
 
     this.stockMovementStore.createTransferMovement({
-      projectId,
       data: params.data,
     });
   }
@@ -594,8 +589,6 @@ export class NewMovementWizardComponent implements OnInit, OnDestroy {
     }
 
     this.stockMovementStore.createInventoryCheck({
-      projectId,
-      warehouseId,
       data: params.data,
     });
   }

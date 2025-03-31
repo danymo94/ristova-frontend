@@ -64,7 +64,6 @@ export class MovementListComponent {
       message: 'Sei sicuro di voler eliminare questo movimento?',
       accept: () => {
         this.stockMovementStore.deleteMovement({
-          projectId,
           id: movement.id!,
         });
       },

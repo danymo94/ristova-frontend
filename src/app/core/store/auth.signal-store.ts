@@ -314,7 +314,20 @@ export const AuthStore = signalStore(
         // Aggiungiamo un metodo per gestire la scadenza del token
         handleTokenExpired: () => {
           patchState(store, initialState);
-          router.navigate(['/login']);
+          // Invece di chiamare store.logout()
+          authService
+            .logout()
+            .pipe(
+              tapResponse({
+                next: () => {
+                  router.navigate(['/login']);
+                },
+                error: () => {
+                  router.navigate(['/login']);
+                },
+              })
+            )
+            .subscribe();
         },
 
         // Aggiungi queste nuove funzioni al withMethods

@@ -215,10 +215,6 @@ export class StockMovementsComponent implements OnInit {
     const projectId = this.getSelectedProjectId();
     if (projectId && warehouse.id) {
       // Carica i movimenti per il magazzino selezionato
-      this.stockMovementStore.fetchWarehouseMovements({
-        projectId,
-        warehouseId: warehouse.id,
-      });
 
       // Carica il bilancio di magazzino solo per i magazzini fisici
       if (warehouse.type === 'PHYSICAL') {
