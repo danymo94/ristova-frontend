@@ -1,5 +1,4 @@
 <div class="p-4">
-
   <!-- Stato vuoto quando non c'è progetto selezionato -->
   @if (!selectedProject()) {
   <div class="empty-state">
@@ -17,261 +16,261 @@
   <div class="flex flex-col gap-6">
     <!-- Sezione Prodotti -->
 
-      <div class="w-full flex flex-row justify-between items-center mb-4">
-        <h2 class="text-2xl font-bold mb-4">Gestione Prodotti</h2>
+    <div class="w-full flex flex-row justify-between items-center mb-4">
+      <h2 class="text-2xl font-bold mb-4">Gestione Prodotti</h2>
 
-        <div class="flex items-center gap-2">
-          <button
-            pButton
-            icon="pi pi-refresh"
-            class="p-button-rounded p-button-text"
-            [loading]="loading()"
-            (click)="refreshProducts()"
-            pTooltip="Aggiorna prodotti"
-          ></button>
-          <button
-            pButton
-            [icon]="viewMode() === 'grid' ? 'pi pi-list' : 'pi pi-th-large'"
-            class="p-button-rounded p-button-text"
-            (click)="toggleViewMode()"
-            [pTooltip]="viewMode() === 'grid' ? 'Vista lista' : 'Vista griglia'"
-          ></button>
-          <button
-            pButton
-            icon="pi pi-plus"
-            label="Nuovo Prodotto"
-            class="p-button-sm"
-            (click)="openCreateDialog()"
-          ></button>
-        </div>
-      </div>
-
-      <!-- Filtri -->
-      <div
-        class="w-full flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4"
-      >
-        <div class="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-          <input
-            pInputText
-            type="text"
-            placeholder="Cerca prodotti..."
-            class="w-full md:w-auto rounded border-0 px-3 py-2 text-sm shadow"
-            [(ngModel)]="searchQuery"
-            (ngModelChange)="filterProducts($event)"
-          />
-
-          <p-dropdown
-            [options]="categories() || []"
-            optionLabel="name"
-            optionValue="id"
-            placeholder="Filtra per categoria"
-            [showClear]="true"
-            [style]="{ minWidth: '200px' }"
-            [(ngModel)]="selectedCategoryId"
-            (onChange)="filterByCategory($event.value)"
-            styleClass="shadow"
-          ></p-dropdown>
-        </div>
-
-        <!-- Bottone sincronizzazione CC -->
-        @if (selectedProject()?.CCConnection) {
+      <div class="flex items-center gap-2">
         <button
           pButton
+          icon="pi pi-refresh"
+          class="p-button-rounded p-button-text"
+          [loading]="loading()"
+          (click)="refreshProducts()"
+          pTooltip="Aggiorna prodotti"
+        ></button>
+        <button
+          pButton
+          [icon]="viewMode() === 'grid' ? 'pi pi-list' : 'pi pi-th-large'"
+          class="p-button-rounded p-button-text"
+          (click)="toggleViewMode()"
+          [pTooltip]="viewMode() === 'grid' ? 'Vista lista' : 'Vista griglia'"
+        ></button>
+        <button
+          pButton
+          icon="pi pi-plus"
+          label="Nuovo Prodotto"
+          class="p-button-sm"
+          (click)="openCreateDialog()"
+        ></button>
+      </div>
+    </div>
+
+    <!-- Filtri -->
+    <div
+      class="w-full flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4"
+    >
+      <div class="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+        <input
+          pInputText
+          type="text"
+          placeholder="Cerca prodotti..."
+          class="w-full md:w-auto rounded border-0 px-3 py-2 text-sm shadow"
+          [(ngModel)]="searchQuery"
+          (ngModelChange)="filterProducts($event)"
+        />
+
+        <p-dropdown
+          [options]="categories() || []"
+          optionLabel="name"
+          optionValue="id"
+          placeholder="Filtra per categoria"
+          [showClear]="true"
+          [style]="{ minWidth: '200px' }"
+          [(ngModel)]="selectedCategoryId"
+          (onChange)="filterByCategory($event.value)"
+          styleClass="shadow"
+        ></p-dropdown>
+      </div>
+
+      <!-- Bottone sincronizzazione CC -->
+      @if (selectedProject()?.CCConnection) {
+      <button
+        pButton
+        icon="pi pi-sync"
+        label="Sincronizza da Cassa in Cloud"
+        class="p-button-sm p-button-outlined"
+        (click)="openSyncDialog()"
+        [disabled]="loadingCCProducts() || !ccProducts()?.length"
+      ></button>
+      }
+    </div>
+
+    <!-- Messaggio di stato vuoto uniformato -->
+    <div
+      *ngIf="
+        !loading() && (!filteredProducts() || filteredProducts()!.length === 0)
+      "
+      class="empty-state w-full"
+    >
+      <i class="pi pi-shopping-cart"></i>
+      <h3>Nessun prodotto disponibile</h3>
+      <p *ngIf="!selectedProject()?.CCConnection">
+        Non ci sono prodotti configurati per questo progetto. Puoi creare un
+        nuovo prodotto utilizzando il pulsante qui sotto.
+      </p>
+      <p *ngIf="selectedProject()?.CCConnection">
+        Non ci sono prodotti configurati per questo progetto. Con la connessione
+        a Cassa in Cloud attiva, puoi sincronizzare i prodotti esistenti da
+        Cassa in Cloud.
+      </p>
+      <div class="flex gap-2 justify-center mt-4">
+        <button
+          pButton
+          pRipple
+          icon="pi pi-plus"
+          label="Crea nuovo prodotto"
+          class="p-button-primary"
+          (click)="openCreateDialog()"
+        ></button>
+        <button
+          *ngIf="selectedProject()?.CCConnection"
+          pButton
+          pRipple
           icon="pi pi-sync"
           label="Sincronizza da Cassa in Cloud"
-          class="p-button-sm p-button-outlined"
+          class="p-button-outlined"
           (click)="openSyncDialog()"
-          [disabled]="loadingCCProducts() || !ccProducts()?.length"
         ></button>
-        }
       </div>
+    </div>
 
-      <!-- Messaggio di stato vuoto uniformato -->
-      <div
-        *ngIf="
-          !loading() &&
-          (!filteredProducts() || filteredProducts()!.length === 0)
-        "
-        class="empty-state w-full"
-      >
-        <i class="pi pi-shopping-cart"></i>
-        <h3>Nessun prodotto disponibile</h3>
-        <p *ngIf="!selectedProject()?.CCConnection">
-          Non ci sono prodotti configurati per questo progetto. Puoi creare un
-          nuovo prodotto utilizzando il pulsante qui sotto.
-        </p>
-        <p *ngIf="selectedProject()?.CCConnection">
-          Non ci sono prodotti configurati per questo progetto. Con la
-          connessione a Cassa in Cloud attiva, puoi sincronizzare i prodotti
-          esistenti da Cassa in Cloud.
-        </p>
-        <div class="flex gap-2 justify-center mt-4">
+    <!-- Vista griglia -->
+    @if (viewMode() === 'grid' && !loading() && filteredProducts() &&
+    filteredProducts()!.length > 0) {
+    <div class="product-grid w-full">
+      @for (product of filteredProducts() || []; track product.id) {
+      <div class="product-card">
+        <div class="product-actions">
           <button
-            pButton
-            pRipple
-            icon="pi pi-plus"
-            label="Crea nuovo prodotto"
-            class="p-button-primary"
-            (click)="openCreateDialog()"
-          ></button>
-          <button
-            *ngIf="selectedProject()?.CCConnection"
-            pButton
-            pRipple
-            icon="pi pi-sync"
-            label="Sincronizza da Cassa in Cloud"
-            class="p-button-outlined"
-            (click)="openSyncDialog()"
-          ></button>
-        </div>
-      </div>
-
-      <!-- Vista griglia -->
-      @if (viewMode() === 'grid' && !loading() && filteredProducts() &&
-      filteredProducts()!.length > 0) {
-      <div class="product-grid w-full">
-        @for (product of filteredProducts() || []; track product.id) {
-        <div class="product-card">
-          <div class="product-actions">
-            <button
-              class="text-primary-500 p-1"
-              (click)="openEditDialog(product.id!)"
-            >
-              <i class="pi pi-pencil"></i>
-            </button>
-            <button
-              class="text-red-500 p-1"
-              (click)="deleteProduct($event, product.id!)"
-            >
-              <i class="pi pi-trash"></i>
-            </button>
-          </div>
-
-          <!-- Mostra l'immagine se presente -->
-          <div *ngIf="product.additionalData?.['image']" class="mb-3">
-            <img
-              [src]="product.additionalData?.['image']"
-              class="w-full h-32 object-cover rounded"
-              alt="{{ product.name }}"
-            />
-          </div>
-
-          <h4 class="text-lg font-semibold mb-1">{{ product.name }}</h4>
-          <p class="text-sm text-gray-600 mb-2 line-clamp-2">
-            {{ product.description || "Nessuna descrizione" }}
-          </p>
-
-          <!-- Badge per gli allergeni se presenti -->
-          <div
-            *ngIf="product.allergens && product.allergens.length > 0"
-            class="flex flex-wrap gap-1 mb-2"
+            class="text-primary-500 p-1"
+            (click)="openEditDialog(product.id!)"
           >
-            <p-tag
-              *ngFor="let allergen of product.allergens"
-              [value]="getAllergenName(allergen)"
-              severity="warn"
-              [rounded]="true"
-            ></p-tag>
-          </div>
-
-          <div class="flex justify-between items-center mb-2">
-            <span class="product-price">{{ formatPrice(product.price) }}</span>
-            <span class="text-sm text-primary-700">{{
-              getCategoryName(product.categoryId)
-            }}</span>
-          </div>
-
-          <div class="flex flex-wrap gap-1 mt-auto">
-            <p-tag
-              [severity]="product.isActive ? 'success' : 'warn'"
-              [value]="product.isActive ? 'Attivo' : 'Inattivo'"
-            ></p-tag>
-            <p-tag
-              [severity]="getProductSeverity(product)"
-              [value]="product.CCConnection ? 'Cassa in Cloud' : 'Solo Locale'"
-            ></p-tag>
-          </div>
+            <i class="pi pi-pencil"></i>
+          </button>
+          <button
+            class="text-red-500 p-1"
+            (click)="deleteProduct($event, product.id!)"
+          >
+            <i class="pi pi-trash"></i>
+          </button>
         </div>
-        } @if ((filteredProducts() || []).length === 0) {
-        <div class="col-span-full text-center p-5">
-          @if (loading()) {
-          <i class="pi pi-spin pi-spinner mr-2"></i>Caricamento prodotti... }
-          @else { <i class="pi pi-info-circle mr-2"></i>Nessun prodotto trovato
-          }
-        </div>
-        }
-      </div>
-      }
 
-      <!-- Vista tabella -->
-      @if (viewMode() === 'list' && !loading() && filteredProducts() &&
-      filteredProducts()!.length > 0) {
-      <div
-        class="relative w-full min-w-0 break-words rounded border-0 bg-white shadow-lg"
-      >
-        <p-table
-          [value]="filteredProducts() || []"
-          [loading]="loading()"
-          [paginator]="(filteredProducts()?.length || 0) > 10"
-          [rows]="10"
-          styleClass="p-datatable-sm"
-          responsiveLayout="scroll"
+        <!-- Mostra l'immagine se presente -->
+        <div *ngIf="product.additionalData?.['image']" class="mb-3">
+          <img
+            [src]="product.additionalData?.['image']"
+            class="w-full h-32 object-cover rounded"
+            alt="{{ product.name }}"
+          />
+        </div>
+
+        <h4 class="text-lg font-semibold mb-1">{{ product.name }}</h4>
+        <p class="text-sm text-gray-600 mb-2 line-clamp-2">
+          {{ product.description || "Nessuna descrizione" }}
+        </p>
+
+        <!-- Badge per gli allergeni se presenti -->
+        <div
+          *ngIf="product.allergens && product.allergens.length > 0"
+          class="flex flex-wrap gap-1 mb-2"
         >
-          <ng-template pTemplate="header">
-            <tr>
-              <th pSortableColumn="name">
-                Nome <p-sortIcon field="name"></p-sortIcon>
-              </th>
-              <th pSortableColumn="price" class="text-right">
-                Prezzo <p-sortIcon field="price"></p-sortIcon>
-              </th>
-              <th pSortableColumn="categoryId">
-                Categoria <p-sortIcon field="categoryId"></p-sortIcon>
-              </th>
-              <th class="text-center">Stato</th>
-              <th class="text-center">Azioni</th>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="body" let-product>
-            <tr>
-              <td>{{ product.name }}</td>
-              <td class="text-right">{{ formatPrice(product.price) }}</td>
-              <td>{{ getCategoryName(product.categoryId) }}</td>
-              <td class="text-center">
-                <p-tag
-                  [severity]="product.isActive ? 'success' : 'warn'"
-                  [value]="product.isActive ? 'Attivo' : 'Inattivo'"
-                ></p-tag>
-              </td>
-              <td class="flex gap-3 justify-center">
-                <button
-                  class="text-primary-500 p-1"
-                  (click)="openEditDialog(product.id!)"
-                >
-                  <i class="pi pi-pencil"></i>
-                </button>
-                <button
-                  class="text-red-500 p-1"
-                  (click)="deleteProduct($event, product.id!)"
-                >
-                  <i class="pi pi-trash"></i>
-                </button>
-              </td>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="emptymessage">
-            <tr>
-              <td colspan="5" class="text-center">
-                @if (loading()) {
-                <i class="pi pi-spin pi-spinner mr-2"></i>Caricamento prodotti... }
-                @else { <!-- Lascia vuoto poiché abbiamo già il messaggio centralizzato --> }
-              </td>
-            </tr>
-          </ng-template>
-        </p-table>
+          <p-tag
+            *ngFor="let allergen of product.allergens"
+            [value]="getAllergenName(allergen)"
+            severity="warn"
+            [rounded]="true"
+          ></p-tag>
+        </div>
+
+        <div class="flex justify-between items-center mb-2">
+          <span class="product-price">{{ formatPrice(product.price) }}</span>
+          <span class="text-sm text-primary-700">{{
+            getCategoryName(product.categoryId)
+          }}</span>
+        </div>
+
+        <div class="flex flex-wrap gap-1 mt-auto">
+          <p-tag
+            [severity]="product.isActive ? 'success' : 'warn'"
+            [value]="product.isActive ? 'Attivo' : 'Inattivo'"
+          ></p-tag>
+          <p-tag
+            [severity]="getProductSeverity(product)"
+            [value]="product.CCConnection ? 'Cassa in Cloud' : 'Solo Locale'"
+          ></p-tag>
+        </div>
+      </div>
+      } @if ((filteredProducts() || []).length === 0) {
+      <div class="col-span-full text-center p-5">
+        @if (loading()) {
+        <i class="pi pi-spin pi-spinner mr-2"></i>Caricamento prodotti... }
+        @else { <i class="pi pi-info-circle mr-2"></i>Nessun prodotto trovato }
       </div>
       }
     </div>
+    }
+
+    <!-- Vista tabella -->
+    @if (viewMode() === 'list' && !loading() && filteredProducts() &&
+    filteredProducts()!.length > 0) {
+    <div
+      class="relative w-full min-w-0 break-words rounded border-0 bg-white shadow-lg"
+    >
+      <p-table
+        [value]="filteredProducts() || []"
+        [loading]="loading()"
+        [paginator]="(filteredProducts()?.length || 0) > 10"
+        [rows]="10"
+        styleClass="p-datatable-sm"
+        responsiveLayout="scroll"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th pSortableColumn="name">
+              Nome <p-sortIcon field="name"></p-sortIcon>
+            </th>
+            <th pSortableColumn="price" class="text-right">
+              Prezzo <p-sortIcon field="price"></p-sortIcon>
+            </th>
+            <th pSortableColumn="categoryId">
+              Categoria <p-sortIcon field="categoryId"></p-sortIcon>
+            </th>
+            <th class="text-center">Stato</th>
+            <th class="text-center">Azioni</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-product>
+          <tr>
+            <td>{{ product.name }}</td>
+            <td class="text-right">{{ formatPrice(product.price) }}</td>
+            <td>{{ getCategoryName(product.categoryId) }}</td>
+            <td class="text-center">
+              <p-tag
+                [severity]="product.isActive ? 'success' : 'warn'"
+                [value]="product.isActive ? 'Attivo' : 'Inattivo'"
+              ></p-tag>
+            </td>
+            <td class="flex gap-3 justify-center">
+              <button
+                class="text-primary-500 p-1"
+                (click)="openEditDialog(product.id!)"
+              >
+                <i class="pi pi-pencil"></i>
+              </button>
+              <button
+                class="text-red-500 p-1"
+                (click)="deleteProduct($event, product.id!)"
+              >
+                <i class="pi pi-trash"></i>
+              </button>
+            </td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="5" class="text-center">
+              @if (loading()) {
+              <i class="pi pi-spin pi-spinner mr-2"></i>Caricamento prodotti...
+              } @else {
+              <!-- Lascia vuoto poiché abbiamo già il messaggio centralizzato -->
+              }
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </div>
+    }
+  </div>
   }
 </div>
 
@@ -535,14 +534,16 @@
         <label for="edit-price" class="font-medium mb-2 block"
           >Prezzo (€)</label
         >
-        <p-inputNumber
-          id="edit-price"
-          formControlName="price"
-          mode="currency"
-          currency="EUR"
-          locale="it-IT"
-          class="w-full"
-        ></p-inputNumber>
+        <div class="p-inputgroup">
+          <input
+            type="number"
+            id="edit-price"
+            formControlName="price"
+            class="w-full p-inputtext"
+            step="0.01"
+            min="0"
+          />
+        </div>
       </div>
 
       <div class="flex-1">

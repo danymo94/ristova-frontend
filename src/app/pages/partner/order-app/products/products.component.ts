@@ -518,11 +518,18 @@ export class ProductsComponent implements OnInit {
       return;
     }
 
+    // Verifica se i dipartimenti sono già stati caricati
+    if (this.departments().length > 0) {
+      this.loadingDepartments.set(false);
+      return;
+    }
+
     this.departmentService
       .getDepartmentsBySalesPoint(project.CCApiKey, salesPointId)
       .pipe(finalize(() => this.loadingDepartments.set(false)))
       .subscribe({
         next: (response) => {
+          console.log('Dipartimenti caricati:', response.departments.length);
           this.departments.set(response.departments);
         },
         error: (err) => {
@@ -766,14 +773,14 @@ export class ProductsComponent implements OnInit {
     if (product.CCConnection && this.departments().length === 0) {
       this.loadDepartments();
     }
-    console.log(product.price)
+
     // Populate form - corretto l'accesso a additionalData.CCDepartmentId usando la notazione a parentesi quadre
     this.editForm.patchValue({
       name: product.name,
       description: product.description || '',
-      price: product.price/100,
+      price: product.price, // Non dividiamo per 100, il prezzo è già nel formato corretto
       categoryId: product.categoryId,
-      departmentId: product.additionalData?.['CCDepartmentId'] || '',
+      departmentId: product.CCProduct?.department.id || '',
       allergens: product.allergens || [],
       calories: product.calories || 0,
       sortOrder: product.sortOrder || 0,
@@ -1108,6 +1115,8 @@ export class ProductsComponent implements OnInit {
       // Close dialog after a short delay to allow store update to complete
       setTimeout(() => {
         this.closeEditDialog();
+        // Refreshiamo tutta la lista dei prodotti per assicurarci che la UI si aggiorni correttamente
+        this.refreshProducts();
       }, 500);
 
       this.toastService.showSuccess('Prodotto aggiornato con successo');
