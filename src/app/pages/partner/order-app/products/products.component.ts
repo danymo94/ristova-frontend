@@ -766,12 +766,12 @@ export class ProductsComponent implements OnInit {
     if (product.CCConnection && this.departments().length === 0) {
       this.loadDepartments();
     }
-
+    console.log(product.price)
     // Populate form - corretto l'accesso a additionalData.CCDepartmentId usando la notazione a parentesi quadre
     this.editForm.patchValue({
       name: product.name,
       description: product.description || '',
-      price: product.price,
+      price: product.price/100,
       categoryId: product.categoryId,
       departmentId: product.additionalData?.['CCDepartmentId'] || '',
       allergens: product.allergens || [],

@@ -1,6 +1,6 @@
 
 export const environment = {
   production: false,
-  serverRoot: 'http://localhost:3000/api',
-  apiUrl: 'http://localhost:3000/api',
+  serverRoot: 'https://api-smilingproject001.smilingwitooth.com/api',
+  apiUrl: 'https://api-smilingproject001.smilingwitooth.com/api',
 };
