@@ -95,17 +95,17 @@ export const routes: Routes = [
       {
         path: 'departments',
         loadComponent: () =>
-          import('./pages/partner/order-app/departments/departments.component').then(
-            (m) => m.DepartmentsComponent
-          ),
+          import(
+            './pages/partner/order-app/departments/departments.component'
+          ).then((m) => m.DepartmentsComponent),
         pathMatch: 'full',
       },
       {
         path: 'categories',
         loadComponent: () =>
-          import('./pages/partner/order-app/categories/categories.component').then(
-            (m) => m.CategoriesComponent
-          ),
+          import(
+            './pages/partner/order-app/categories/categories.component'
+          ).then((m) => m.CategoriesComponent),
         pathMatch: 'full',
       },
       {
@@ -135,41 +135,49 @@ export const routes: Routes = [
       {
         path: 'customers',
         loadComponent: () =>
-          import('./pages/partner/order-app/customers/customers.component').then(
-            (m) => m.CustomersComponent
-          ),
+          import(
+            './pages/partner/order-app/customers/customers.component'
+          ).then((m) => m.CustomersComponent),
         pathMatch: 'full',
       },
       {
         path: 'einvoices',
         loadComponent: () =>
-          import('./pages/partner/kambusa-app/einvoices/einvoices.component').then(
-            (m) => m.EinvoicesComponent
-          ),
+          import(
+            './pages/partner/kambusa-app/einvoices/einvoices.component'
+          ).then((m) => m.EinvoicesComponent),
         pathMatch: 'full',
       },
       {
         path: 'rawproducts',
         loadComponent: () =>
-          import('./pages/partner/kambusa-app/rawproducts/rawproducts.component').then(
-            (m) => m.RawproductsComponent
-          ),
+          import(
+            './pages/partner/kambusa-app/rawproducts/rawproducts.component'
+          ).then((m) => m.RawproductsComponent),
         pathMatch: 'full',
       },
       {
         path: 'warehouses',
         loadComponent: () =>
-          import('./pages/partner/kambusa-app/warehouses/warehouses.component').then(
-            (m) => m.WarehousesComponent
-          ),
+          import(
+            './pages/partner/kambusa-app/warehouses/warehouses.component'
+          ).then((m) => m.WarehousesComponent),
         pathMatch: 'full',
       },
-     {
+      {
         path: 'stockmovements',
         loadComponent: () =>
-          import('./pages/partner/kambusa-app/stock-movements/stock-movements.component').then(
-            (m) => m.StockMovementsComponent
-          ),
+          import(
+            './pages/partner/kambusa-app/stock-movements/stock-movements.component'
+          ).then((m) => m.StockMovementsComponent),
+        pathMatch: 'full',
+      },
+      {
+        path: 'daily-closings',
+        loadComponent: () =>
+          import(
+            './pages/partner/daily-closings/daily-closings.component'
+          ).then((m) => m.DailyClosingsComponent),
         pathMatch: 'full',
       },
     ],

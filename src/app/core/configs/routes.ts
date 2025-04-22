@@ -57,11 +57,6 @@ export const partnerRoutes: RouteSection[] = [
     title: 'Pagine Partner',
     links: [
       {
-        name: 'Dashboard',
-        routerLink: '/partner/dashboard',
-        iconClass: 'pi pi-home',
-      },
-      {
         name: 'Profilo',
         routerLink: '/partner/profile',
         iconClass: 'pi pi-user',
@@ -71,12 +66,22 @@ export const partnerRoutes: RouteSection[] = [
         routerLink: '/partner/projects',
         iconClass: 'pi pi-shop',
       },
+      {
+        name: 'Chiusure',
+        routerLink: '/partner/daily-closings',
+        iconClass: 'pi pi-calculator',
+      },
     ],
   },
   {
     title: 'APP Ordini',
     module: 'orderApp',
     links: [
+      {
+        name: 'Dashboard',
+        routerLink: '/partner/dashboard',
+        iconClass: 'pi pi-home',
+      },
       {
         name: 'Ordini',
         routerLink: '/partner/orders',
