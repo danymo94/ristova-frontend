@@ -213,9 +213,12 @@
         [rows]="10"
         styleClass="p-datatable-sm"
         responsiveLayout="scroll"
+        [reorderableColumns]="true"
+        (onRowReorder)="updateSortOrder($event)"
       >
         <ng-template pTemplate="header">
           <tr>
+            <th style="width: 3rem"></th>
             <th pSortableColumn="name">
               Nome <p-sortIcon field="name"></p-sortIcon>
             </th>
@@ -225,15 +228,24 @@
             <th pSortableColumn="categoryId">
               Categoria <p-sortIcon field="categoryId"></p-sortIcon>
             </th>
+            <th pSortableColumn="sortOrder" class="text-center">
+              Ordine <p-sortIcon field="sortOrder"></p-sortIcon>
+            </th>
             <th class="text-center">Stato</th>
             <th class="text-center">Azioni</th>
           </tr>
         </ng-template>
-        <ng-template pTemplate="body" let-product>
-          <tr>
+        <ng-template pTemplate="body" let-product let-index="rowIndex">
+          <tr [pReorderableRow]="index">
+            <td>
+              <span class="p-column-reorder-handle" pReorderableRowHandle>
+                <i class="pi pi-bars"></i>
+              </span>
+            </td>
             <td>{{ product.name }}</td>
             <td class="text-right">{{ formatPrice(product.price) }}</td>
             <td>{{ getCategoryName(product.categoryId) }}</td>
+            <td class="text-center">{{ product.sortOrder }}</td>
             <td class="text-center">
               <p-tag
                 [severity]="product.isActive ? 'success' : 'warn'"
@@ -258,7 +270,7 @@
         </ng-template>
         <ng-template pTemplate="emptymessage">
           <tr>
-            <td colspan="5" class="text-center">
+            <td colspan="6" class="text-center">
               @if (loading()) {
               <i class="pi pi-spin pi-spinner mr-2"></i>Caricamento prodotti...
               } @else {

@@ -446,6 +446,19 @@ export class ProductsComponent implements OnInit {
   }
 
   /**
+   * Loads products based on current selection
+   */
+  loadOnlyLocalProducts(): void {
+    const categoryId = this.selectedCategoryId;
+    if (categoryId) {
+      this.loadProductsByCategory(categoryId);
+    } else {
+      // Modificare in products.component.ts
+      this.productStore.fetchPartnerProducts();
+    }
+  }
+
+  /**
    * Loads products for a specific category
    */
   loadProductsByCategory(categoryId: string): void {
@@ -1116,7 +1129,7 @@ export class ProductsComponent implements OnInit {
       setTimeout(() => {
         this.closeEditDialog();
         // Refreshiamo tutta la lista dei prodotti per assicurarci che la UI si aggiorni correttamente
-        this.refreshProducts();
+        this.loadOnlyLocalProducts();
       }, 500);
 
       this.toastService.showSuccess('Prodotto aggiornato con successo');
@@ -1641,18 +1654,50 @@ export class ProductsComponent implements OnInit {
 
   /**
    * Updates the sort order of products
+   * Riordina sequenzialmente i prodotti ignorando il drag & drop
    */
-  updateSortOrder(products: Product[]): void {
-    if (!products || products.length === 0) return;
+  updateSortOrder(event: any): void {
+    if (!this.filteredProducts() || this.filteredProducts()!.length === 0)
+      return;
 
-    // Create sort order updates
+    console.log('--------- RIORDINAMENTO PRODOTTI ---------');
+
+    // Ottieni l'array corrente dei prodotti
+    const products = [...this.filteredProducts()!];
+
+    console.log('Stato originale dei prodotti:');
+    products.forEach((product, idx) => {
+      console.log(`${idx}. ${product.name}: sortOrder = ${product.sortOrder}`);
+    });
+
+    // Aggiorna l'ordinamento in modo sequenziale da 1 a n, ignorando il drag & drop
     const updates = products.map((product, index) => ({
       id: product.id || '',
-      sortOrder: index,
+      sortOrder: index + 1, // Assegna sortOrder sequenziale partendo da 1
     }));
 
-    // Update with store method
+    // Aggiorna i prodotti con i nuovi valori di sortOrder
+    const productsWithUpdatedOrder = products.map((product, index) => ({
+      ...product,
+      sortOrder: index + 1, // Assegna sortOrder sequenziale partendo da 1
+    }));
+
+    console.log('\nNuovo ordinamento sequenziale:');
+    productsWithUpdatedOrder.forEach((product, idx) => {
+      console.log(`${idx}. ${product.name}: sortOrder = ${product.sortOrder}`);
+    });
+
+    // Aggiorna la vista immediatamente
+    this.filteredProducts.set(productsWithUpdatedOrder);
+
+    // Invia gli aggiornamenti al backend
     this.productStore.updateProductsSortOrder({ updates });
+
+    console.log(
+      `\nAggiornamento completato: ${updates.length} prodotti riordinati sequenzialmente`
+    );
+
+    this.toastService.showSuccess('Prodotti riordinati sequenzialmente');
   }
 
   /**

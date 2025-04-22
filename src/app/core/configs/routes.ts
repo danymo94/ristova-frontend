@@ -11,7 +11,7 @@ export interface RouteSection {
 
 export const adminRoutes: RouteSection[] = [
   {
-    title: 'Admin Pages',
+    title: 'Pagine Admin',
     links: [
       {
         name: 'Dashboard',
@@ -19,38 +19,42 @@ export const adminRoutes: RouteSection[] = [
         iconClass: 'pi pi-home',
       },
       {
-        name: 'Profile',
+        name: 'Profilo',
         routerLink: '/admin/profile',
         iconClass: 'pi pi-user',
       },
       {
-        name: 'Partners',
+        name: 'Partner',
         routerLink: '/admin/partners',
         iconClass: 'pi pi-users',
       },
       {
-        name: 'Restaurants',
+        name: 'Ristoranti',
         routerLink: '/admin/projects',
         iconClass: 'pi pi-shop',
       },
     ],
   },
   {
-    title: 'Revenue Center',
+    title: 'Centro Ricavi',
     links: [
       {
-        name: 'EInvoices',
+        name: 'Fatture Elettroniche',
         routerLink: '/profile',
         iconClass: 'pi pi-file-check',
       },
-      { name: 'Payments', routerLink: '/help', iconClass: 'pi pi-credit-card' },
+      {
+        name: 'Pagamenti',
+        routerLink: '/help',
+        iconClass: 'pi pi-credit-card',
+      },
     ],
   },
 ];
 
 export const partnerRoutes: RouteSection[] = [
   {
-    title: 'Partner Pages',
+    title: 'Pagine Partner',
     links: [
       {
         name: 'Dashboard',
@@ -58,81 +62,55 @@ export const partnerRoutes: RouteSection[] = [
         iconClass: 'pi pi-home',
       },
       {
-        name: 'Profile',
+        name: 'Profilo',
         routerLink: '/partner/profile',
         iconClass: 'pi pi-user',
       },
       {
-        name: 'Restaurants',
+        name: 'Ristoranti',
         routerLink: '/partner/projects',
         iconClass: 'pi pi-shop',
       },
     ],
   },
   {
-    title: 'Order APP',
-    module: 'orderApp', // Corretto il typo "orderaApp" in "orderApp"
+    title: 'APP Ordini',
+    module: 'orderApp',
     links: [
       {
-        name: 'Orders',
+        name: 'Ordini',
         routerLink: '/partner/orders',
         iconClass: 'pi pi-receipt',
       },
       {
-        name: 'Taxes',
+        name: 'Tasse',
         routerLink: '/partner/taxes',
         iconClass: 'pi pi-percentage',
       },
       {
-        name: 'Departments',
+        name: 'Reparti',
         routerLink: '/partner/departments',
         iconClass: 'pi pi-book',
       },
       {
-        name: 'Categories',
+        name: 'Categorie',
         routerLink: '/partner/categories',
         iconClass: 'pi pi-th-large',
       },
       {
-        name: 'Products',
+        name: 'Prodotti',
         routerLink: '/partner/products',
         iconClass: 'pi pi-box',
       },
       {
-        name: 'Tables',
+        name: 'Tavoli',
         routerLink: '/partner/tables',
         iconClass: 'pi pi-clone',
       },
       {
-        name: 'Customers',
+        name: 'Clienti',
         routerLink: '/partner/customers',
         iconClass: 'pi pi-users',
-      },
-    ],
-  },
-  {
-    title: 'Kambusa APP',
-    module: 'kambusaApp',
-    links: [
-      {
-        name: 'EInvoices',
-        routerLink: '/partner/einvoices',
-        iconClass: 'pi pi-receipt',
-      },
-      {
-        name: 'Raw Products',
-        routerLink: '/partner/rawproducts',
-        iconClass: 'pi pi-box',
-      },
-      {
-        name: 'Warehouses',
-        routerLink: '/partner/warehouses',
-        iconClass: 'pi pi-warehouse',
-      },
-      {
-        name: 'Stock Movements',
-        routerLink: '/partner/stockmovements',
-        iconClass: 'pi pi-arrow-right-arrow-left',
       },
     ],
   },
