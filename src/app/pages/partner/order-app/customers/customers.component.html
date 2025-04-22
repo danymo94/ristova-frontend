@@ -437,9 +437,29 @@
 
     <form [formGroup]="creditForm" class="p-fluid">
       <div class="field mb-4">
-        <label for="amount" class="font-medium mb-2 block"
-          >Importo da aggiungere (€)</label
-        >
+        <label for="operation" class="font-medium mb-2 block">Operazione</label>
+        <div class="flex gap-3">
+          <div class="flex-1">
+            <p-radioButton
+              formControlName="operation"
+              value="add"
+              inputId="operation-add"
+            ></p-radioButton>
+            <label for="operation-add" class="ml-2">Aggiungi</label>
+          </div>
+          <div class="flex-1">
+            <p-radioButton
+              formControlName="operation"
+              value="subtract"
+              inputId="operation-subtract"
+            ></p-radioButton>
+            <label for="operation-subtract" class="ml-2">Sottrai</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="field mb-4">
+        <label for="amount" class="font-medium mb-2 block">Importo (€)</label>
         <p-inputNumber
           id="amount"
           formControlName="amount"
@@ -451,7 +471,13 @@
           class="w-full"
         ></p-inputNumber>
         <small class="text-gray-500 mt-2 block">
-          L'importo verrà aggiunto al credito attuale del cliente
+          L'importo verrà
+          {{
+            creditForm.value.operation === "add"
+              ? "aggiunto al"
+              : "sottratto dal"
+          }}
+          credito attuale del cliente
         </small>
       </div>
     </form>
@@ -471,8 +497,14 @@
       ></button>
       <button
         pButton
-        icon="pi pi-plus"
-        label="Aggiungi credito"
+        [icon]="
+          creditForm.value.operation === 'add' ? 'pi pi-plus' : 'pi pi-minus'
+        "
+        [label]="
+          creditForm.value.operation === 'add'
+            ? 'Aggiungi credito'
+            : 'Sottrai credito'
+        "
         [disabled]="creditForm.invalid"
         (click)="updateCustomerCredit()"
       ></button>

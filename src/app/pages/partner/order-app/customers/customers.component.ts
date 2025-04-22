@@ -14,6 +14,7 @@ import { InputTextModule } from 'primeng/inputtext';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { CalendarModule } from 'primeng/calendar';
 import { CheckboxModule } from 'primeng/checkbox';
+import { RadioButtonModule } from 'primeng/radiobutton';
 import { TooltipModule } from 'primeng/tooltip';
 import { TagModule } from 'primeng/tag';
 
@@ -42,6 +43,7 @@ import {
     InputNumberModule,
     CalendarModule,
     CheckboxModule,
+    RadioButtonModule,
     TooltipModule,
     TagModule,
   ],
@@ -208,6 +210,7 @@ export class CustomersComponent implements OnInit {
     // Form per l'aggiornamento del credito
     this.creditForm = this.fb.group({
       amount: [0, [Validators.required, Validators.min(0.01)]],
+      operation: ['add', [Validators.required]], // Default a 'add' per aggiungere credito
     });
   }
 
@@ -392,6 +395,7 @@ export class CustomersComponent implements OnInit {
     this.customerStore.selectCustomer(customer);
     this.creditForm.reset({
       amount: 0,
+      operation: 'add', // Default a 'add' per aggiungere credito
     });
     this.creditDialogVisible.set(true);
   }
@@ -420,8 +424,14 @@ export class CustomersComponent implements OnInit {
     }
 
     const formValue = this.creditForm.value;
+    const operation = formValue.operation || 'add';
+    const amount = formValue.amount || 0;
+
+    // Se l'operazione è subtract (sottrazione), invertiamo il segno dell'importo
+    const finalAmount = operation === 'add' ? amount : -amount;
+
     const creditData: UpdateCustomerCreditDto = {
-      amount: formValue.amount,
+      amount: finalAmount,
     };
 
     this.customerStore.updateCustomerCredit({
