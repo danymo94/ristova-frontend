@@ -37,6 +37,31 @@
   </div>
 
   <div class="flex items-center gap-3 p-4">
+    <!-- App Lock Icon - Mostra sempre tranne nella pagina daily-closings -->
+    <div
+      *ngIf="!isDailyClosingsPage()"
+      class="flex items-center mr-2"
+      (click)="isAppUnlocked() ? lockApp() : null"
+      [ngClass]="{
+        'cursor-pointer hover:opacity-80': isAppUnlocked(),
+        'cursor-not-allowed opacity-70': !isAppUnlocked()
+      }"
+      [pTooltip]="
+        isAppUnlocked()
+          ? 'Clicca per bloccare l\'applicazione'
+          : 'Applicazione bloccata'
+      "
+      tooltipPosition="bottom"
+    >
+      <i
+        class="pi text-xl"
+        [ngClass]="{
+          'pi-lock-open': isAppUnlocked(),
+          'pi-lock': !isAppUnlocked()
+        }"
+      ></i>
+    </div>
+
     <!-- Project selector - Solo per i partner -->
     @if(isAuthenticated() && role() === 'partner' && projects() &&
     projects()!.length > 0) {

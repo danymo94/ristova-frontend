@@ -84,8 +84,8 @@ export class OrdersComponent implements OnInit {
   selectedProject = this.projectStore.selectedProject;
 
   // Signal locali per lo stato del componente - convertiti a variabili standard per evitare errori con ngModel
-  viewMode = signal<'grid' | 'list' | 'calendar'>('list');
-  viewModeValue: 'grid' | 'list' | 'calendar' = 'list';
+  viewMode = signal<'grid' | 'list' | 'calendar'>('grid');
+  viewModeValue: 'grid' | 'list' | 'calendar' = 'grid';
 
   searchQuery = signal<string>('');
   searchQueryValue: string = '';
@@ -129,7 +129,7 @@ export class OrdersComponent implements OnInit {
     { icon: 'pi pi-calendar', value: 'calendar' },
   ];
 
-  // Computed signal per i tavoli filtrati
+  // Computed signal per gli ordini filtrati e ordinati
   filteredOrders = computed(() => {
     const allOrders = this.orders();
     const searchText = this.searchQuery().toLowerCase();
@@ -147,7 +147,8 @@ export class OrdersComponent implements OnInit {
 
     if (!allOrders) return null;
 
-    return allOrders.filter((order) => {
+    // Filtra gli ordini in base ai criteri
+    const filtered = allOrders.filter((order) => {
       // Filtro per testo di ricerca
       const matchesSearch =
         !searchText ||
@@ -177,6 +178,13 @@ export class OrdersComponent implements OnInit {
         matchesToDate &&
         matchesTableId
       );
+    });
+
+    // Ordina gli ordini dal più recente al più vecchio
+    return [...filtered].sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA; // Ordine decrescente (dal più recente al più vecchio)
     });
   });
 
@@ -224,11 +232,28 @@ export class OrdersComponent implements OnInit {
     effect(() => {
       this.filterDialogVisibleValue = this.filterDialogVisible();
     });
+
+    // Imposta la data di oggi per il filtro di default
+    this.initTodayDateFilter();
   }
 
   ngOnInit(): void {
-    // Nessuna operazione specifica all'inizializzazione
     // Gli ordini saranno caricati dall'effect quando il progetto è selezionato
+  }
+
+  /**
+   * Inizializza il filtro per la data odierna
+   */
+  initTodayDateFilter(): void {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Imposta l'ora a mezzanotte
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setMilliseconds(tomorrow.getMilliseconds() - 1); // Fine della giornata (23:59:59.999)
+
+    this.dateRangeValue = [today, tomorrow];
+    this.dateRange.set(this.dateRangeValue);
   }
 
   /**
@@ -241,7 +266,23 @@ export class OrdersComponent implements OnInit {
       return;
     }
 
-    this.orderStore.fetchPartnerOrders({ projectId: project.id });
+    // Prepara i filtri di data se presenti
+    let filters: OrderSearchFilters | undefined;
+    const dateRange = this.dateRange();
+    if (dateRange && dateRange.length > 0) {
+      filters = {
+        fromDate: dateRange[0].toISOString(),
+      };
+
+      if (dateRange.length > 1) {
+        filters.toDate = dateRange[1].toISOString();
+      }
+    }
+
+    this.orderStore.fetchPartnerOrders({
+      projectId: project.id,
+      filters,
+    });
   }
 
   /**
@@ -292,8 +333,8 @@ export class OrdersComponent implements OnInit {
    */
   applyFilters(): void {
     this.updateFilterDialogVisible(false);
-    // Non è necessaria un'operazione esplicita qui poiché i filtri vengono applicati
-    // automaticamente tramite il computed signal filteredOrders
+    // Ricarica gli ordini con i filtri di data se presenti
+    this.loadOrders();
   }
 
   /**
@@ -306,6 +347,12 @@ export class OrdersComponent implements OnInit {
     this.updateDateRange([]);
     this.updateTableId(null);
     this.updateFilterDialogVisible(false);
+
+    // Ricarica gli ordini senza filtri
+    const project = this.selectedProject();
+    if (project) {
+      this.orderStore.fetchPartnerOrders({ projectId: project.id });
+    }
   }
 
   /**

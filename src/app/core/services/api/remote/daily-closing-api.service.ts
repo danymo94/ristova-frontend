@@ -199,16 +199,34 @@ export class DailyClosingApiService {
     month?: number,
     year?: number
   ): Observable<DailyClosing[]> {
-    // Preparazione delle date per il filtro se sono specificati mese e anno
-    let startDate: string | null = null;
-    let endDate: string | null = null;
+    // Preparazione delle date per il filtro
+    // Anche se mese e anno non sono specificati, impostiamo comunque delle date di default
+    // per evitare di inviare null o undefined
+    let startDate: string;
+    let endDate: string;
 
     if (month && year) {
+      // Se sono specificati mese e anno, filtriamo per il mese specifico
       const start = new Date(year, month - 1, 1); // Il mese in JavaScript è 0-based
       start.setHours(0, 0, 0, 0); // Imposta l'ora all'inizio della giornata
 
       const end = new Date(year, month, 0); // L'ultimo giorno del mese
       end.setHours(23, 59, 59, 999); // Imposta l'ora alla fine della giornata
+
+      startDate = start.toISOString();
+      endDate = end.toISOString();
+    } else {
+      // Se non sono specificati, impostiamo un intervallo di date predefinito
+      // Ad esempio, dall'inizio dell'anno corrente fino ad oggi
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+
+      const start = new Date(currentYear, 0, 1); // 1 gennaio dell'anno corrente
+      start.setHours(0, 0, 0, 0);
+
+      // Fine = data corrente alla fine della giornata
+      const end = new Date();
+      end.setHours(23, 59, 59, 999);
 
       startDate = start.toISOString();
       endDate = end.toISOString();

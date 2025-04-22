@@ -205,7 +205,7 @@ export class TablesComponent implements OnInit {
   loadingCCTables = signal<boolean>(false);
   errorCCTables = signal<string | null>(null);
   selectedCCTables = signal<ICCRestaurantTable[]>([]);
-  baseQrUrl = signal<string>('https://dineos.smilingwitooth.com/');
+  baseQrUrl = signal<string>('https://v2.bistronetower.com/');
   tableQrCodes = signal<Map<string, string>>(new Map());
   generatingQrCodes = signal<boolean>(false);
   exportingQrCodes = signal<boolean>(false);
@@ -894,7 +894,7 @@ export class TablesComponent implements OnInit {
    */
   updateBaseQrUrl(newBaseUrl: string): void {
     // Assicurati che l'URL finisca con uno slash
-    let formattedUrl = newBaseUrl || 'https://dineos.smilingwitooth.com/';
+    let formattedUrl = newBaseUrl || 'https://v2.bistronetower.com/';
 
     if (formattedUrl && !formattedUrl.endsWith('/')) {
       formattedUrl += '/';

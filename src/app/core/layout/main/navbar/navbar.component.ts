@@ -8,7 +8,16 @@ import { Project } from '../../../models/project.model';
 import { InputTextModule } from 'primeng/inputtext';
 import { RippleModule } from 'primeng/ripple';
 import { PopoverModule } from 'primeng/popover';
-import { trigger, state, style, animate, transition } from '@angular/animations';
+import { AccessCodeService } from '../../../services/access-code.service';
+import { ToastService } from '../../../services/toast.service';
+import { TooltipModule } from 'primeng/tooltip';
+import {
+  trigger,
+  state,
+  style,
+  animate,
+  transition,
+} from '@angular/animations';
 
 @Component({
   selector: 'app-navbar',
@@ -20,17 +29,24 @@ import { trigger, state, style, animate, transition } from '@angular/animations'
     InputTextModule,
     RippleModule,
     PopoverModule,
+    TooltipModule,
   ],
   animations: [
     trigger('toggleAnimation', [
       // Stato per il menu chiuso (hamburger)
       state('closed', style({ transform: 'rotate(0)' })),
-      // Stato per il menu aperto (freccia)  
+      // Stato per il menu aperto (freccia)
       state('open', style({ transform: 'rotate(360)' })),
       // Transizione con effetto molla quando si apre
-      transition('closed => open', animate('400ms cubic-bezier(0.68, -0.55, 0.27, 1.55)')),
+      transition(
+        'closed => open',
+        animate('400ms cubic-bezier(0.68, -0.55, 0.27, 1.55)')
+      ),
       // Transizione con effetto molla quando si chiude
-      transition('open => closed', animate('400ms cubic-bezier(0.68, -0.55, 0.27, 1.55)')),
+      transition(
+        'open => closed',
+        animate('400ms cubic-bezier(0.68, -0.55, 0.27, 1.55)')
+      ),
     ]),
   ],
   templateUrl: './navbar.component.html',
@@ -39,6 +55,8 @@ export class NavbarComponent {
   private authStore = inject(AuthStore);
   private layoutStore = inject(LayoutStore);
   private projectStore = inject(ProjectStore);
+  private accessCodeService = inject(AccessCodeService);
+  private toastService = inject(ToastService);
 
   // Auth signals
   isAuthenticated = this.authStore.isAuthenticated;
@@ -113,5 +131,32 @@ export class NavbarComponent {
     );
 
     this.filteredProjects.set(filtered);
+  }
+
+  // Verifica se l'app è sbloccata
+  isAppUnlocked(): boolean {
+    return this.accessCodeService.hasValidAccessCode();
+  }
+
+  // Blocca l'applicazione
+  lockApp(): void {
+    if (!this.isDailyClosingsPage()) {
+      this.accessCodeService.clearAccessCode();
+      this.toastService.showSuccess(
+        'Applicazione bloccata',
+        'Per sbloccarla inserisci il codice di accesso'
+      );
+      window.location.reload(); // Ricarica la pagina per attivare il controllo
+    } else {
+      this.toastService.showWarn(
+        'Non disponibile',
+        "Impossibile bloccare l'app nella pagina delle chiusure giornaliere"
+      );
+    }
+  }
+
+  // Verifica se siamo nella pagina delle chiusure giornaliere
+  isDailyClosingsPage(): boolean {
+    return window.location.href.includes('/daily-closings');
   }
 }

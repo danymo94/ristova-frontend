@@ -1,6 +1,8 @@
-<div class="w-dvh h-dvh overflow-hidden">
-    <app-navbar></app-navbar>
-    <main-component></main-component>
-
+<div
+  class="w-dvh h-dvh overflow-hidden"
+  appPageAccess
+  [exempt]="isDailyClosingsPage"
+>
+  <app-navbar></app-navbar>
+  <main-component></main-component>
 </div>
-

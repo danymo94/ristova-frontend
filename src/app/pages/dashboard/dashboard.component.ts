@@ -25,7 +25,6 @@ import { Subject, takeUntil, forkJoin, of} from 'rxjs';
   standalone: true,
   imports: [
     CommonModule,
-    RouterOutlet,
     StatsCardComponent,
     ChartCardComponent,
     DataTableComponent,

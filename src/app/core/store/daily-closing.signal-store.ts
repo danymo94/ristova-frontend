@@ -108,8 +108,12 @@ export const DailyClosingStore = signalStore(
       loadClosings(projectId?: string) {
         patchState(store, { loading: true, error: null });
 
+        // Utilizziamo solo mese e anno come filtri, ignorando il projectId
+        const currentMonth = store.currentMonth();
+        const currentYear = store.currentYear();
+
         dailyClosingApiService
-          .getDailyClosings(projectId)
+          .getDailyClosings(undefined, currentMonth, currentYear)
           .pipe(
             take(1),
             finalize(() => patchState(store, { loading: false }))
@@ -120,7 +124,6 @@ export const DailyClosingStore = signalStore(
                 closings,
                 filteredClosings: closings,
               });
-              this.filterByMonth(store.currentMonth(), store.currentYear());
             },
             error: (error) => {
               patchState(store, {
